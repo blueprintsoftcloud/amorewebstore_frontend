@@ -1,0 +1,57 @@
+/* Real height of Navbar's fixed header (see Navbar.tsx's headerRef/ResizeObserver
+   effect, which keeps this in sync with the actual rendered height). Customer pages
+   clear the header with mt-[var(--app-header-h)] / pt-[var(--app-header-h)] instead of
+   a hardcoded guess. This default only matters for the instant before that effect's
+   first measurement lands. */
+:root {
+  --app-header-h: 104px;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.Toastify__toast-container {
+    z-index: 999999999 !important;
+}
+
+/* Premium Thin Scrollbar Styling */
+.scrollbar-thin {
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 transparent !important;
+  -webkit-overflow-scrolling: touch;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* Chrome, Edge, Safari support */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1 !important;
+  border-radius: 9999px !important;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8 !important;
+}
+
+/* Leaflet map attribution ("Leaflet | © OpenStreetMap") — near-invisible by default
+   across every map on the site, restored on hover so it's still reachable/legible. */
+.leaflet-control-attribution {
+  opacity: 0.04;
+  transition: opacity 0.15s ease;
+}
+.leaflet-control-attribution:hover {
+  opacity: 1;
+}
