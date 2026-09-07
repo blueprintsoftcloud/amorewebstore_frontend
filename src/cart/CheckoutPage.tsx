@@ -411,11 +411,15 @@ const CheckoutPage = () => {
         }
       };
 
+      console.log(' razorpayKey',razorpayKey)
+      console.log(' responseee',res)
+ 
+
       const options = {
         key: razorpayKey,
         amount: res.data.rzpOrder.amount,
         currency: "INR",
-        name: "blueprint_crm",
+        name: "Amore Webstore",
         description: "Order payment",
         order_id: res.data.rzpOrder.id,
         method: {
@@ -479,6 +483,8 @@ const CheckoutPage = () => {
           },
         },
       };
+
+      console.log(' optionsssss',options)
 
       const rzp = new (window as any).Razorpay(options);
 

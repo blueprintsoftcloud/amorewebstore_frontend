@@ -26,8 +26,8 @@ import { useAuth } from "../context/AuthContext";
 const DEEP_GREEN = "#34433d";
 
 // ── MSG91 Widget (client-side public keys — safe to expose in browser) ────────
-const MSG91_TOKEN_AUTH = "470679Ta3KdMQSELGw68d4f098P1";
-const MSG91_WIDGET_ID  = "356979674149373833343037";
+const MSG91_TOKEN_AUTH = "565277TFf8gnbXZ6a9a6afbP1";
+const MSG91_WIDGET_ID = "366964665932373435323438";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Mode = "sign-in" | "register";
