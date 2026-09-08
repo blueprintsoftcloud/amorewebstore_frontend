@@ -1,877 +1,3 @@
-// import React, { useState, useEffect, useRef } from "react";
-// import { Link, useNavigate, useLocation } from "react-router-dom";
-// import { Dialog, DialogPanel, DialogBackdrop, DialogTitle } from "@headlessui/react";
-// import {
-//   Bars3Icon,
-//   UserIcon,
-//   XMarkIcon,
-//   HeartIcon as HeartOutline,
-//   BellIcon,
-//   ShoppingBagIcon,
-//   ChevronDownIcon,
-//   HomeIcon,
-//   CubeIcon,
-//   ClipboardDocumentListIcon,
-//   CreditCardIcon,
-//   MagnifyingGlassIcon,
-// } from "@heroicons/react/24/outline";
-// import {
-//   HeartIcon as HeartSolid,
-//   ShoppingBagIcon as ShoppingBagSolid,
-//   BellIcon as BellSolid,
-// } from "@heroicons/react/24/solid";
-// import logo123 from "../assets/logo.png";
-// import { useWishlist } from "../context/WishlistContext";
-// import { useAuth } from "../context/AuthContext";
-// import { useBranding } from "../context/BrandingContext";
-// import { useUserNotifications } from "../context/UserNotificationContext";
-// import { useNotifications } from "../context/NotificationContext";
-// import CustomerAuthModal from "./CustomerAuthModal";
-// import toast from "react-hot-toast";
-// import api from "../utils/api";
-// import { domainUrl } from "../utils/constant";
-
-
-// const Navbar = ({ user, role, cartItemCount = 0, handleLogout }: { user?: { isAuthenticated?: boolean; role?: string | null }; role?: string | null; cartItemCount?: number; handleLogout?: () => void }) => {
-//   const navigate = useNavigate();
-//   const location = useLocation();
-//   const { logout } = useAuth();
-//   const { branding } = useBranding();
-//   const { wishlistCount } = useWishlist();
-//   const { notifications: userNotifications, unreadCount: userUnreadCount, markAsRead } = useUserNotifications();
-//   const { unreadCount: adminUnreadCount } = useNotifications();
-
-//   const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
-//   const adminDashboardPath = role === "SUPER_ADMIN" ? "/super-admin-dashboard" : "/admin-dashboard";
-//   const unreadCount = isAdmin ? adminUnreadCount : userUnreadCount;
-//   const [notifOpen, setNotifOpen] = useState(false);
-//   const notifRef = useRef<HTMLDivElement>(null);
-
-//   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-//   const [scrolled, setScrolled] = useState(false);
-//   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-//   const [customerAuthOpen, setCustomerAuthOpen] = useState(false);
-
-//   // --- SEARCH STATE ---
-//   const [searchQuery, setSearchQuery] = useState("");
-//   const [searchResults, setSearchResults] = useState<{
-//     categories: Array<{ id: string; name: string; image?: string }>;
-//     products: Array<{ id: string; name: string; price: number; image?: string; category?: { id: string; name: string } }>;
-//   } | null>(null);
-//   const [searchLoading, setSearchLoading] = useState(false);
-//   const [searchFocused, setSearchFocused] = useState(false);
-//   const searchRef = useRef<HTMLDivElement>(null);
-
-//   // --- ACKNOWLEDGED COUNT STATE (Persisted) ---
-//   const [ackCartCount, setAckCartCount] = useState(() => {
-//     return parseInt(localStorage.getItem("ack_cart_count") || "0", 10);
-//   });
-
-//   const [ackWishlistCount, setAckWishlistCount] = useState(() => {
-//     return parseInt(localStorage.getItem("ack_wishlist_count") || "0", 10);
-//   });
-
-//   // --- MATCHING LOGIC ---
-//   const currentPath = location.pathname.toLowerCase();
-//   const isCartPage = currentPath.includes("cart");
-//   const isWishlistPage = currentPath.includes("wishlist");
-
-//   // --- SYNC LOGIC ---
-//   useEffect(() => {
-//     if (isCartPage) {
-//       setAckCartCount(cartItemCount);
-//       localStorage.setItem("ack_cart_count", String(cartItemCount));
-//     }
-//   }, [isCartPage, cartItemCount]);
-
-//   useEffect(() => {
-//     if (!isWishlistPage) return;
-//     setAckWishlistCount((prev) => {
-//       const next = Math.max(prev, wishlistCount);
-//       localStorage.setItem("ack_wishlist_count", String(next));
-//       return next;
-//     });
-//   }, [isWishlistPage, wishlistCount]);
-
-//   // Scroll effect
-//   useEffect(() => {
-//     const handleScroll = () => {
-//       setScrolled(window.scrollY > 10);
-//     };
-//     window.addEventListener("scroll", handleScroll);
-//     return () => window.removeEventListener("scroll", handleScroll);
-//   }, []);
-
-//   // Open auth modal from anywhere via window event
-//   useEffect(() => {
-//     const handler = () => setCustomerAuthOpen(true);
-//     window.addEventListener("openCustomerAuth", handler);
-//     return () => window.removeEventListener("openCustomerAuth", handler);
-//   }, []);
-
-//   // Close notification dropdown on outside click
-//   useEffect(() => {
-//     const handler = (e: MouseEvent) => {
-//       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
-//     };
-//     if (notifOpen) document.addEventListener("mousedown", handler);
-//     return () => document.removeEventListener("mousedown", handler);
-//   }, [notifOpen]);
-
-//   // Close search on outside click
-//   useEffect(() => {
-//     const handler = (e: MouseEvent) => {
-//       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-//         setSearchFocused(false);
-//       }
-//     };
-//     if (searchFocused) document.addEventListener("mousedown", handler);
-//     return () => document.removeEventListener("mousedown", handler);
-//   }, [searchFocused]);
-
-//   // Debounced search API call
-//   useEffect(() => {
-//     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-//       setSearchResults(null);
-//       setSearchLoading(false);
-//       return;
-//     }
-//     setSearchLoading(true);
-//     const timer = setTimeout(async () => {
-//       try {
-//         const res = await api.get(`/user/shop/global-search?q=${encodeURIComponent(searchQuery.trim())}`);
-//         setSearchResults(res.data);
-//       } catch {
-//         setSearchResults({ categories: [], products: [] });
-//       } finally {
-//         setSearchLoading(false);
-//       }
-//     }, 350);
-//     return () => clearTimeout(timer);
-//   }, [searchQuery]);
-
-//   const handleCategoryClick = (categoryId: string) => {
-//     setSearchFocused(false);
-//     setSearchQuery("");
-//     setSearchResults(null);
-//     navigate(`/categories/${categoryId}`);
-//   };
-
-//   const handleProductClick = (productId: string) => {
-//     setSearchFocused(false);
-//     setSearchQuery("");
-//     setSearchResults(null);
-//     navigate(`/products/${productId}`);
-//   };
-
-
-//   const isAuthenticated = user?.isAuthenticated;
-
-//   // --- BADGE VISIBILITY LOGIC ---
-//   const showCartBadge = cartItemCount > ackCartCount;
-//   const showWishlistBadge = wishlistCount > 0;
-
-//   const handleCartClick = () => {
-//     setAckCartCount(cartItemCount);
-//     localStorage.setItem("ack_cart_count", String(cartItemCount));
-//   };
-
-//   const handleWishlistClick = (e: React.MouseEvent) => {
-//     handleGatedNavigation(e, "/WishlistPage", true);
-//     setAckWishlistCount((prev) => {
-//       const next = Math.max(prev, wishlistCount);
-//       localStorage.setItem("ack_wishlist_count", String(next));
-//       return next;
-//     });
-//   };
-
-//   const handleUserIconClick = () => {
-//     if (!isAuthenticated) {
-//       setCustomerAuthOpen(true);
-//     } else {
-//       setIsUserDropdownOpen(!isUserDropdownOpen);
-//     }
-//   };
-
-
-//   const handleGatedNavigation = (e: React.MouseEvent, path: string, isProtected: boolean) => {
-//     e.preventDefault();
-
-//     if (isProtected && !isAuthenticated) {
-//       toast.error("Please login to continue",
-//         { id: "please login to continue wishlist" });
-//       return;
-//     }
-
-//     navigate(path);
-//   };
-
-
-//   const navigation = [
-//     { name: "Home", href: "/", protected: false, icon: HomeIcon },
-//     { name: "Products", href: "/products", protected: false, icon: CubeIcon },
-//     ...(isAuthenticated
-//       ? [
-//         { name: "My Orders", href: "/myorders", protected: true, icon: ClipboardDocumentListIcon },
-//         { name: "Transactions", href: "/transactions", protected: true, icon: CreditCardIcon },
-//       ]
-//       : []),
-//   ];
-
-
-//   const isActive = (path: string) => {
-//     if (path === "/") return location.pathname === "/";
-//     return location.pathname.startsWith(path);
-//   };
-
-//   return (
-//     <>
-//       <header className="fixed top-0 left-0 w-full z-40 font-sans ">
-//         {/* GLASSMORPHISM EFFECT (Light Black)
-//          - bg-black/40 or bg-gray-900/30: Semi-transparent dark background
-//          - backdrop-blur-xl or backdrop-blur-2xl: Strong blur for the "glass" look
-//          - border-white/10: Subtle light border for edge definition
-//       */}
-//         <nav className={`relative w-full transition-all duration-500 ${scrolled
-//             ? "bg-white/60 backdrop-blur-2xl shadow-2xl shadow-black/20 py-4 border-b border-black/10" // Scrolled: slightly darker, strong blur
-//             : "bg-white/70 backdrop-blur-xl border-b border-black/5 py-6" // Top: very transparent, frosted
-//           // :"bg-gradient-to-r from-gray-900 via-indigo-900 to-rose-900 py-6"
-//           }`}>
-//           <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
-//             <div className="flex items-center justify-between">
-//               {/* LEFT: Logo & Mobile Menu */}
-//               <div className="flex items-center gap-2 sm:gap-4 lg:gap-8 flex-shrink-0">
-//                 <button
-//                   type="button"
-//                   className="lg:hidden p-2.5 rounded-lg hover:bg-black/5 transition-all duration-300 group"
-//                   onClick={() => setMobileMenuOpen(true)}
-//                 >
-//                   <Bars3Icon className="h-6 w-6 text-gray-800 group-hover:text-black transition-colors" />
-//                 </button>
-
-//                 <Link to="/" className="flex-shrink-0">
-//                   <div className="flex items-center gap-2 lg:gap-3">
-//                     {branding.companyLogo ? (
-//                       <img
-//                         src={branding.companyLogo.startsWith("http") ? branding.companyLogo : `${domainUrl}/${branding.companyLogo}`}
-//                         alt={branding.companyName || ""}
-//                         className="h-8 md:h-9 lg:h-10 w-auto object-contain transition-all duration-300 filter brightness-125"
-//                       />
-//                     ) : null}
-//                     <div className="hidden sm:block">
-//                       {branding.companyName && (
-//                         <div className="text-xs md:text-sm font-bold text-black tracking-widest uppercase">{branding.companyName}</div>
-//                       )}
-//                       {branding.companyTagline && (
-//                         <div className="text-[10px] text-gray-400 tracking-wider hidden xl:block">{branding.companyTagline}</div>
-//                       )}
-//                     </div>
-//                   </div>
-//                 </Link>
-//               </div>
-
-//               {/* CENTER: Desktop Navigation Links */}
-//               <div className="hidden lg:flex items-center gap-1 xl:gap-2">
-//                 {navigation.map((item) => {
-//                   const Icon = item.icon;
-//                   const active = isActive(item.href);
-//                   return (
-//                     <Link
-//                       key={item.name}
-//                       to={item.href}
-//                       onClick={(e) => item.protected && !isAuthenticated ? handleGatedNavigation(e, item.href, true) : null}
-//                       className={`relative flex items-center gap-2 px-3.5 py-2 xl:px-4 xl:py-2 text-xs xl:text-sm font-bold tracking-tight transition-all duration-200 rounded-xl cursor-pointer ${
-//                         active
-//                           ? "bg-black text-white shadow-md shadow-black/10 border border-black/10"
-//                           : "text-slate-700 hover:text-black hover:bg-black/5"
-//                       }`}
-//                     >
-//                       <Icon className={`h-4 w-4 transition-colors ${active ? 'text-white' : 'text-slate-500'}`} strokeWidth={2} />
-//                       {item.name}
-//                     </Link>
-//                   );
-//                 })}
-//               </div>
-
-//               {/* RIGHT: Search, Actions & Auth */}
-//               <div className="flex items-center gap-2 sm:gap-3 xl:gap-4 flex-shrink-0">
-//                 {/* Global Search Bar */}
-//                 <div ref={searchRef} className="relative hidden md:block">
-//                   <div className="relative flex items-center">
-//                     <MagnifyingGlassIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" strokeWidth={2} />
-//                     <input
-//                       type="text"
-//                       value={searchQuery}
-//                       onChange={(e) => setSearchQuery(e.target.value)}
-//                       onFocus={() => setSearchFocused(true)}
-//                       placeholder="Search products & categories..."
-//                       className="w-44 lg:w-56 xl:w-64 focus:w-72 pl-9 pr-8 py-2 bg-black/5 border border-black/10 rounded-full text-xs xl:text-sm text-black placeholder-gray-500 focus:outline-none focus:border-black/30 focus:bg-black/10 transition-all duration-300 shadow-xs"
-//                     />
-//                     {searchLoading && (
-//                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-//                         <svg className="animate-spin h-3.5 w-3.5 text-gray-500" fill="none" viewBox="0 0 24 24">
-//                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-//                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-//                         </svg>
-//                       </div>
-//                     )}
-//                     {searchQuery && !searchLoading && (
-//                       <button
-//                         onMouseDown={(e) => { e.preventDefault(); setSearchQuery(""); setSearchResults(null); }}
-//                         className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-black/5 rounded-full transition-colors cursor-pointer"
-//                       >
-//                         <XMarkIcon className="h-3.5 w-3.5 text-gray-500" />
-//                       </button>
-//                     )}
-//                   </div>
-
-//                   {/* Search Results Dropdown */}
-//                   {searchFocused && searchQuery.trim().length >= 2 && (
-//                     <div className="absolute top-full right-0 mt-2.5 w-80 xl:w-96 bg-white border border-black/10 rounded-2xl shadow-2xl shadow-black/10 z-50 overflow-hidden max-h-[420px] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-//                       {searchLoading && (
-//                         <div className="flex items-center justify-center gap-2 p-6 text-sm text-gray-500">
-//                           <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-//                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-//                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-//                           </svg>
-//                           Searching...
-//                         </div>
-//                       )}
-//                       {!searchLoading && searchResults && (
-//                         <>
-//                           {searchResults.categories.length > 0 && (
-//                             <div>
-//                               <div className="px-4 pt-3 pb-1.5 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
-//                                 Categories
-//                               </div>
-//                               {searchResults.categories.map((cat) => (
-//                                 <button
-//                                   key={cat.id}
-//                                   onMouseDown={() => handleCategoryClick(cat.id)}
-//                                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-black/5 transition-colors text-left group/item cursor-pointer"
-//                                 >
-//                                   <div className="w-9 h-9 rounded-lg overflow-hidden bg-black/5 flex-shrink-0 border border-black/5">
-//                                     {cat.image ? (
-//                                       <img
-//                                         src={cat.image.startsWith("http") ? cat.image : `${domainUrl}/${cat.image}`}
-//                                         alt={cat.name}
-//                                         className="w-full h-full object-cover"
-//                                       />
-//                                     ) : (
-//                                       <div className="w-full h-full flex items-center justify-center">
-//                                         <CubeIcon className="h-4 w-4 text-gray-450" />
-//                                       </div>
-//                                     )}
-//                                   </div>
-//                                   <div className="flex-1 min-w-0">
-//                                     <div className="text-sm text-black font-medium">{cat.name}</div>
-//                                     <div className="text-xs text-gray-500">Browse all {cat.name}</div>
-//                                   </div>
-//                                   <svg className="h-4 w-4 text-gray-400 group-hover/item:text-black transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-//                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-//                                   </svg>
-//                                 </button>
-//                               ))}
-//                             </div>
-//                           )}
-
-//                           {searchResults.products.length > 0 && (
-//                             <div className={searchResults.categories.length > 0 ? "border-t border-black/5 mt-1" : ""}>
-//                               <div className="px-4 pt-3 pb-1.5 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
-//                                 Products
-//                               </div>
-//                               {searchResults.products.map((prod) => (
-//                                 <button
-//                                   key={prod.id}
-//                                   onMouseDown={() => handleProductClick(prod.id)}
-//                                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-black/5 transition-colors text-left group/item cursor-pointer"
-//                                 >
-//                                   <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/5 flex-shrink-0 border border-black/5">
-//                                     {prod.image ? (
-//                                       <img
-//                                         src={prod.image.startsWith("http") ? prod.image : `${domainUrl}/${prod.image}`}
-//                                         alt={prod.name}
-//                                         className="w-full h-full object-cover"
-//                                       />
-//                                     ) : (
-//                                       <div className="w-full h-full flex items-center justify-center">
-//                                         <ShoppingBagIcon className="h-4 w-4 text-gray-455" />
-//                                       </div>
-//                                     )}
-//                                   </div>
-//                                   <div className="flex-1 min-w-0">
-//                                     <div className="text-sm text-black font-medium truncate">{prod.name}</div>
-//                                     <div className="text-xs text-gray-500 truncate">
-//                                       {prod.category?.name} · ₹{prod.price?.toLocaleString()}
-//                                     </div>
-//                                   </div>
-//                                   <svg className="h-4 w-4 text-gray-400 group-hover/item:text-black transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-//                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-//                                   </svg>
-//                                 </button>
-//                               ))}
-//                             </div>
-//                           )}
-
-//                           {searchResults.categories.length === 0 && searchResults.products.length === 0 && (
-//                             <div className="py-10 text-center">
-//                               <MagnifyingGlassIcon className="h-8 w-8 text-gray-400 mx-auto mb-3" />
-//                               <p className="text-gray-500 text-sm">No results for <span className="text-black font-medium">"{searchQuery}"</span></p>
-//                               <p className="text-gray-400 text-xs mt-1">Try a different keyword</p>
-//                             </div>
-//                           )}
-//                         </>
-//                       )}
-//                     </div>
-//                   )}
-//                 </div>
-
-//                 {/* Action Icons & Auth */}
-//                 <div className="flex items-center gap-1 sm:gap-2 lg:gap-3">
-//                   {/* Action Icons — visible only when logged in */}
-//                   {isAuthenticated && (
-//                     <>
-//                       {/* Wishlist Icon */}
-//                       <button
-//                         onClick={handleWishlistClick}
-//                         className="relative p-2 rounded-lg hover:bg-black/5 transition-all duration-300 group cursor-pointer"
-//                       >
-//                         {isActive('/wishlist') ? (
-//                           <HeartSolid className="h-5 w-5 text-pink-500 group-hover:text-pink-600 transition-colors" />
-//                         ) : (
-//                           <HeartOutline className="h-5 w-5 text-gray-800 group-hover:text-pink-500 transition-colors" />
-//                         )}
-//                         {showWishlistBadge && (
-//                           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-gradient-to-r from-pink-500 to-rose-500 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-1 animate-pulse">
-//                             {wishlistCount}
-//                           </span>
-//                         )}
-//                       </button>
-
-//                       {/* Cart Icon */}
-//                       <Link
-//                         to="/cart"
-//                         onClick={(e) => {
-//                           if (!isAuthenticated) {
-//                             e.preventDefault();
-//                             toast.error("Please login to continue",
-//                               { id: "Navbar login to continue" });
-//                             return;
-//                           }
-//                           handleCartClick();
-//                         }}
-//                         className="relative p-2 rounded-lg hover:bg-black/5 transition-all duration-300 group cursor-pointer"
-//                       >
-//                         {isActive('/cart') ? (
-//                           <ShoppingBagSolid className="h-5 w-5 text-emerald-600 group-hover:text-emerald-500 transition-colors" />
-//                         ) : (
-//                           <ShoppingBagIcon className="h-5 w-5 text-gray-800 group-hover:text-emerald-500 transition-colors" />
-//                         )}
-//                         {showCartBadge && (
-//                           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-gradient-to-r from-emerald-500 to-teal-500 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-1 animate-bounce">
-//                             {cartItemCount}
-//                           </span>
-//                         )}
-//                       </Link>
-//                     </>
-//                   )}
-
-//                   {/* Bell notification — customers get dropdown, admin/superadmin get count-only badge linking to dashboard */}
-//                   {isAuthenticated && (
-//                     <div ref={notifRef} className="relative">
-//                       {isAdmin ? (
-//                         // Admin/SuperAdmin: count badge only, click navigates to dashboard notifications
-//                         <button
-//                           onClick={() => navigate(`${adminDashboardPath}/notifications`)}
-//                           className="relative p-2.5 rounded-lg hover:bg-black/5 transition-all duration-300 group"
-//                           aria-label="Notifications"
-//                         >
-//                           <BellIcon className="h-5 w-5 text-gray-800 group-hover:text-black transition-colors" />
-//                           {unreadCount > 0 && (
-//                             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-gradient-to-r from-rose-500 to-pink-500 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse">
-//                               {unreadCount > 99 ? "99+" : unreadCount}
-//                             </span>
-//                           )}
-//                         </button>
-//                       ) : (
-//                         // Customer: full dropdown
-//                         <>
-//                           <button
-//                             onClick={() => setNotifOpen((o) => !o)}
-//                             className="relative p-2 rounded-lg hover:bg-black/5 transition-all duration-300 group"
-//                             aria-label="Notifications"
-//                           >
-//                             {notifOpen ? (
-//                               <BellSolid className="h-5 w-5 text-black" />
-//                             ) : (
-//                               <BellIcon className="h-5 w-5 text-gray-800 group-hover:text-black transition-colors" />
-//                             )}
-//                             {unreadCount > 0 && (
-//                               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-gradient-to-r from-rose-500 to-pink-500 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse">
-//                                 {unreadCount > 99 ? "99+" : unreadCount}
-//                               </span>
-//                             )}
-//                           </button>
-
-//                           {/* Dropdown panel */}
-//                           {notifOpen && (
-//                             <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white border border-black/10 rounded-xl shadow-2xl shadow-black/10 z-50 overflow-hidden">
-//                               {/* Header */}
-//                               <div className="flex items-center justify-between px-4 py-3 border-b border-black/10">
-//                                 <h3 className="font-semibold text-black text-sm">Notifications</h3>
-//                                 {unreadCount > 0 && (
-//                                   <span className="text-xs bg-rose-500/10 text-rose-600 rounded-full px-2.5 py-0.5 font-semibold border border-rose-500/10">
-//                                     {unreadCount} new
-//                                   </span>
-//                                 )}
-//                               </div>
-
-//                               {/* List */}
-//                               <div className="max-h-72 overflow-y-auto divide-y divide-black/5">
-//                                 {userNotifications.length === 0 ? (
-//                                   <p className="text-center text-sm text-gray-500 py-10">No notifications yet</p>
-//                                 ) : (
-//                                   userNotifications.slice(0, 8).map((n) => {
-//                                     const id = n.id ?? n._id;
-//                                     return (
-//                                       <button
-//                                         key={id}
-//                                         className={`w-full text-left px-4 py-3 transition-colors flex items-start gap-2.5 ${!n.isRead ? "bg-black/5 hover:bg-black/10" : "hover:bg-black/5"
-//                                           }`}
-//                                         onClick={() => {
-//                                           if (!n.isRead && id) markAsRead(id);
-//                                           setNotifOpen(false);
-//                                         }}
-//                                       >
-//                                         {!n.isRead && (
-//                                           <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-600" />
-//                                         )}
-//                                         <div className={n.isRead ? "pl-4" : ""}>
-//                                           <p className={`text-sm leading-snug line-clamp-2 ${!n.isRead ? "font-semibold text-black" : "text-gray-600"}`}>
-//                                             {n.message}
-//                                           </p>
-//                                           {n.createdAt && (
-//                                             <p className="text-xs text-gray-500 mt-0.5">
-//                                               {new Date(n.createdAt).toLocaleString("en-IN", {
-//                                                 day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-//                                               })}
-//                                             </p>
-//                                           )}
-//                                         </div>
-//                                       </button>
-//                                     );
-//                                   })
-//                                 )}
-//                               </div>
-
-//                               {/* Footer */}
-//                               {userNotifications.length > 0 && (
-//                                 <div className="border-t border-black/10 px-4 py-2.5">
-//                                   <Link
-//                                     to="/myorders"
-//                                     onClick={() => setNotifOpen(false)}
-//                                     className="text-xs text-gray-600 hover:text-black transition-colors"
-//                                   >
-//                                     View My Orders →
-//                                   </Link>
-//                                 </div>
-//                               )}
-//                             </div>
-//                           )}
-//                         </>
-//                       )}
-//                     </div>
-//                   )}
-
-//                   {/* Auth Section */}
-//                   {!isAuthenticated ? (
-//                     <div className="hidden md:flex items-center gap-3 ml-2">
-//                       <button
-//                         onClick={() => setCustomerAuthOpen(true)}
-//                         className="px-4 py-2 bg-black hover:bg-black/90 border border-black/10 text-white text-xs md:text-sm font-semibold rounded-lg transition-all duration-300 backdrop-blur-sm shadow-[0_0_10px_rgba(0,0,0,0.05)] focus:outline-none"
-//                       >
-//                         Sign In
-//                       </button>
-//                     </div>
-//                   ) : (
-//                     <div className="relative">
-//                       <button
-//                         onClick={handleUserIconClick}
-//                         className="hidden md:flex items-center gap-2 ml-1 lg:ml-2 p-2 rounded-lg hover:bg-black/5 focus:outline-none transition-all duration-300 group"
-//                       >
-//                         <div className="w-8 h-8 lg:w-9 lg:h-9 bg-black/5 border border-black/10 rounded-full flex items-center justify-center group-hover:border-black/30 transition-colors backdrop-blur-md">
-//                           <UserIcon className="h-4 w-4 text-gray-700 group-hover:text-black" />
-//                         </div>
-//                         <ChevronDownIcon className={`h-3.5 w-3.5 lg:h-4 lg:w-4 text-gray-650 transition-all duration-300 ${isUserDropdownOpen ? 'rotate-180 text-black' : ''}`} />
-//                       </button>
-
-//                       {/* User Dropdown */}
-//                       {isUserDropdownOpen && (
-//                         <div className="absolute top-full right-0 mt-3 w-56 bg-white rounded-xl shadow-2xl shadow-black/10 border border-black/10 py-2 z-50">
-//                           <Link
-//                             to="/profile"
-//                             onClick={() => setIsUserDropdownOpen(false)}
-//                             className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:text-black hover:bg-black/5 transition-colors"
-//                           >
-//                             <UserIcon className="h-4 w-4" />
-//                             My Profile
-//                           </Link>
-//                           <div className="border-t border-black/10 my-2"></div>
-//                           <button
-//                             onClick={() => {
-//                               logout();
-//                               setIsUserDropdownOpen(false);
-//                             }}
-//                             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-500/5 transition-colors"
-//                           >
-//                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-//                             </svg>
-//                             Logout
-//                           </button>
-//                         </div>
-//                       )}
-//                     </div>
-//                   )}
-//                 </div>
-//               </div>
-//             </div>
-//           </div>
-//         </nav>
-
-
-//         {/* ------------------------------------------------ */}
-//         {/* ENHANCED MOBILE MENU */}
-//         {/* ------------------------------------------------ */}
-//         <Dialog
-//           open={mobileMenuOpen}
-//           onClose={setMobileMenuOpen}
-//           className="relative z-[100] lg:hidden"
-//         >
-//           <DialogBackdrop className="fixed inset-0 bg-black/80 backdrop-blur-xl transition-opacity duration-300 z-[100]" />
-//           <div className="fixed inset-0 z-[100] flex">
-//             <DialogPanel className="relative mr-auto flex h-full w-[320px] max-w-[85vw] flex-col overflow-y-auto bg-black/95 backdrop-blur-2xl shadow-2xl transition-transform duration-300 border-r border-white/10">
-//               {/* Header */}
-//               <div className="px-6 py-5 border-b border-white/10">
-//                 <div className="flex items-center justify-between">
-//                   <Link to="/" onClick={() => setMobileMenuOpen(false)}>
-//                     <div className="flex items-center gap-3">
-//                       {branding.companyLogo ? (
-//                         <img
-//                           src={branding.companyLogo.startsWith("http") ? branding.companyLogo : `${domainUrl}/${branding.companyLogo}`}
-//                           alt={branding.companyName || ""}
-//                           className="h-8 w-auto filter brightness-125 object-contain"
-//                         />
-//                       ) : null}
-//                       {(branding.companyName || branding.companyTagline) ? (
-//                         <div>
-//                           {branding.companyName && (
-//                             <div className="text-sm font-bold text-white uppercase tracking-widest">{branding.companyName}</div>
-//                           )}
-//                           {branding.companyTagline && (
-//                             <div className="text-xs text-gray-400 tracking-wider">{branding.companyTagline}</div>
-//                           )}
-//                         </div>
-//                       ) : null}
-//                     </div>
-//                   </Link>
-//                   <button
-//                     onClick={() => setMobileMenuOpen(false)}
-//                     className="p-2 hover:bg-white/10 rounded-lg transition-colors border border-white/10"
-//                   >
-//                     <XMarkIcon className="h-6 w-6 text-gray-300" />
-//                   </button>
-//                 </div>
-//               </div>
-
-//               {/* Navigation Links */}
-//               <div className="flex-1 px-2 py-4">
-//                 {/* Mobile Search */}
-//                 <div className="mx-2 mb-4">
-//                   <div className="relative">
-//                     <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-//                     <input
-//                       type="text"
-//                       value={searchQuery}
-//                       onChange={(e) => setSearchQuery(e.target.value)}
-//                       onFocus={() => setSearchFocused(true)}
-//                       placeholder="Search products & categories..."
-//                       className="w-full pl-9 pr-8 py-2.5 bg-white/10 border border-white/10 rounded-xl text-sm text-white placeholder-gray-400 focus:outline-none focus:border-white/20"
-//                     />
-//                     {searchQuery && (
-//                       <button
-//                         onClick={() => { setSearchQuery(""); setSearchResults(null); }}
-//                         className="absolute right-3 top-1/2 -translate-y-1/2"
-//                       >
-//                         <XMarkIcon className="h-4 w-4 text-gray-400" />
-//                       </button>
-//                     )}
-//                   </div>
-//                   {/* Mobile search results */}
-//                   {searchQuery.trim().length >= 2 && (searchLoading || searchResults) && (
-//                     <div className="mt-2 bg-black/80 border border-white/10 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
-//                       {searchLoading && (
-//                         <div className="p-3 text-center text-gray-400 text-sm">Searching...</div>
-//                       )}
-//                       {!searchLoading && searchResults && (
-//                         <>
-//                           {[...searchResults.categories.map(c => ({ type: "category" as const, ...c })),
-//                           ...searchResults.products.map(p => ({ type: "product" as const, ...p }))
-//                           ].length === 0 ? (
-//                             <div className="p-4 text-center text-gray-400 text-sm">No results found</div>
-//                           ) : (
-//                             <>
-//                               {searchResults.categories.map((cat) => (
-//                                 <button
-//                                   key={cat.id}
-//                                   onClick={() => { handleCategoryClick(cat.id); setMobileMenuOpen(false); }}
-//                                   className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/10 transition-colors text-left border-b border-white/5"
-//                                 >
-//                                   <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
-//                                     {cat.image ? (
-//                                       <img src={cat.image.startsWith("http") ? cat.image : `${domainUrl}/${cat.image}`} alt={cat.name} className="w-full h-full object-cover" />
-//                                     ) : (
-//                                       <CubeIcon className="h-4 w-4 text-gray-500 m-auto mt-2" />
-//                                     )}
-//                                   </div>
-//                                   <div>
-//                                     <div className="text-xs text-white font-medium">{cat.name}</div>
-//                                     <div className="text-[10px] text-gray-500">Category</div>
-//                                   </div>
-//                                 </button>
-//                               ))}
-//                               {searchResults.products.map((prod) => (
-//                                 <button
-//                                   key={prod.id}
-//                                   onClick={() => { handleProductClick(prod.id); setMobileMenuOpen(false); }}
-//                                   className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/10 transition-colors text-left border-b border-white/5"
-//                                 >
-//                                   <div className="w-9 h-9 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
-//                                     {prod.image ? (
-//                                       <img src={prod.image.startsWith("http") ? prod.image : `${domainUrl}/${prod.image}`} alt={prod.name} className="w-full h-full object-cover" />
-//                                     ) : (
-//                                       <ShoppingBagIcon className="h-4 w-4 text-gray-500 m-auto mt-2.5" />
-//                                     )}
-//                                   </div>
-//                                   <div className="flex-1 min-w-0">
-//                                     <div className="text-xs text-white font-medium truncate">{prod.name}</div>
-//                                     <div className="text-[10px] text-gray-500">₹{prod.price?.toLocaleString()}</div>
-//                                   </div>
-//                                 </button>
-//                               ))}
-//                             </>
-//                           )}
-//                         </>
-//                       )}
-//                     </div>
-//                   )}
-//                 </div>
-
-//                 <div className="space-y-1">
-//                   {navigation.map((item) => {
-//                     const Icon = item.icon;
-//                     const active = isActive(item.href);
-//                     return (
-//                       <Link
-//                         key={item.name}
-//                         to={item.href}
-//                         onClick={(e) => {
-//                           if (item.protected && !isAuthenticated) {
-//                             handleGatedNavigation(e, item.href, true);
-//                           }
-//                           setMobileMenuOpen(false);
-//                         }}
-//                         className={`flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 mx-2 ${active
-//                             ? 'bg-white/10 text-white border border-white/10 shadow-[0_0_10px_rgba(255,255,255,0.05)]'
-//                             : 'text-gray-300 hover:text-white hover:bg-white/5'
-//                           }`}
-//                       >
-//                         <Icon className={`h-5 w-5 ${active ? 'text-white' : 'text-gray-400'}`} />
-//                         {item.name}
-//                       </Link>
-//                     );
-//                   })}
-//                   {/* Notifications link — authenticated only */}
-//                   {isAuthenticated && (
-//                     <Link
-//                       to="/myorders"
-//                       onClick={() => setMobileMenuOpen(false)}
-//                       className="flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 mx-2 text-gray-300 hover:text-white hover:bg-white/5"
-//                     >
-//                       <BellIcon className="h-5 w-5 text-gray-400" />
-//                       Notifications
-//                       {unreadCount > 0 && (
-//                         <span className="ml-auto min-w-[20px] h-[20px] bg-gradient-to-r from-rose-500 to-pink-500 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-1">
-//                           {unreadCount}
-//                         </span>
-//                       )}
-//                     </Link>
-//                   )}
-//                 </div>
-//               </div>
-
-//               {/* Auth Section */}
-//               <div className="px-4 py-6 border-t border-white/10">
-//                 {!isAuthenticated ? (
-//                   <div className="space-y-3">
-
-//                     <button
-//                       onClick={() => { setMobileMenuOpen(false); setCustomerAuthOpen(true); }}
-//                       className="block w-full text-center border border-gray-600 text-gray-300 py-3.5 rounded-lg text-sm font-semibold hover:bg-white/5 hover:text-white transition-colors"
-//                     >
-//                       Sign In
-//                     </button>
-//                   </div>
-//                 ) : (
-//                   <div className="space-y-3">
-//                     {/* <div className="px-4 py-3 bg-white/5 rounded-lg mb-3 border border-white/5">
-//                     <p className="text-sm font-semibold text-white">Welcome back!</p>
-//                     <p className="text-xs text-gray-400 truncate">{user.email || "User"}</p>
-//                   </div> */}
-//                     <Link
-//                       to="/profile"
-//                       onClick={() => setMobileMenuOpen(false)}
-//                       className="flex items-center justify-center gap-2 w-full text-center bg-black/40 text-gray-300 py-3.5 rounded-lg text-sm font-semibold hover:bg-white/5 hover:text-white transition-colors border border-white/5"
-//                     >
-//                       <UserIcon className="h-4 w-4" />
-//                       My Profile
-//                     </Link>
-//                     <button
-//                       onClick={() => {
-//                         logout();
-//                         setMobileMenuOpen(false);
-//                       }}
-//                       className="flex items-center justify-center gap-2 w-full text-center border border-white/10 text-rose-400 py-3.5 rounded-lg text-sm font-semibold hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
-//                     >
-//                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-//                       </svg>
-//                       Logout
-//                     </button>
-//                   </div>
-//                 )}
-//               </div>
-//             </DialogPanel>
-//           </div>
-//         </Dialog>
-//       </header>
-
-//       <CustomerAuthModal
-//         open={customerAuthOpen}
-//         onClose={() => setCustomerAuthOpen(false)}
-//       />
-//     </>
-//   );
-// };
-
-// export default Navbar;
-
-
-
-
-
-
-
 import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogPanel, DialogBackdrop } from "@headlessui/react";
@@ -906,6 +32,16 @@ import toast from "react-hot-toast";
 import api from "../utils/api";
 import { domainUrl } from "../utils/constant";
 import { getCustomerNotificationTarget } from "../utils/notificationRoute";
+
+interface NavbarConfig {
+  activeTemplate: 1 | 2 | 3 | 4 | 5 | 6;
+}
+
+const DEFAULT_NAVBAR_CONFIG: NavbarConfig = {
+  activeTemplate: 1,
+};
+
+const NAVBAR_CACHE_KEY = "crm_navbar_cache";
 
 const Navbar = ({
   user,
@@ -947,6 +83,59 @@ const Navbar = ({
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [customerAuthOpen, setCustomerAuthOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
+
+  // --- NAVBAR TEMPLATE CONFIG ---
+  const [navbarConfig, setNavbarConfig] = useState<NavbarConfig>(() => {
+    try {
+      const cached = localStorage.getItem(NAVBAR_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (
+          typeof parsed?.activeTemplate === "number" &&
+          parsed.activeTemplate >= 1 &&
+          parsed.activeTemplate <= 6
+        ) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return DEFAULT_NAVBAR_CONFIG;
+  });
+
+  const activeTemplate = (navbarConfig?.activeTemplate || 1) as 1 | 2 | 3 | 4 | 5 | 6;
+
+  // Fetch active navbar template from backend
+  useEffect(() => {
+    api
+      .get("/home-banners/homepage-config")
+      .then(({ data }) => {
+        if (
+          data?.navbarConfig &&
+          typeof data.navbarConfig.activeTemplate === "number"
+        ) {
+          setNavbarConfig(data.navbarConfig);
+          try {
+            localStorage.setItem(
+              NAVBAR_CACHE_KEY,
+              JSON.stringify(data.navbarConfig)
+            );
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Listen for real-time preview template updates from Homepage Manager
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "STORRA_PREVIEW_NAVBAR") {
+        const tmpl = (Number(event.data.template) || 1) as 1 | 2 | 3 | 4 | 5 | 6;
+        setNavbarConfig({ activeTemplate: tmpl });
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   // --- SEARCH STATE ---
   const [searchQuery, setSearchQuery] = useState("");
@@ -1004,21 +193,15 @@ const Navbar = ({
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // This fixed header's real height varies — responsive logo sizing, whether the
-  // branding tagline row is showing, and now the CategoryMegaMenu row underneath it
-  // (see below) all change it. Every customer page needs to clear exactly that height
-  // to avoid its content (e.g. a "Go Back" button) rendering partly behind the header,
-  // so instead of each page hardcoding its own guessed margin — which drifts out of
-  // sync the moment the header's actual height changes, as happened here — the header
-  // publishes its measured height as a CSS variable that those pages read from
-  // (`mt-[var(--app-header-h)]` / `pt-[var(--app-header-h)]`). ResizeObserver (not a
-  // fixed set of effect dependencies) catches every cause of a height change, including
-  // ones we haven't enumerated — a late-loading logo image, a branding text wrap, etc.
+  // Header dynamic height publication
   useLayoutEffect(() => {
     const el = headerRef.current;
     if (!el) return;
     const applyHeight = () => {
-      document.documentElement.style.setProperty("--app-header-h", `${el.offsetHeight}px`);
+      document.documentElement.style.setProperty(
+        "--app-header-h",
+        `${el.offsetHeight}px`
+      );
     };
     applyHeight();
     const observer = new ResizeObserver(applyHeight);
@@ -1165,87 +348,379 @@ const Navbar = ({
     return location.pathname.startsWith(path);
   };
 
+  // --- TEMPLATE VARIANT STYLING COMPUTATIONS (Pairs 1-to-1 with Footer 1-6) ---
+  const isDark = activeTemplate === 1 || activeTemplate === 3;
+  const isThemeBand = activeTemplate === 5;
+
+  const getNavContainerClass = () => {
+    switch (activeTemplate) {
+      case 1: // Dark Professional (Matches Footer 1)
+        return scrolled
+          ? "bg-[#0a0a0a]/95 backdrop-blur-2xl shadow-2xl shadow-black/60 py-3 sm:py-3.5 lg:py-4 min-h-[62px] sm:min-h-[68px] lg:min-h-[76px] border-b border-white/10"
+          : "bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-white/10 py-4 sm:py-5 lg:py-6 min-h-[72px] sm:min-h-[80px] lg:min-h-[90px]";
+
+      case 2: // Light Editorial (Matches Footer 2)
+        return scrolled
+          ? "bg-gray-50/95 backdrop-blur-2xl shadow-md shadow-black/5 py-3 sm:py-3.5 lg:py-4 min-h-[62px] sm:min-h-[68px] lg:min-h-[76px] border-b border-gray-200"
+          : "bg-gray-50/90 backdrop-blur-xl border-b border-gray-200 py-4 sm:py-5 lg:py-6 min-h-[72px] sm:min-h-[80px] lg:min-h-[90px]";
+
+      case 3: // Gradient with Aurora Accent (Matches Footer 3)
+        return scrolled
+          ? "bg-gradient-to-r from-indigo-950/98 via-slate-900/98 to-gray-950/98 backdrop-blur-2xl shadow-2xl shadow-indigo-950/50 py-3 sm:py-3.5 lg:py-4 min-h-[62px] sm:min-h-[68px] lg:min-h-[76px] border-b border-indigo-500/25"
+          : "bg-gradient-to-r from-indigo-950/92 via-slate-900/92 to-gray-950/92 backdrop-blur-xl border-b border-indigo-500/20 py-4 sm:py-5 lg:py-6 min-h-[72px] sm:min-h-[80px] lg:min-h-[90px]";
+
+      case 4: // Minimal Centered (Matches Footer 4)
+        return scrolled
+          ? "bg-white/95 backdrop-blur-2xl shadow-xs py-3 sm:py-3.5 lg:py-4 min-h-[62px] sm:min-h-[68px] lg:min-h-[76px] border-b border-gray-100"
+          : "bg-white/90 backdrop-blur-xl border-b border-gray-100 py-4 sm:py-5 lg:py-6 min-h-[72px] sm:min-h-[80px] lg:min-h-[90px]";
+
+      case 5: // Festive Accent Band (Matches Footer 5)
+        return scrolled
+          ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] shadow-xl shadow-[var(--theme-primary)]/25 py-3 sm:py-3.5 lg:py-4 min-h-[62px] sm:min-h-[68px] lg:min-h-[76px] border-b border-black/10"
+          : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] shadow-md shadow-[var(--theme-primary)]/15 py-4 sm:py-5 lg:py-6 min-h-[72px] sm:min-h-[80px] lg:min-h-[90px] border-b border-black/5";
+
+      case 6: // Split Statement / Modern Asymmetric (Matches Footer 6)
+      default:
+        return scrolled
+          ? "bg-white/95 backdrop-blur-2xl shadow-xl shadow-black/10 py-3 sm:py-3.5 lg:py-4 min-h-[62px] sm:min-h-[68px] lg:min-h-[76px] border-b border-black/10"
+          : "bg-white/90 backdrop-blur-xl border-b border-black/10 py-4 sm:py-5 lg:py-6 min-h-[72px] sm:min-h-[80px] lg:min-h-[90px]";
+    }
+  };
+
+  const getBrandTitleClass = () => {
+    if (isDark) return "text-white font-black tracking-wider uppercase";
+    if (isThemeBand) return "text-[var(--theme-primary-ink)] font-black tracking-wider uppercase";
+    if (activeTemplate === 2) return "text-gray-900 font-serif font-black tracking-wider uppercase";
+    if (activeTemplate === 4) return "text-gray-950 font-serif font-black tracking-widest uppercase";
+    return "text-gray-950 font-black tracking-tight uppercase";
+  };
+
+  const getBrandTaglineClass = () => {
+    if (isDark) return "text-zinc-400";
+    if (isThemeBand) return "text-[var(--theme-primary-ink)]/75";
+    return "text-gray-500";
+  };
+
+  const getHamburgerClass = () => {
+    if (isDark) return "text-zinc-200 hover:text-white hover:bg-white/10";
+    if (isThemeBand) return "text-[var(--theme-primary-ink)] hover:bg-black/10";
+    return "text-gray-800 hover:text-black hover:bg-black/5";
+  };
+
+  const getSearchInputClass = () => {
+    switch (activeTemplate) {
+      case 1: // Dark Professional
+        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white/5 border border-white/10 rounded-xl text-xs xl:text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 focus:border-[var(--theme-primary)]/60 focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-300 ease-out";
+
+      case 2: // Light Editorial
+        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white border border-gray-300/80 rounded-lg text-xs xl:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/25 transition-all duration-200";
+
+      case 3: // Gradient with Aurora Accent
+        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white/10 border border-white/20 rounded-full text-xs xl:text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)] focus:bg-white/15 transition-all duration-300 ease-out";
+
+      case 4: // Minimal Centered
+        return "w-40 lg:w-48 xl:w-60 focus:w-68 pl-9 pr-8 py-2 lg:py-2.5 bg-gray-50/90 hover:bg-gray-100/80 border-0 rounded-full text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[var(--theme-primary)]/40 focus:bg-white transition-all duration-300";
+
+      case 5: // Festive Accent Band
+        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white/20 border border-white/25 rounded-xl text-xs xl:text-sm text-[var(--theme-primary-ink)] placeholder-[var(--theme-primary-ink)]/60 focus:outline-none focus:bg-white focus:text-gray-900 focus:placeholder-gray-400 transition-all duration-300";
+
+      case 6: // Split Statement
+      default:
+        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-gray-100/90 hover:bg-gray-100 border-0 rounded-2xl text-xs xl:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:bg-white transition-all duration-300 shadow-xs";
+    }
+  };
+
+  const getActionButtonClass = () => {
+    switch (activeTemplate) {
+      case 1: // Dark Professional
+        return "relative flex items-center justify-center p-2.5 lg:p-3 rounded-full border border-white/20 text-white hover:border-[var(--theme-primary)] hover:bg-[var(--theme-primary)] hover:text-[var(--theme-primary-ink)] hover:scale-105 active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group cursor-pointer";
+
+      case 2: // Light Editorial
+        return "relative flex items-center justify-center p-2.5 lg:p-3 rounded-lg border border-gray-200 hover:border-[var(--theme-primary)] hover:bg-white text-gray-700 hover:text-[var(--theme-primary)] hover:scale-105 active:scale-95 transition-all duration-200 group cursor-pointer";
+
+      case 3: // Gradient with Aurora Accent
+        return "relative flex items-center justify-center p-2.5 lg:p-3 rounded-full bg-white/10 hover:bg-white/20 text-white hover:shadow-[0_0_12px_rgba(99,102,241,0.5)] hover:scale-105 active:scale-95 transition-all duration-300 group cursor-pointer";
+
+      case 4: // Minimal Centered
+        return "relative flex items-center justify-center p-2 sm:p-2.5 lg:p-3 rounded-full hover:bg-gray-100 text-gray-700 hover:text-[var(--theme-primary)] hover:scale-105 active:scale-95 transition-all duration-200 group cursor-pointer";
+
+      case 5: // Festive Accent Band
+        return "relative flex items-center justify-center p-2.5 lg:p-3 rounded-full bg-white/15 hover:bg-white hover:text-gray-900 text-[var(--theme-primary-ink)] hover:scale-105 active:scale-95 transition-all duration-200 group cursor-pointer";
+
+      case 6: // Split Statement
+      default:
+        return "relative flex items-center justify-center w-10 h-10 lg:w-11 lg:h-11 rounded-2xl bg-gray-100/80 hover:bg-[var(--theme-primary)] hover:text-[var(--theme-primary-ink)] text-gray-900 hover:scale-105 active:scale-95 transition-all duration-200 group cursor-pointer";
+    }
+  };
+
+  const getSignInButtonClass = () => {
+    switch (activeTemplate) {
+      case 1: // Dark Professional
+        return "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] hover:bg-[var(--theme-primary-hover)] px-5 lg:px-6 py-2.5 lg:py-3 rounded-xl text-xs lg:text-sm font-black tracking-tight shadow-md shadow-[var(--theme-primary)]/20 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer";
+
+      case 2: // Light Editorial
+        return "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] hover:bg-[var(--theme-primary-hover)] uppercase tracking-widest text-[11px] lg:text-xs font-bold px-5 lg:px-6 py-2.5 lg:py-3 rounded-lg shadow-sm hover:shadow-md hover:shadow-[var(--theme-primary)]/25 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer";
+
+      case 3: // Gradient with Aurora Accent
+        return "bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-[var(--theme-primary-ink)] rounded-full px-5.5 lg:px-6.5 py-2.5 lg:py-3 text-xs md:text-sm font-bold shadow-lg shadow-[var(--theme-primary)]/30 hover:shadow-[var(--theme-primary)]/50 transition-all duration-300 hover:scale-102 active:scale-95 cursor-pointer";
+
+      case 4: // Minimal Centered
+        return "bg-gray-950 hover:bg-[var(--theme-primary)] hover:text-[var(--theme-primary-ink)] text-white rounded-full px-5 lg:px-6 py-2.5 lg:py-3 text-xs lg:text-sm font-semibold tracking-wider transition-all duration-300 hover:shadow-xs active:scale-95 cursor-pointer";
+
+      case 5: // Festive Accent Band
+        return "bg-white text-gray-900 hover:bg-gray-100 rounded-xl px-5 lg:px-6 py-2.5 lg:py-3 font-black text-xs lg:text-sm shadow-md transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer";
+
+      case 6: // Split Statement
+      default:
+        return "bg-black hover:bg-[var(--theme-primary)] hover:text-[var(--theme-primary-ink)] text-white rounded-2xl px-5.5 lg:px-6.5 py-2.5 lg:py-3 font-black text-xs lg:text-sm uppercase tracking-wider shadow-lg shadow-black/20 hover:shadow-[var(--theme-primary)]/30 transition-all duration-300 hover:scale-102 active:scale-95 cursor-pointer";
+    }
+  };
+
+  const getAccountButtonClass = () => {
+    const active = isUserDropdownOpen || isActive("/profile");
+    switch (activeTemplate) {
+      case 1:
+        return active
+          ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] border-[var(--theme-primary)] shadow-lg shadow-[var(--theme-primary)]/20 rounded-xl px-4 py-2"
+          : "border border-white/20 bg-white/10 text-white hover:border-[var(--theme-primary)] hover:text-[var(--theme-primary)] rounded-xl px-4 py-2";
+
+      case 2:
+        return active
+          ? "bg-gray-900 text-white border-gray-900 rounded-lg px-3.5 py-2"
+          : "border border-gray-300 bg-white text-gray-900 hover:border-[var(--theme-primary)] hover:text-[var(--theme-primary)] rounded-lg px-3.5 py-2";
+
+      case 3:
+        return active
+          ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/40 rounded-full px-4.5 py-2"
+          : "bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-full px-4.5 py-2";
+
+      case 4:
+        return active
+          ? "bg-black text-white rounded-full px-3.5 py-1.5"
+          : "border border-gray-200 bg-white hover:border-[var(--theme-primary)] rounded-full px-3.5 py-1.5 text-gray-800";
+
+      case 5:
+        return active
+          ? "bg-white text-gray-900 shadow-md rounded-xl px-4 py-2"
+          : "bg-white/20 hover:bg-white/30 border border-white/30 text-[var(--theme-primary-ink)] rounded-xl px-4 py-2";
+
+      case 6:
+      default:
+        return active
+          ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] shadow-md rounded-2xl px-4.5 py-2.5"
+          : "bg-gray-100 text-gray-900 hover:bg-[var(--theme-primary)] hover:text-[var(--theme-primary-ink)] rounded-2xl px-4.5 py-2.5";
+    }
+  };
+
+  const renderDesktopNavLink = (item: (typeof navigation)[number]) => {
+    const active = isActive(item.href);
+
+    switch (activeTemplate) {
+      case 1: // Dark Professional (Floating pill with micro-lift)
+        return (
+          <Link
+            key={item.name}
+            to={item.href}
+            onClick={(e) =>
+              item.protected && !isAuthenticated
+                ? handleGatedNavigation(e, item.href, true)
+                : null
+            }
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer ${
+              active
+                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-lg shadow-[var(--theme-primary)]/25 px-4.5 py-2 lg:py-2.5 rounded-xl scale-100"
+                : "text-zinc-400 hover:text-[var(--theme-primary)] hover:bg-white/10 px-4 py-2 lg:py-2.5 rounded-xl font-semibold hover:-translate-y-0.5 active:scale-95"
+            }`}
+          >
+            {item.name}
+          </Link>
+        );
+
+      case 2: // Light Editorial (Centered small baseline indicator in theme primary)
+        return (
+          <Link
+            key={item.name}
+            to={item.href}
+            onClick={(e) =>
+              item.protected && !isAuthenticated
+                ? handleGatedNavigation(e, item.href, true)
+                : null
+            }
+            className={`relative flex flex-col items-center justify-center uppercase tracking-widest text-[11px] lg:text-xs px-4 py-2.5 lg:py-3 transition-all duration-300 ease-out cursor-pointer group ${
+              active
+                ? "text-gray-950 font-bold"
+                : "text-gray-500 hover:text-[var(--theme-primary)] font-semibold"
+            }`}
+          >
+            <span>{item.name}</span>
+            {active ? (
+              <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-4 sm:w-5 h-[2.5px] bg-[var(--theme-primary)] rounded-full shadow-xs" />
+            ) : (
+              <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-0 group-hover:w-3.5 h-[2px] bg-[var(--theme-primary)]/70 rounded-full transition-all duration-200" />
+            )}
+          </Link>
+        );
+
+      case 3: // Gradient with Aurora Accent (Glowing tech pill)
+        return (
+          <Link
+            key={item.name}
+            to={item.href}
+            onClick={(e) =>
+              item.protected && !isAuthenticated
+                ? handleGatedNavigation(e, item.href, true)
+                : null
+            }
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-300 ease-out cursor-pointer ${
+              active
+                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-bold px-5 py-2 lg:py-2.5 rounded-full shadow-lg shadow-[var(--theme-primary)]/30"
+                : "text-indigo-200/80 hover:text-white hover:bg-white/10 px-4.5 py-2 lg:py-2.5 rounded-full font-semibold hover:shadow-[0_0_12px_rgba(99,102,241,0.3)]"
+            }`}
+          >
+            {item.name}
+          </Link>
+        );
+
+      case 4: // Minimal Centered (Symmetrical micro-dot indicator)
+        return (
+          <Link
+            key={item.name}
+            to={item.href}
+            onClick={(e) =>
+              item.protected && !isAuthenticated
+                ? handleGatedNavigation(e, item.href, true)
+                : null
+            }
+            className={`relative flex items-center uppercase tracking-widest text-[11px] lg:text-xs px-3.5 py-2 lg:py-2.5 transition-all duration-300 ease-out cursor-pointer ${
+              active
+                ? "text-black font-bold relative after:content-[''] after:absolute after:-bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-[var(--theme-primary)] after:rounded-full"
+                : "text-gray-400 hover:text-[var(--theme-primary)] font-medium"
+            }`}
+          >
+            {item.name}
+          </Link>
+        );
+
+      case 5: // Festive Accent Band (Contrast white pill on theme primary)
+        return (
+          <Link
+            key={item.name}
+            to={item.href}
+            onClick={(e) =>
+              item.protected && !isAuthenticated
+                ? handleGatedNavigation(e, item.href, true)
+                : null
+            }
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-200 cursor-pointer ${
+              active
+                ? "bg-white text-gray-900 font-black shadow-md rounded-xl px-4.5 py-2 lg:py-2.5 scale-100"
+                : "text-[var(--theme-primary-ink)]/75 hover:text-[var(--theme-primary-ink)] hover:bg-black/10 px-4 py-2 lg:py-2.5 rounded-xl font-bold"
+            }`}
+          >
+            {item.name}
+          </Link>
+        );
+
+      case 6: // Split Statement (Jet black modern squircle)
+      default:
+        return (
+          <Link
+            key={item.name}
+            to={item.href}
+            onClick={(e) =>
+              item.protected && !isAuthenticated
+                ? handleGatedNavigation(e, item.href, true)
+                : null
+            }
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-200 ease-out cursor-pointer ${
+              active
+                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-lg shadow-[var(--theme-primary)]/20 px-4.5 py-2 lg:py-2.5 rounded-2xl scale-100"
+                : "text-gray-600 hover:text-[var(--theme-primary)] hover:bg-gray-100/90 px-4 py-2 lg:py-2.5 rounded-2xl font-black hover:scale-105 active:scale-95"
+            }`}
+          >
+            {item.name}
+          </Link>
+        );
+    }
+  };
+
   return (
     <>
-      <header ref={headerRef} className="fixed top-0 left-0 w-full z-40 font-sans">
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 w-full z-40 font-sans transition-all duration-500"
+      >
         <nav
-          className={`relative z-20 w-full transition-all duration-500 ${
-            scrolled
-              ? "bg-white/60 backdrop-blur-2xl shadow-2xl shadow-black/20 py-1 border-b border-black/10"
-              : "bg-white/70 backdrop-blur-xl border-b border-black/5 py-1.5"
-          }`}
+          className={`relative z-20 w-full transition-all duration-500 ${getNavContainerClass()}`}
         >
           <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between min-h-[46px] sm:min-h-[52px] lg:min-h-[58px]">
               {/* LEFT: Logo & Mobile Menu */}
-              <div className="flex items-center gap-2 sm:gap-4 lg:gap-8 flex-shrink-0 my-auto">
+              <div className="flex items-center gap-2.5 sm:gap-4 lg:gap-8 flex-shrink-0 my-auto">
                 <button
                   type="button"
-                  className="lg:hidden p-2 rounded-xl hover:bg-black/5 transition-all duration-300 group my-auto"
+                  className={`lg:hidden p-2.5 rounded-xl transition-all duration-300 group my-auto cursor-pointer ${getHamburgerClass()}`}
                   onClick={() => setMobileMenuOpen(true)}
                 >
-                  <Bars3Icon className="h-6 w-6 text-gray-800 group-hover:text-black transition-colors" />
+                  <Bars3Icon className="h-6 w-6" />
                 </button>
 
-                <Link to="/" className="flex-shrink-0 flex items-center justify-center my-auto gap-2.5">
+                {/* Main Logo Brand */}
+                <Link
+                  to="/"
+                  className="flex-shrink-0 flex items-center my-auto group cursor-pointer transition-transform duration-300 hover:scale-[1.01] active:scale-[0.99]"
+                >
                   <img
                     src={logoSrc}
                     alt={branding.companyName || "Logo"}
-                    className="h-11 sm:h-13 md:h-16 lg:h-20 w-auto object-contain transition-all duration-300 filter brightness-125 my-auto"
+                    className="h-10 sm:h-11 md:h-13 lg:h-15 w-auto max-w-[160px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[280px] object-contain transition-all duration-300 filter brightness-110 my-auto group-hover:scale-102"
                   />
                   {(branding.showCompanyName || branding.showCompanyTagline) && (
-                    <div className="hidden sm:flex flex-col justify-center text-left">
-                      {branding.showCompanyName && branding.companyName && (
-                        <span className="text-xs md:text-sm font-bold text-black tracking-widest uppercase leading-tight">
-                          {branding.companyName}
-                        </span>
-                      )}
-                      {branding.showCompanyTagline && branding.companyTagline && (
-                        <span className="text-[10px] text-slate-500 tracking-wider hidden xl:block leading-tight mt-0.5">
-                          {branding.companyTagline}
-                        </span>
-                      )}
+                    <div className="hidden sm:flex items-center pl-1">
+                      <div
+                        className={`h-7 sm:h-8 lg:h-9 w-[1.5px] mx-3 sm:mx-3.5 transition-colors duration-300 shrink-0 ${
+                          isDark
+                            ? "bg-white/20"
+                            : isThemeBand
+                            ? "bg-white/25"
+                            : "bg-slate-300/80"
+                        }`}
+                      />
+                      <div className="flex flex-col justify-center text-left min-w-0">
+                        {branding.showCompanyName && branding.companyName && (
+                          <span
+                            className={`text-xs sm:text-sm lg:text-[15px] font-extrabold tracking-wider uppercase leading-none transition-colors duration-300 truncate ${getBrandTitleClass()}`}
+                          >
+                            {branding.companyName}
+                          </span>
+                        )}
+                        {branding.showCompanyTagline && branding.companyTagline && (
+                          <span
+                            className={`text-[9px] sm:text-[10px] lg:text-[11px] tracking-widest uppercase font-semibold leading-tight mt-1 transition-colors duration-300 truncate ${getBrandTaglineClass()}`}
+                          >
+                            {branding.companyTagline}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </Link>
               </div>
 
               {/* CENTER: Desktop Navigation Links */}
-              <div className="hidden lg:flex items-center gap-1 xl:gap-2">
-                {navigation.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(item.href);
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={(e) =>
-                        item.protected && !isAuthenticated
-                          ? handleGatedNavigation(e, item.href, true)
-                          : null
-                      }
-                      className={`relative flex items-center px-3 py-2 xl:px-4 xl:py-2 text-xs xl:text-sm font-bold tracking-tight transition-all duration-200 cursor-pointer ${
-                        active
-                          ? "text-[var(--theme-primary)]"
-                          : "text-slate-600 hover:text-[var(--theme-primary)] hover:bg-black/5 rounded-lg"
-                      }`}
-                    >
-                      {item.name}
-                      {active && (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-[var(--theme-primary)] rounded-full transition-all duration-300" />
-                      )}
-                    </Link>
-                  );
-                })}
+              <div className="hidden lg:flex items-center gap-1.5 xl:gap-2.5">
+                {navigation.map((item) => renderDesktopNavLink(item))}
               </div>
 
               {/* RIGHT: Search, Actions & Auth */}
-              <div className="flex items-center gap-1.5 sm:gap-3 xl:gap-4 flex-shrink-0">
-                {/* Global Search Bar - Sleek squircle shape without harsh border line */}
+              <div className="flex items-center gap-2 sm:gap-3 xl:gap-4 flex-shrink-0">
+                {/* Global Search Bar */}
                 <div ref={searchRef} className="relative hidden md:block">
                   <div className="relative flex items-center">
                     <MagnifyingGlassIcon
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"
+                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 pointer-events-none transition-colors duration-300 ${
+                        isDark ? "text-white/60" : isThemeBand ? "text-[var(--theme-primary-ink)]/70" : "text-gray-400"
+                      }`}
                       strokeWidth={2}
                     />
                     <input
@@ -1254,12 +729,14 @@ const Navbar = ({
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onFocus={() => setSearchFocused(true)}
                       placeholder="Search products & categories..."
-                      className="w-44 lg:w-56 xl:w-64 focus:w-72 pl-9 pr-8 py-2 bg-slate-100/90 hover:bg-slate-100 border-0 rounded-2xl text-xs xl:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:bg-white transition-all duration-300 shadow-xs"
+                      className={getSearchInputClass()}
                     />
                     {searchLoading && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <svg
-                          className="animate-spin h-3.5 w-3.5 text-gray-500"
+                          className={`animate-spin h-3.5 w-3.5 ${
+                            isDark ? "text-white" : isThemeBand ? "text-[var(--theme-primary-ink)]" : "text-gray-500"
+                          }`}
                           fill="none"
                           viewBox="0 0 24 24"
                         >
@@ -1286,16 +763,26 @@ const Navbar = ({
                           setSearchQuery("");
                           setSearchResults(null);
                         }}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-black/5 rounded-full transition-colors cursor-pointer"
+                        className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full transition-colors cursor-pointer ${
+                          isDark
+                            ? "hover:bg-white/10 text-zinc-300"
+                            : "hover:bg-black/5 text-gray-500"
+                        }`}
                       >
-                        <XMarkIcon className="h-3.5 w-3.5 text-gray-500" />
+                        <XMarkIcon className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>
 
                   {/* Search Results Dropdown */}
                   {searchFocused && searchQuery.trim().length >= 2 && (
-                    <div className="absolute top-full right-0 mt-2.5 w-80 xl:w-96 bg-white border-0 ring-1 ring-black/5 rounded-2xl shadow-2xl z-50 max-h-[420px] overflow-y-auto p-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden animate-in fade-in zoom-in-95 duration-150">
+                    <div
+                      className={`absolute top-full right-0 mt-2.5 w-80 xl:w-96 rounded-2xl shadow-2xl z-50 max-h-[420px] overflow-y-auto p-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden animate-in fade-in zoom-in-95 duration-200 ${
+                        isDark
+                          ? "bg-zinc-900/98 backdrop-blur-2xl border border-zinc-800 text-white shadow-black/80"
+                          : "bg-white/98 backdrop-blur-2xl border border-gray-200/90 text-gray-900 shadow-black/15"
+                      }`}
+                    >
                       {searchLoading && (
                         <div className="flex items-center justify-center gap-2 p-6 text-sm text-gray-500">
                           <svg
@@ -1324,16 +811,30 @@ const Navbar = ({
                         <>
                           {searchResults.categories.length > 0 && (
                             <div className="mb-1">
-                              <div className="px-3 pt-2 pb-1 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+                              <div
+                                className={`px-3 pt-2 pb-1 text-[10px] uppercase tracking-widest font-bold ${
+                                  isDark ? "text-zinc-400" : "text-gray-400"
+                                }`}
+                              >
                                 Categories
                               </div>
                               {searchResults.categories.map((cat) => (
                                 <button
                                   key={cat.id}
-                                  onMouseDown={() => handleCategoryClick(cat.id)}
-                                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100/80 transition-colors text-left group/item cursor-pointer"
+                                  onMouseDown={() =>
+                                    handleCategoryClick(cat.id)
+                                  }
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-left group/item cursor-pointer ${
+                                    isDark
+                                      ? "hover:bg-white/10 text-zinc-100"
+                                      : "hover:bg-slate-100/90 text-gray-900"
+                                  }`}
                                 >
-                                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
+                                  <div
+                                    className={`w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 ${
+                                      isDark ? "bg-zinc-800" : "bg-slate-100"
+                                    }`}
+                                  >
                                     {cat.image ? (
                                       <img
                                         src={
@@ -1351,15 +852,21 @@ const Navbar = ({
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-gray-900 font-bold">
+                                    <div className="text-sm font-bold truncate">
                                       {cat.name}
                                     </div>
-                                    <div className="text-xs text-gray-400">
+                                    <div
+                                      className={`text-xs ${
+                                        isDark
+                                          ? "text-zinc-400"
+                                          : "text-gray-400"
+                                      }`}
+                                    >
                                       Browse all {cat.name}
                                     </div>
                                   </div>
                                   <svg
-                                    className="h-4 w-4 text-gray-400 group-hover/item:text-gray-900 transition-colors flex-shrink-0"
+                                    className="h-4 w-4 text-gray-400 group-hover/item:translate-x-0.5 transition-transform flex-shrink-0"
                                     fill="none"
                                     viewBox="0 0 24 24"
                                     stroke="currentColor"
@@ -1378,16 +885,30 @@ const Navbar = ({
 
                           {searchResults.products.length > 0 && (
                             <div>
-                              <div className="px-3 pt-2 pb-1 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+                              <div
+                                className={`px-3 pt-2 pb-1 text-[10px] uppercase tracking-widest font-bold ${
+                                  isDark ? "text-zinc-400" : "text-gray-400"
+                                }`}
+                              >
                                 Products
                               </div>
                               {searchResults.products.map((prod) => (
                                 <button
                                   key={prod.id}
-                                  onMouseDown={() => handleProductClick(prod.id)}
-                                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100/80 transition-colors text-left group/item cursor-pointer"
+                                  onMouseDown={() =>
+                                    handleProductClick(prod.id)
+                                  }
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-left group/item cursor-pointer ${
+                                    isDark
+                                      ? "hover:bg-white/10 text-zinc-100"
+                                      : "hover:bg-slate-100/90 text-gray-900"
+                                  }`}
                                 >
-                                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
+                                  <div
+                                    className={`w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 ${
+                                      isDark ? "bg-zinc-800" : "bg-slate-100"
+                                    }`}
+                                  >
                                     {prod.image ? (
                                       <img
                                         src={
@@ -1405,16 +926,22 @@ const Navbar = ({
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-gray-900 font-bold truncate">
+                                    <div className="text-sm font-bold truncate">
                                       {prod.name}
                                     </div>
-                                    <div className="text-xs text-gray-500 truncate">
+                                    <div
+                                      className={`text-xs truncate ${
+                                        isDark
+                                          ? "text-zinc-400"
+                                          : "text-gray-500"
+                                      }`}
+                                    >
                                       {prod.category?.name} · ₹
                                       {prod.price?.toLocaleString()}
                                     </div>
                                   </div>
                                   <svg
-                                    className="h-4 w-4 text-gray-400 group-hover/item:text-gray-900 transition-colors flex-shrink-0"
+                                    className="h-4 w-4 text-gray-400 group-hover/item:translate-x-0.5 transition-transform flex-shrink-0"
                                     fill="none"
                                     viewBox="0 0 24 24"
                                     stroke="currentColor"
@@ -1435,9 +962,17 @@ const Navbar = ({
                             searchResults.products.length === 0 && (
                               <div className="py-10 text-center">
                                 <MagnifyingGlassIcon className="h-8 w-8 text-gray-400 mx-auto mb-3" />
-                                <p className="text-gray-500 text-sm">
+                                <p
+                                  className={`text-sm ${
+                                    isDark ? "text-zinc-300" : "text-gray-500"
+                                  }`}
+                                >
                                   No results for{" "}
-                                  <span className="text-black font-medium">
+                                  <span
+                                    className={`font-medium ${
+                                      isDark ? "text-white" : "text-black"
+                                    }`}
+                                  >
                                     "{searchQuery}"
                                   </span>
                                 </p>
@@ -1460,16 +995,30 @@ const Navbar = ({
                       {/* Wishlist Icon */}
                       <button
                         onClick={handleWishlistClick}
-                        className="relative p-1.5 sm:p-2 rounded-full hover:bg-black/5 transition-all duration-300 group cursor-pointer"
+                        className={getActionButtonClass()}
                         aria-label="Wishlist"
                       >
                         {isActive("/WishlistPage") || isActive("/wishlist") ? (
-                          <HeartSolid className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-[var(--theme-accent)] transition-colors" />
+                          <HeartSolid
+                            className={`h-5 w-5 lg:h-5.5 lg:w-5.5 transition-colors ${
+                              isDark
+                                ? "text-[var(--theme-primary)]"
+                                : isThemeBand
+                                ? "text-white"
+                                : "text-[var(--theme-primary)]"
+                            }`}
+                          />
                         ) : (
-                          <HeartOutline className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-gray-800 group-hover:text-[var(--theme-accent)] transition-colors" />
+                          <HeartOutline className="h-5 w-5 lg:h-5.5 lg:w-5.5 transition-colors" />
                         )}
                         {showWishlistBadge && (
-                          <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] bg-[var(--theme-accent)] text-[9px] sm:text-[10px] text-[var(--theme-accent-ink)] font-bold rounded-full flex items-center justify-center px-1 animate-pulse">
+                          <span
+                            className={`absolute -top-1 -right-1 z-10 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] text-[9px] sm:text-[10px] font-bold rounded-full flex items-center justify-center px-1 animate-pulse shadow-xs pointer-events-none ${
+                              isThemeBand
+                                ? "bg-white text-gray-900 shadow-md"
+                                : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] shadow-[var(--theme-primary)]/30"
+                            }`}
+                          >
                             {wishlistCount}
                           </span>
                         )}
@@ -1488,16 +1037,30 @@ const Navbar = ({
                           }
                           handleCartClick();
                         }}
-                        className="relative p-1.5 sm:p-2 rounded-full hover:bg-black/5 transition-all duration-300 group cursor-pointer"
+                        className={getActionButtonClass()}
                         aria-label="Cart"
                       >
                         {isActive("/cart") ? (
-                          <ShoppingBagSolid className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-emerald-600 transition-colors" />
+                          <ShoppingBagSolid
+                            className={`h-5 w-5 lg:h-5.5 lg:w-5.5 transition-colors ${
+                              isDark
+                                ? "text-[var(--theme-primary)]"
+                                : isThemeBand
+                                ? "text-white"
+                                : "text-[var(--theme-primary)]"
+                            }`}
+                          />
                         ) : (
-                          <ShoppingBagIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-gray-800 group-hover:text-emerald-500 transition-colors" />
+                          <ShoppingBagIcon className="h-5 w-5 lg:h-5.5 lg:w-5.5 transition-colors" />
                         )}
                         {showCartBadge && (
-                          <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] bg-gradient-to-r from-emerald-500 to-teal-500 text-[9px] sm:text-[10px] text-white font-bold rounded-full flex items-center justify-center px-1 animate-bounce">
+                          <span
+                            className={`absolute -top-1 -right-1 z-10 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] text-[9px] sm:text-[10px] font-black rounded-full flex items-center justify-center px-1 animate-bounce shadow-xs pointer-events-none ${
+                              isThemeBand
+                                ? "bg-white text-gray-900 shadow-md"
+                                : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] shadow-[var(--theme-primary)]/30"
+                            }`}
+                          >
                             {cartItemCount}
                           </span>
                         )}
@@ -1513,12 +1076,18 @@ const Navbar = ({
                           onClick={() =>
                             navigate(`${adminDashboardPath}/notifications`)
                           }
-                          className="relative p-1.5 sm:p-2 rounded-full hover:bg-black/5 transition-all duration-300 group cursor-pointer"
+                          className={getActionButtonClass()}
                           aria-label="Notifications"
                         >
-                          <BellIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-gray-800 group-hover:text-black transition-colors" />
+                          <BellIcon className="h-5 w-5 lg:h-5.5 lg:w-5.5 transition-colors" />
                           {unreadCount > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] bg-[var(--theme-accent)] text-[9px] sm:text-[10px] text-[var(--theme-accent-ink)] font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse">
+                            <span
+                              className={`absolute -top-1 -right-1 z-10 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] text-[9px] sm:text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse shadow-xs pointer-events-none ${
+                                isThemeBand
+                                  ? "bg-white text-gray-900 font-black"
+                                  : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-[var(--theme-primary)]/30"
+                              }`}
+                            >
                               {unreadCount > 99 ? "99+" : unreadCount}
                             </span>
                           )}
@@ -1527,16 +1096,22 @@ const Navbar = ({
                         <>
                           <button
                             onClick={() => setNotifOpen((o) => !o)}
-                            className="relative p-1.5 sm:p-2 rounded-full hover:bg-black/5 transition-all duration-300 group cursor-pointer"
+                            className={getActionButtonClass()}
                             aria-label="Notifications"
                           >
                             {notifOpen ? (
-                              <BellSolid className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-black" />
+                              <BellSolid className="h-5 w-5 lg:h-5.5 lg:w-5.5 transition-colors" />
                             ) : (
-                              <BellIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-gray-800 group-hover:text-black transition-colors" />
+                              <BellIcon className="h-5 w-5 lg:h-5.5 lg:w-5.5 transition-colors" />
                             )}
                             {unreadCount > 0 && (
-                              <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] bg-[var(--theme-accent)] text-[9px] sm:text-[10px] text-[var(--theme-accent-ink)] font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse">
+                              <span
+                                className={`absolute -top-1 -right-1 z-10 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] text-[9px] sm:text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 animate-pulse shadow-xs pointer-events-none ${
+                                  isThemeBand
+                                    ? "bg-white text-gray-900 font-black"
+                                    : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-[var(--theme-primary)]/30"
+                                }`}
+                              >
                                 {unreadCount > 99 ? "99+" : unreadCount}
                               </span>
                             )}
@@ -1544,21 +1119,39 @@ const Navbar = ({
 
                           {/* Dropdown panel */}
                           {notifOpen && (
-                            <div className="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white border border-black/10 rounded-2xl shadow-2xl shadow-black/15 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                              <div className="flex items-center justify-between px-4 py-3 border-b border-black/10">
-                                <h3 className="font-semibold text-black text-sm">
+                            <div
+                              className={`absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
+                                isDark
+                                  ? "bg-zinc-900/98 backdrop-blur-2xl border border-zinc-800 text-white shadow-black/80"
+                                  : "bg-white/98 backdrop-blur-2xl border border-gray-200/90 text-gray-900 shadow-black/15"
+                              }`}
+                            >
+                              <div
+                                className={`flex items-center justify-between px-4 py-3 border-b ${
+                                  isDark
+                                    ? "border-zinc-800"
+                                    : "border-gray-100"
+                                }`}
+                              >
+                                <h3 className="font-semibold text-sm">
                                   Notifications
                                 </h3>
                                 {unreadCount > 0 && (
-                                  <span className="text-xs bg-rose-500/10 text-rose-600 rounded-full px-2.5 py-0.5 font-semibold border border-rose-500/10">
+                                  <span className="text-xs bg-rose-500/10 text-rose-500 rounded-full px-2.5 py-0.5 font-semibold border border-rose-500/10">
                                     {unreadCount} new
                                   </span>
                                 )}
                               </div>
 
-                              <div className="max-h-72 overflow-y-auto divide-y divide-black/5">
+                              <div
+                                className={`max-h-72 overflow-y-auto divide-y ${
+                                  isDark
+                                    ? "divide-zinc-800/80"
+                                    : "divide-gray-100"
+                                }`}
+                              >
                                 {userNotifications.length === 0 ? (
-                                  <p className="text-center text-sm text-gray-500 py-10">
+                                  <p className="text-center text-sm text-gray-400 py-10">
                                     No notifications yet
                                   </p>
                                 ) : (
@@ -1569,32 +1162,45 @@ const Navbar = ({
                                       return (
                                         <button
                                           key={id}
-                                          className={`w-full text-left px-4 py-3 transition-colors flex items-start gap-2.5 ${
+                                          className={`w-full text-left px-4 py-3 transition-colors flex items-start gap-2.5 cursor-pointer ${
                                             !n.isRead
-                                              ? "bg-black/5 hover:bg-black/10"
-                                              : "hover:bg-black/5"
+                                              ? isDark
+                                                ? "bg-white/5 hover:bg-white/10"
+                                                : "bg-slate-50 hover:bg-slate-100"
+                                              : isDark
+                                              ? "hover:bg-white/5"
+                                              : "hover:bg-slate-50"
                                           }`}
                                           onClick={() => {
-                                            if (!n.isRead && id) markAsRead(id);
+                                            if (!n.isRead && id)
+                                              markAsRead(id);
                                             setNotifOpen(false);
-                                            navigate(getCustomerNotificationTarget(n));
+                                            navigate(
+                                              getCustomerNotificationTarget(n)
+                                            );
                                           }}
                                         >
                                           {!n.isRead && (
-                                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-600" />
+                                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
                                           )}
-                                          <div className={n.isRead ? "pl-4" : ""}>
+                                          <div
+                                            className={
+                                              n.isRead ? "pl-4" : ""
+                                            }
+                                          >
                                             <p
                                               className={`text-sm leading-snug line-clamp-2 ${
                                                 !n.isRead
-                                                  ? "font-semibold text-black"
+                                                  ? "font-semibold"
+                                                  : isDark
+                                                  ? "text-zinc-400"
                                                   : "text-gray-600"
                                               }`}
                                             >
                                               {n.message}
                                             </p>
                                             {n.createdAt && (
-                                              <p className="text-xs text-gray-500 mt-0.5">
+                                              <p className="text-xs text-gray-400 mt-0.5">
                                                 {new Date(
                                                   n.createdAt
                                                 ).toLocaleString("en-IN", {
@@ -1613,11 +1219,21 @@ const Navbar = ({
                               </div>
 
                               {userNotifications.length > 0 && (
-                                <div className="border-t border-black/10 px-4 py-2.5">
+                                <div
+                                  className={`border-t px-4 py-2.5 ${
+                                    isDark
+                                      ? "border-zinc-800 bg-zinc-950/40"
+                                      : "border-gray-100 bg-gray-50/50"
+                                  }`}
+                                >
                                   <Link
                                     to="/myorders"
                                     onClick={() => setNotifOpen(false)}
-                                    className="text-xs text-gray-600 hover:text-black transition-colors"
+                                    className={`text-xs transition-colors font-medium ${
+                                      isDark
+                                        ? "text-white hover:underline"
+                                        : "text-gray-700 hover:text-black"
+                                    }`}
                                   >
                                     View My Orders →
                                   </Link>
@@ -1635,7 +1251,7 @@ const Navbar = ({
                     <div className="hidden md:flex items-center gap-3 ml-2">
                       <button
                         onClick={() => setCustomerAuthOpen(true)}
-                        className="px-4 py-2 bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] border border-black/10 text-[var(--theme-primary-ink)] text-xs md:text-sm font-semibold rounded-lg transition-all duration-300 backdrop-blur-sm shadow-[0_0_10px_rgba(0,0,0,0.05)] focus:outline-none"
+                        className={getSignInButtonClass()}
                       >
                         Sign In
                       </button>
@@ -1644,17 +1260,15 @@ const Navbar = ({
                     <div className="relative">
                       <button
                         onClick={handleUserIconClick}
-                        className={`hidden md:flex items-center gap-2 ml-1 lg:ml-2 px-3 py-1.5 rounded-full border transition-all duration-300 group cursor-pointer ${
-                          isUserDropdownOpen || isActive("/profile")
-                            ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] border-[var(--theme-primary)] shadow-md shadow-black/10"
-                            : "bg-slate-100/90 hover:bg-slate-200/90 border-slate-200/80 text-slate-800"
-                        }`}
+                        className={`hidden md:flex items-center gap-2 ml-1 lg:ml-2 border transition-all duration-300 group cursor-pointer ${getAccountButtonClass()}`}
                       >
                         <div
                           className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
-                            isUserDropdownOpen || isActive("/profile")
-                              ? "bg-white/20 text-[var(--theme-primary-ink)]"
-                              : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] shadow-xs"
+                            isDark
+                              ? "bg-white/20 text-white"
+                              : isThemeBand
+                              ? "bg-white text-gray-900"
+                              : "bg-gray-900 text-white"
                           }`}
                         >
                           <UserIcon className="h-4 w-4" />
@@ -1671,30 +1285,54 @@ const Navbar = ({
 
                       {/* User Dropdown */}
                       {isUserDropdownOpen && (
-                        <div className="absolute top-full right-0 mt-2.5 w-56 bg-white rounded-2xl shadow-2xl shadow-black/10 border border-slate-200/80 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                          <div className="px-3 py-2 mb-1 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <div
+                          className={`absolute top-full right-0 mt-2.5 w-56 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 ${
+                            isDark
+                              ? "bg-zinc-900/98 backdrop-blur-2xl border border-zinc-800 text-white shadow-black/70"
+                              : "bg-white/98 backdrop-blur-2xl border border-gray-200/90 text-gray-900 shadow-black/15"
+                          }`}
+                        >
+                          <div
+                            className={`px-3 py-2 mb-1 rounded-xl border ${
+                              isDark
+                                ? "bg-zinc-800/80 border-zinc-700/60 text-zinc-300"
+                                : "bg-slate-50 border-slate-100 text-slate-700"
+                            }`}
+                          >
+                            <p className="text-[10px] font-bold uppercase tracking-wider opacity-60">
                               Signed in as
                             </p>
-                            <p className="text-xs font-bold text-slate-900 truncate">
+                            <p className="text-xs font-bold truncate">
                               {isAdmin ? "Administrator" : "Customer Account"}
                             </p>
                           </div>
                           <Link
                             to="/profile"
                             onClick={() => setIsUserDropdownOpen(false)}
-                            className="flex items-center gap-3 px-3 py-2.5 text-xs font-bold text-slate-700 hover:text-black hover:bg-slate-100 rounded-xl transition-all duration-200"
+                            className={`flex items-center gap-3 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 ${
+                              isDark
+                                ? "text-zinc-200 hover:text-white hover:bg-white/10"
+                                : "text-gray-700 hover:text-black hover:bg-slate-100"
+                            }`}
                           >
-                            <UserIcon className="h-4 w-4 text-slate-500" />
+                            <UserIcon className="h-4 w-4 opacity-70" />
                             My Profile
                           </Link>
-                          <div className="border-t border-slate-100 my-1"></div>
+                          <div
+                            className={`border-t my-1 ${
+                              isDark ? "border-zinc-800" : "border-slate-100"
+                            }`}
+                          />
                           <button
                             onClick={() => {
-                              logout();
+                              if (handleLogout) {
+                                handleLogout();
+                              } else {
+                                logout();
+                              }
                               setIsUserDropdownOpen(false);
                             }}
-                            className="flex items-center gap-3 w-full px-3 py-2.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all duration-200 cursor-pointer"
+                            className="flex items-center gap-3 w-full px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
                           >
                             <svg
                               className="h-4 w-4"
@@ -1721,48 +1359,73 @@ const Navbar = ({
           </div>
         </nav>
 
-        {/* Category browse bar — homepage only (it was showing on every page, including
-            ones like About/Help/Contact where it has no relevance and just adds visual
-            noise above the actual page content). Desktop only otherwise (see
-            CategoryMegaMenu's own hidden lg:flex); mobile users browse categories via
-            the hamburger menu below. */}
+        {/* Category browse bar — homepage only */}
         {location.pathname === "/" && <CategoryMegaMenu />}
 
-        {/* MOBILE MENU */}
+        {/* MOBILE MENU DRAWER */}
         <Dialog
           open={mobileMenuOpen}
           onClose={setMobileMenuOpen}
           className="relative z-[100] lg:hidden"
         >
-          <DialogBackdrop className="fixed inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-300 z-[100]" />
+          <DialogBackdrop className="fixed inset-0 bg-black/50 backdrop-blur-md transition-opacity duration-300 z-[100]" />
           <div className="fixed inset-0 z-[100] flex">
-            <DialogPanel className="relative mr-auto flex h-full w-[300px] max-w-[85vw] flex-col overflow-y-auto bg-white/95 backdrop-blur-2xl shadow-2xl transition-transform duration-300 border-r border-slate-200/80">
+            <DialogPanel
+              className={`relative mr-auto flex h-full w-[300px] max-w-[85vw] flex-col overflow-y-auto backdrop-blur-2xl shadow-2xl transition-transform duration-300 border-r ${
+                isDark
+                  ? "bg-zinc-950/98 border-zinc-800 text-white"
+                  : "bg-white/98 border-gray-200 text-gray-900"
+              }`}
+            >
               {/* Header */}
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <Link to="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2">
+              <div
+                className={`px-5 py-4 border-b flex items-center justify-between ${
+                  isDark ? "border-zinc-800" : "border-gray-100"
+                }`}
+              >
+                <Link
+                  to="/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center group cursor-pointer"
+                >
                   <img
                     src={logoSrc}
                     alt={branding.companyName || "Logo"}
-                    className="h-10 sm:h-12 w-auto object-contain filter brightness-125"
+                    className="h-9 sm:h-10 w-auto max-w-[140px] object-contain filter brightness-110"
                   />
                   {(branding.showCompanyName || branding.showCompanyTagline) && (
-                    <div className="flex flex-col justify-center text-left">
-                      {branding.showCompanyName && branding.companyName && (
-                        <span className="text-xs font-bold text-slate-900 uppercase tracking-widest leading-tight">
-                          {branding.companyName}
-                        </span>
-                      )}
-                      {branding.showCompanyTagline && branding.companyTagline && (
-                        <span className="text-[10px] text-slate-500 tracking-wider leading-tight">
-                          {branding.companyTagline}
-                        </span>
-                      )}
+                    <div className="flex items-center pl-1">
+                      <div className={`h-6 w-[1px] mx-2.5 shrink-0 ${isDark ? "bg-white/20" : "bg-slate-200"}`} />
+                      <div className="flex flex-col justify-center text-left min-w-0">
+                        {branding.showCompanyName && branding.companyName && (
+                          <span
+                            className={`text-xs font-bold uppercase tracking-wider leading-none truncate ${
+                              isDark ? "text-white" : "text-gray-900"
+                            }`}
+                          >
+                            {branding.companyName}
+                          </span>
+                        )}
+                        {branding.showCompanyTagline && branding.companyTagline && (
+                          <span
+                            className={`text-[9px] tracking-wider uppercase font-medium leading-tight mt-1 truncate ${
+                              isDark ? "text-zinc-400" : "text-gray-500"
+                            }`}
+                          >
+                            {branding.companyTagline}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </Link>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 transition-colors"
+                  className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                    isDark
+                      ? "bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  }`}
                 >
                   <XMarkIcon className="h-5 w-5" />
                 </button>
@@ -1773,14 +1436,22 @@ const Navbar = ({
                 {/* Mobile Search */}
                 <div className="mx-2 mb-3">
                   <div className="relative">
-                    <MagnifyingGlassIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <MagnifyingGlassIcon
+                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none ${
+                        isDark ? "text-zinc-400" : "text-gray-400"
+                      }`}
+                    />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onFocus={() => setSearchFocused(true)}
                       placeholder="Search products & categories..."
-                      className="w-full pl-9 pr-8 py-2.5 bg-slate-100/90 border border-slate-200/60 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-black/10"
+                      className={`w-full pl-9 pr-8 py-2.5 rounded-xl text-xs focus:outline-none transition-colors ${
+                        isDark
+                          ? "bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 focus:border-white/30"
+                          : "bg-gray-100 border border-gray-200 text-gray-900 placeholder-gray-400 focus:bg-white focus:border-gray-400"
+                      }`}
                     />
                     {searchQuery && (
                       <button
@@ -1788,9 +1459,9 @@ const Navbar = ({
                           setSearchQuery("");
                           setSearchResults(null);
                         }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
                       >
-                        <XMarkIcon className="h-3.5 w-3.5 text-slate-400" />
+                        <XMarkIcon className="h-3.5 w-3.5 text-gray-400" />
                       </button>
                     )}
                   </div>
@@ -1798,9 +1469,15 @@ const Navbar = ({
                   {/* Mobile search results */}
                   {searchQuery.trim().length >= 2 &&
                     (searchLoading || searchResults) && (
-                      <div className="mt-2 bg-white border border-slate-200/80 rounded-xl shadow-xl max-h-64 overflow-y-auto p-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                      <div
+                        className={`mt-2 rounded-xl shadow-xl max-h-64 overflow-y-auto p-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+                          isDark
+                            ? "bg-zinc-900 border border-zinc-800 text-white"
+                            : "bg-white border border-gray-200 text-gray-900"
+                        }`}
+                      >
                         {searchLoading && (
-                          <div className="p-3 text-center text-slate-400 text-xs">
+                          <div className="p-3 text-center text-gray-400 text-xs">
                             Searching...
                           </div>
                         )}
@@ -1816,7 +1493,7 @@ const Navbar = ({
                                 ...p,
                               })),
                             ].length === 0 ? (
-                              <div className="p-4 text-center text-slate-400 text-xs">
+                              <div className="p-4 text-center text-gray-400 text-xs">
                                 No results found
                               </div>
                             ) : (
@@ -1828,9 +1505,17 @@ const Navbar = ({
                                       handleCategoryClick(cat.id);
                                       setMobileMenuOpen(false);
                                     }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors text-left"
+                                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer ${
+                                      isDark
+                                        ? "hover:bg-white/10 text-zinc-100"
+                                        : "hover:bg-gray-100 text-gray-900"
+                                    }`}
                                   >
-                                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                                    <div
+                                      className={`w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 ${
+                                        isDark ? "bg-zinc-800" : "bg-gray-100"
+                                      }`}
+                                    >
                                       {cat.image ? (
                                         <img
                                           src={
@@ -1842,14 +1527,14 @@ const Navbar = ({
                                           className="w-full h-full object-cover"
                                         />
                                       ) : (
-                                        <CubeIcon className="h-4 w-4 text-slate-400 m-auto mt-2" />
+                                        <CubeIcon className="h-4 w-4 text-gray-400 m-auto mt-2" />
                                       )}
                                     </div>
                                     <div>
-                                      <div className="text-xs text-slate-900 font-bold">
+                                      <div className="text-xs font-bold">
                                         {cat.name}
                                       </div>
-                                      <div className="text-[10px] text-slate-400">
+                                      <div className="text-[10px] text-gray-400">
                                         Category
                                       </div>
                                     </div>
@@ -1862,9 +1547,17 @@ const Navbar = ({
                                       handleProductClick(prod.id);
                                       setMobileMenuOpen(false);
                                     }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors text-left"
+                                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left cursor-pointer ${
+                                      isDark
+                                        ? "hover:bg-white/10 text-zinc-100"
+                                        : "hover:bg-gray-100 text-gray-900"
+                                    }`}
                                   >
-                                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                                    <div
+                                      className={`w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 ${
+                                        isDark ? "bg-zinc-800" : "bg-gray-100"
+                                      }`}
+                                    >
                                       {prod.image ? (
                                         <img
                                           src={
@@ -1876,14 +1569,14 @@ const Navbar = ({
                                           className="w-full h-full object-cover"
                                         />
                                       ) : (
-                                        <ShoppingBagIcon className="h-4 w-4 text-slate-400 m-auto mt-2" />
+                                        <ShoppingBagIcon className="h-4 w-4 text-gray-400 m-auto mt-2" />
                                       )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-xs text-slate-900 font-bold truncate">
+                                      <div className="text-xs font-bold truncate">
                                         {prod.name}
                                       </div>
-                                      <div className="text-[10px] text-slate-500">
+                                      <div className="text-[10px] text-gray-500">
                                         ₹{prod.price?.toLocaleString()}
                                       </div>
                                     </div>
@@ -1913,13 +1606,19 @@ const Navbar = ({
                         }}
                         className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-200 mx-2 text-xs font-bold ${
                           active
-                            ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] shadow-md shadow-black/10"
-                            : "text-slate-700 hover:text-[var(--theme-primary)] hover:bg-slate-100/80"
+                            ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-bold shadow-md shadow-[var(--theme-primary)]/20"
+                            : isDark
+                            ? "text-zinc-300 hover:text-[var(--theme-primary)] hover:bg-white/10"
+                            : "text-gray-700 hover:text-[var(--theme-primary)] hover:bg-gray-100"
                         }`}
                       >
                         <Icon
                           className={`h-4 w-4 ${
-                            active ? "text-[var(--theme-primary-ink)]" : "text-slate-500"
+                            active
+                              ? "text-[var(--theme-primary-ink)]"
+                              : isDark
+                              ? "text-zinc-400"
+                              : "text-gray-500"
                           }`}
                         />
                         {item.name}
@@ -1930,12 +1629,26 @@ const Navbar = ({
                     <Link
                       to="/myorders"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-200 mx-2 text-xs font-bold text-slate-700 hover:text-black hover:bg-slate-100/80"
+                      className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-200 mx-2 text-xs font-bold ${
+                        isDark
+                          ? "text-zinc-300 hover:text-[var(--theme-primary)] hover:bg-white/10"
+                          : "text-gray-700 hover:text-[var(--theme-primary)] hover:bg-gray-100"
+                      }`}
                     >
-                      <BellIcon className="h-4 w-4 text-slate-500" />
+                      <BellIcon
+                        className={`h-4 w-4 ${
+                          isDark ? "text-zinc-400" : "text-gray-500"
+                        }`}
+                      />
                       Notifications
                       {unreadCount > 0 && (
-                        <span className="ml-auto min-w-[20px] h-[20px] bg-[var(--theme-accent)] text-[10px] text-[var(--theme-accent-ink)] font-bold rounded-full flex items-center justify-center px-1">
+                        <span
+                          className={`ml-auto min-w-[20px] h-[20px] text-[10px] font-bold rounded-full flex items-center justify-center px-1 ${
+                            isDark
+                              ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)]"
+                              : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)]"
+                          }`}
+                        >
                           {unreadCount}
                         </span>
                       )}
@@ -1945,7 +1658,11 @@ const Navbar = ({
               </div>
 
               {/* Auth Section */}
-              <div className="px-4 py-4 border-t border-slate-100">
+              <div
+                className={`px-4 py-4 border-t ${
+                  isDark ? "border-zinc-800" : "border-gray-100"
+                }`}
+              >
                 {!isAuthenticated ? (
                   <div className="space-y-2">
                     <button
@@ -1953,7 +1670,13 @@ const Navbar = ({
                         setMobileMenuOpen(false);
                         setCustomerAuthOpen(true);
                       }}
-                      className="block w-full text-center bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-[var(--theme-primary-ink)] py-3 rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                      className={`block w-full text-center py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md cursor-pointer ${
+                        isDark
+                          ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] hover:bg-[var(--theme-primary-hover)]"
+                          : isThemeBand
+                          ? "bg-white text-gray-900 hover:bg-gray-100"
+                          : "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] hover:bg-[var(--theme-primary-hover)]"
+                      }`}
                     >
                       Sign In
                     </button>
@@ -1963,17 +1686,29 @@ const Navbar = ({
                     <Link
                       to="/profile"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center justify-center gap-2 w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-800 py-3 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      className={`flex items-center justify-center gap-2 w-full text-center py-3 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        isDark
+                          ? "bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800"
+                          : "bg-gray-100 hover:bg-gray-200 text-gray-900"
+                      }`}
                     >
-                      <UserIcon className="h-4 w-4 text-slate-600" />
+                      <UserIcon
+                        className={`h-4 w-4 ${
+                          isDark ? "text-zinc-300" : "text-gray-600"
+                        }`}
+                      />
                       My Profile
                     </Link>
                     <button
                       onClick={() => {
-                        logout();
+                        if (handleLogout) {
+                          handleLogout();
+                        } else {
+                          logout();
+                        }
                         setMobileMenuOpen(false);
                       }}
-                      className="flex items-center justify-center gap-2 w-full text-center bg-rose-50 hover:bg-rose-100 text-rose-600 py-3 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      className="flex items-center justify-center gap-2 w-full text-center bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-3 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                     >
                       <svg
                         className="h-4 w-4"
@@ -2007,801 +1742,3 @@ const Navbar = ({
 };
 
 export default Navbar;
-
-
-
-
-// import React, { useState, useEffect, useRef } from "react";
-// import { Link, useNavigate, useLocation } from "react-router-dom";
-// import { Dialog, DialogPanel, DialogBackdrop } from "@headlessui/react";
-// import {
-//   Bars3Icon,
-//   UserIcon,
-//   XMarkIcon,
-//   HeartIcon as HeartOutline,
-//   BellIcon,
-//   ShoppingCartIcon, // Updated to ShoppingCartIcon to match reference image
-//   HomeIcon,
-//   CubeIcon,
-//   ClipboardDocumentListIcon,
-//   CreditCardIcon,
-//   MagnifyingGlassIcon,
-// } from "@heroicons/react/24/outline";
-// import {
-//   HeartIcon as HeartSolid,
-//   ShoppingCartIcon as ShoppingCartSolid,
-//   BellIcon as BellSolid,
-// } from "@heroicons/react/24/solid";
-// import { useWishlist } from "../context/WishlistContext";
-// import { useAuth } from "../context/AuthContext";
-// import { useBranding } from "../context/BrandingContext";
-// import { useUserNotifications } from "../context/UserNotificationContext";
-// import { useNotifications } from "../context/NotificationContext";
-// import CustomerAuthModal from "./CustomerAuthModal";
-// import toast from "react-hot-toast";
-// import api from "../utils/api";
-// import { domainUrl } from "../utils/constant";
-
-// const Navbar = ({
-//   user,
-//   role,
-//   cartItemCount = 0,
-//   handleLogout,
-// }: {
-//   user?: { isAuthenticated?: boolean; role?: string | null };
-//   role?: string | null;
-//   cartItemCount?: number;
-//   handleLogout?: () => void;
-// }) => {
-//   const navigate = useNavigate();
-//   const location = useLocation();
-//   const { logout } = useAuth();
-//   const { branding } = useBranding();
-//   const { wishlistCount } = useWishlist();
-//   const {
-//     notifications: userNotifications,
-//     unreadCount: userUnreadCount,
-//     markAsRead,
-//   } = useUserNotifications();
-//   const { unreadCount: adminUnreadCount } = useNotifications();
-
-//   const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
-//   const adminDashboardPath =
-//     role === "SUPER_ADMIN" ? "/super-admin-dashboard" : "/admin-dashboard";
-//   const unreadCount = isAdmin ? adminUnreadCount : userUnreadCount;
-//   const [notifOpen, setNotifOpen] = useState(false);
-//   const notifRef = useRef<HTMLDivElement>(null);
-
-//   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-//   const [scrolled, setScrolled] = useState(false);
-//   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-//   const [customerAuthOpen, setCustomerAuthOpen] = useState(false);
-
-//   // --- SEARCH STATE ---
-//   const [searchQuery, setSearchQuery] = useState("");
-//   const [searchResults, setSearchResults] = useState<{
-//     categories: Array<{ id: string; name: string; image?: string }>;
-//     products: Array<{
-//       id: string;
-//       name: string;
-//       price: number;
-//       image?: string;
-//       category?: { id: string; name: string };
-//     }>;
-//   } | null>(null);
-//   const [searchLoading, setSearchLoading] = useState(false);
-//   const [searchFocused, setSearchFocused] = useState(false);
-//   const searchRef = useRef<HTMLDivElement>(null);
-
-//   // --- ACKNOWLEDGED COUNT STATE (Persisted) ---
-//   const [ackCartCount, setAckCartCount] = useState(() => {
-//     return parseInt(localStorage.getItem("ack_cart_count") || "0", 10);
-//   });
-
-//   const [ackWishlistCount, setAckWishlistCount] = useState(() => {
-//     return parseInt(localStorage.getItem("ack_wishlist_count") || "0", 10);
-//   });
-
-//   // --- MATCHING LOGIC ---
-//   const currentPath = location.pathname.toLowerCase();
-//   const isCartPage = currentPath.includes("cart");
-//   const isWishlistPage = currentPath.includes("wishlist");
-
-//   // --- SYNC LOGIC ---
-//   useEffect(() => {
-//     if (isCartPage) {
-//       setAckCartCount(cartItemCount);
-//       localStorage.setItem("ack_cart_count", String(cartItemCount));
-//     }
-//   }, [isCartPage, cartItemCount]);
-
-//   useEffect(() => {
-//     if (!isWishlistPage) return;
-//     setAckWishlistCount((prev) => {
-//       const next = Math.max(prev, wishlistCount);
-//       localStorage.setItem("ack_wishlist_count", String(next));
-//       return next;
-//     });
-//   }, [isWishlistPage, wishlistCount]);
-
-//   // Scroll effect
-//   useEffect(() => {
-//     const handleScroll = () => {
-//       setScrolled(window.scrollY > 10);
-//     };
-//     window.addEventListener("scroll", handleScroll);
-//     return () => window.removeEventListener("scroll", handleScroll);
-//   }, []);
-
-//   // Open auth modal from anywhere via window event
-//   useEffect(() => {
-//     const handler = () => setCustomerAuthOpen(true);
-//     window.addEventListener("openCustomerAuth", handler);
-//     return () => window.removeEventListener("openCustomerAuth", handler);
-//   }, []);
-
-//   // Close notification dropdown on outside click
-//   useEffect(() => {
-//     const handler = (e: MouseEvent) => {
-//       if (notifRef.current && !notifRef.current.contains(e.target as Node))
-//         setNotifOpen(false);
-//     };
-//     if (notifOpen) document.addEventListener("mousedown", handler);
-//     return () => document.removeEventListener("mousedown", handler);
-//   }, [notifOpen]);
-
-//   // Close search on outside click
-//   useEffect(() => {
-//     const handler = (e: MouseEvent) => {
-//       if (
-//         searchRef.current &&
-//         !searchRef.current.contains(e.target as Node)
-//       ) {
-//         setSearchFocused(false);
-//       }
-//     };
-//     if (searchFocused) document.addEventListener("mousedown", handler);
-//     return () => document.removeEventListener("mousedown", handler);
-//   }, [searchFocused]);
-
-//   // Debounced search API call
-//   useEffect(() => {
-//     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-//       setSearchResults(null);
-//       setSearchLoading(false);
-//       return;
-//     }
-//     setSearchLoading(true);
-//     const timer = setTimeout(async () => {
-//       try {
-//         const res = await api.get(
-//           `/user/shop/global-search?q=${encodeURIComponent(
-//             searchQuery.trim()
-//           )}`
-//         );
-//         setSearchResults(res.data);
-//       } catch {
-//         setSearchResults({ categories: [], products: [] });
-//       } finally {
-//         setSearchLoading(false);
-//       }
-//     }, 350);
-//     return () => clearTimeout(timer);
-//   }, [searchQuery]);
-
-//   const handleCategoryClick = (categoryId: string) => {
-//     setSearchFocused(false);
-//     setSearchQuery("");
-//     setSearchResults(null);
-//     navigate(`/categories/${categoryId}`);
-//   };
-
-//   const handleProductClick = (productId: string) => {
-//     setSearchFocused(false);
-//     setSearchQuery("");
-//     setSearchResults(null);
-//     navigate(`/products/${productId}`);
-//   };
-
-//   const isAuthenticated = user?.isAuthenticated;
-
-//   // --- BADGE VISIBILITY LOGIC ---
-//   const showCartBadge = cartItemCount > ackCartCount;
-//   const showWishlistBadge = wishlistCount > 0;
-
-//   const handleCartClick = () => {
-//     setAckCartCount(cartItemCount);
-//     localStorage.setItem("ack_cart_count", String(cartItemCount));
-//   };
-
-//   const handleWishlistClick = (e: React.MouseEvent) => {
-//     handleGatedNavigation(e, "/WishlistPage", true);
-//     setAckWishlistCount((prev) => {
-//       const next = Math.max(prev, wishlistCount);
-//       localStorage.setItem("ack_wishlist_count", String(next));
-//       return next;
-//     });
-//   };
-
-//   const handleUserIconClick = () => {
-//     if (!isAuthenticated) {
-//       setCustomerAuthOpen(true);
-//     } else {
-//       setIsUserDropdownOpen(!isUserDropdownOpen);
-//     }
-//   };
-
-//   const handleGatedNavigation = (
-//     e: React.MouseEvent,
-//     path: string,
-//     isProtected: boolean
-//   ) => {
-//     e.preventDefault();
-
-//     if (isProtected && !isAuthenticated) {
-//       toast.error("Please login to continue", {
-//         id: "please login to continue wishlist",
-//       });
-//       return;
-//     }
-
-//     navigate(path);
-//   };
-
-//   const navigation = [
-//     { name: "Home", href: "/", protected: false, icon: HomeIcon },
-//     { name: "Products", href: "/products", protected: false, icon: CubeIcon },
-//     ...(isAuthenticated
-//       ? [
-//           {
-//             name: "My Orders",
-//             href: "/myorders",
-//             protected: true,
-//             icon: ClipboardDocumentListIcon,
-//           },
-//           {
-//             name: "Transactions",
-//             href: "/transactions",
-//             protected: true,
-//             icon: CreditCardIcon,
-//           },
-//         ]
-//       : []),
-//   ];
-
-//   const isActive = (path: string) => {
-//     if (path === "/") return location.pathname === "/";
-//     return location.pathname.startsWith(path);
-//   };
-
-//   return (
-//     <>
-//       <header className="fixed top-0 left-0 w-full z-40 font-sans">
-//         <nav
-//           className={`relative w-full bg-white transition-all duration-300 border-b border-gray-100 ${
-//             scrolled ? "py-3 shadow-xs" : "py-4"
-//           }`}
-//         >
-//           <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
-//             <div className="flex items-center justify-between gap-4">
-//               {/* LEFT: Logo & Mobile Hamburger */}
-//               <div className="flex items-center gap-3 flex-shrink-0">
-//                 <button
-//                   type="button"
-//                   className="lg:hidden p-2 rounded-md hover:bg-gray-100 text-gray-700 transition-colors"
-//                   onClick={() => setMobileMenuOpen(true)}
-//                 >
-//                   <Bars3Icon className="h-6 w-6" />
-//                 </button>
-
-//                 <Link to="/" className="flex-shrink-0">
-//                   <div className="flex items-center gap-2">
-//                     {branding.companyLogo ? (
-//                       <img
-//                         src={
-//                           branding.companyLogo.startsWith("http")
-//                             ? branding.companyLogo
-//                             : `${domainUrl}/${branding.companyLogo}`
-//                         }
-//                         alt={branding.companyName || ""}
-//                         className="h-7 md:h-8 lg:h-9 w-auto object-contain"
-//                       />
-//                     ) : null}
-//                     <div>
-//                       {branding.companyName && (
-//                         <div className="text-sm md:text-base font-bold text-gray-900 tracking-tight uppercase">
-//                           {branding.companyName}
-//                         </div>
-//                       )}
-//                       {branding.companyTagline && (
-//                         <div className="text-[10px] text-gray-500 tracking-wider hidden xl:block">
-//                           {branding.companyTagline}
-//                         </div>
-//                       )}
-//                     </div>
-//                   </div>
-//                 </Link>
-//               </div>
-
-//               {/* CENTER: Navigation Links */}
-//               <div className="hidden lg:flex items-center space-x-8">
-//                 {navigation.map((item) => {
-//                   const active = isActive(item.href);
-//                   return (
-//                     <Link
-//                       key={item.name}
-//                       to={item.href}
-//                       onClick={(e) =>
-//                         item.protected && !isAuthenticated
-//                           ? handleGatedNavigation(e, item.href, true)
-//                           : null
-//                       }
-//                       className={`text-sm font-medium transition-colors duration-200 ${
-//                         active
-//                           ? "text-black font-semibold"
-//                           : "text-gray-700 hover:text-black"
-//                       }`}
-//                     >
-//                       {item.name}
-//                     </Link>
-//                   );
-//                 })}
-//               </div>
-
-//               {/* RIGHT: Search Bar & Icons Matching Reference */}
-//               <div className="flex items-center space-x-5 flex-shrink-0">
-//                 {/* Pill Search Input */}
-//                 <div ref={searchRef} className="relative hidden md:block">
-//                   <div className="relative flex items-center">
-//                     <input
-//                       type="text"
-//                       value={searchQuery}
-//                       onChange={(e) => setSearchQuery(e.target.value)}
-//                       onFocus={() => setSearchFocused(true)}
-//                       placeholder="Search anything..."
-//                       className="w-48 lg:w-60 xl:w-72 pl-4 pr-10 py-2 bg-white border border-gray-200 rounded-full text-xs xl:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-gray-400 transition-all duration-200"
-//                     />
-//                     <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
-//                       {searchLoading ? (
-//                         <svg
-//                           className="animate-spin h-4 w-4 text-gray-400"
-//                           fill="none"
-//                           viewBox="0 0 24 24"
-//                         >
-//                           <circle
-//                             className="opacity-25"
-//                             cx="12"
-//                             cy="12"
-//                             r="10"
-//                             stroke="currentColor"
-//                             strokeWidth="4"
-//                           />
-//                           <path
-//                             className="opacity-75"
-//                             fill="currentColor"
-//                             d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-//                           />
-//                         </svg>
-//                       ) : (
-//                         <MagnifyingGlassIcon className="h-4.5 w-4.5 text-red-600 stroke-[2.2]" />
-//                       )}
-//                     </div>
-//                     {searchQuery && !searchLoading && (
-//                       <button
-//                         onMouseDown={(e) => {
-//                           e.preventDefault();
-//                           setSearchQuery("");
-//                           setSearchResults(null);
-//                         }}
-//                         className="absolute right-9 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-100 rounded-full text-gray-400 cursor-pointer"
-//                       >
-//                         <XMarkIcon className="h-3.5 w-3.5" />
-//                       </button>
-//                     )}
-//                   </div>
-
-//                   {/* Search Dropdown */}
-//                   {searchFocused && searchQuery.trim().length >= 2 && (
-//                     <div className="absolute top-full right-0 mt-2 w-80 xl:w-96 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 max-h-[420px] overflow-y-auto p-2">
-//                       {searchLoading && (
-//                         <div className="p-6 text-center text-sm text-gray-500">
-//                           Searching...
-//                         </div>
-//                       )}
-//                       {!searchLoading && searchResults && (
-//                         <>
-//                           {searchResults.categories.length > 0 && (
-//                             <div className="mb-2">
-//                               <div className="px-3 py-1 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
-//                                 Categories
-//                               </div>
-//                               {searchResults.categories.map((cat) => (
-//                                 <button
-//                                   key={cat.id}
-//                                   onMouseDown={() =>
-//                                     handleCategoryClick(cat.id)
-//                                   }
-//                                   className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 text-left cursor-pointer"
-//                                 >
-//                                   <div className="w-8 h-8 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
-//                                     {cat.image ? (
-//                                       <img
-//                                         src={
-//                                           cat.image.startsWith("http")
-//                                             ? cat.image
-//                                             : `${domainUrl}/${cat.image}`
-//                                         }
-//                                         alt={cat.name}
-//                                         className="w-full h-full object-cover"
-//                                       />
-//                                     ) : (
-//                                       <CubeIcon className="h-4 w-4 text-gray-400 m-auto mt-2" />
-//                                     )}
-//                                   </div>
-//                                   <div className="flex-1 min-w-0">
-//                                     <div className="text-xs text-gray-900 font-medium">
-//                                       {cat.name}
-//                                     </div>
-//                                   </div>
-//                                 </button>
-//                               ))}
-//                             </div>
-//                           )}
-
-//                           {searchResults.products.length > 0 && (
-//                             <div>
-//                               <div className="px-3 py-1 text-[10px] text-gray-400 uppercase tracking-widest font-bold">
-//                                 Products
-//                               </div>
-//                               {searchResults.products.map((prod) => (
-//                                 <button
-//                                   key={prod.id}
-//                                   onMouseDown={() =>
-//                                     handleProductClick(prod.id)
-//                                   }
-//                                   className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 text-left cursor-pointer"
-//                                 >
-//                                   <div className="w-9 h-9 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
-//                                     {prod.image ? (
-//                                       <img
-//                                         src={
-//                                           prod.image.startsWith("http")
-//                                             ? prod.image
-//                                             : `${domainUrl}/${prod.image}`
-//                                         }
-//                                         alt={prod.name}
-//                                         className="w-full h-full object-cover"
-//                                       />
-//                                     ) : (
-//                                       <ShoppingCartIcon className="h-4 w-4 text-gray-400 m-auto mt-2.5" />
-//                                     )}
-//                                   </div>
-//                                   <div className="flex-1 min-w-0">
-//                                     <div className="text-xs text-gray-900 font-medium truncate">
-//                                       {prod.name}
-//                                     </div>
-//                                     <div className="text-[11px] text-gray-500">
-//                                       ₹{prod.price?.toLocaleString()}
-//                                     </div>
-//                                   </div>
-//                                 </button>
-//                               ))}
-//                             </div>
-//                           )}
-
-//                           {searchResults.categories.length === 0 &&
-//                             searchResults.products.length === 0 && (
-//                               <div className="py-8 text-center text-sm text-gray-500">
-//                                 No results for "{searchQuery}"
-//                               </div>
-//                             )}
-//                         </>
-//                       )}
-//                     </div>
-//                   )}
-//                 </div>
-
-//                 {/* 1. Profile / Account Icon */}
-//                 <div className="relative">
-//                   <button
-//                     onClick={handleUserIconClick}
-//                     className="p-1 text-gray-900 hover:text-black transition-colors focus:outline-none flex items-center"
-//                     aria-label="Account"
-//                   >
-//                     <UserIcon className="h-5 w-5 stroke-[1.4]" />
-//                   </button>
-
-//                   {/* Desktop User Dropdown */}
-//                   {isAuthenticated && isUserDropdownOpen && (
-//                     <div className="absolute top-full right-0 mt-3 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
-//                       <Link
-//                         to="/profile"
-//                         onClick={() => setIsUserDropdownOpen(false)}
-//                         className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
-//                       >
-//                         <UserIcon className="h-4 w-4 text-gray-500" />
-//                         My Profile
-//                       </Link>
-//                       <div className="border-t border-gray-100 my-1"></div>
-//                       <button
-//                         onClick={() => {
-//                           logout();
-//                           setIsUserDropdownOpen(false);
-//                         }}
-//                         className="flex items-center gap-2 w-full text-left px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
-//                       >
-//                         Logout
-//                       </button>
-//                     </div>
-//                   )}
-//                 </div>
-
-//                 {/* 2. Wishlist Heart Icon */}
-//                 {isAuthenticated && (
-//                   <button
-//                     onClick={handleWishlistClick}
-//                     className="relative p-1 text-gray-900 hover:text-black transition-colors flex items-center"
-//                     aria-label="Wishlist"
-//                   >
-//                     {isActive("/wishlist") ? (
-//                       <HeartSolid className="h-4 w-4 text-red-600" />
-//                     ) : (
-//                       <HeartOutline className="h-4.5 w-5 stroke-[1.4]" />
-//                     )}
-//                     {showWishlistBadge && (
-//                       <span className="absolute -top-1 -right-1.5 min-w-[17px] h-[17px] bg-red-600 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-0.5">
-//                         {wishlistCount}
-//                       </span>
-//                     )}
-//                   </button>
-//                 )}
-
-//                 {/* 3. Shopping Cart Icon */}
-//                 {isAuthenticated && (
-//                   <Link
-//                     to="/cart"
-//                     onClick={(e) => {
-//                       if (!isAuthenticated) {
-//                         e.preventDefault();
-//                         toast.error("Please login to continue", {
-//                           id: "Navbar login to continue",
-//                         });
-//                         return;
-//                       }
-//                       handleCartClick();
-//                     }}
-//                     className="relative p-1 text-gray-900 hover:text-black transition-colors flex items-center"
-//                     aria-label="Cart"
-//                   >
-//                     {isActive("/cart") ? (
-//                       <ShoppingCartSolid className="h-5 w-5 text-black" />
-//                     ) : (
-//                       <ShoppingCartIcon className="h-5 w-5 stroke-[1.4]" />
-//                     )}
-//                     {showCartBadge && (
-//                       <span className="absolute -top-1 -right-1.5 min-w-[17px] h-[17px] bg-red-600 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-0.5">
-//                         {cartItemCount}
-//                       </span>
-//                     )}
-//                   </Link>
-//                 )}
-
-//                 {/* 4. Notification Bell Icon */}
-//                 {isAuthenticated && (
-//                   <div ref={notifRef} className="relative">
-//                     {isAdmin ? (
-//                       <button
-//                         onClick={() =>
-//                           navigate(`${adminDashboardPath}/notifications`)
-//                         }
-//                         className="relative p-1 text-gray-900 hover:text-black transition-colors flex items-center"
-//                         aria-label="Notifications"
-//                       >
-//                         <BellIcon className="h-6 w-6 stroke-[1.6]" />
-//                         {unreadCount > 0 && (
-//                           <span className="absolute -top-1 -right-1.5 min-w-[17px] h-[17px] bg-red-600 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-0.5">
-//                             {unreadCount > 99 ? "99+" : unreadCount}
-//                           </span>
-//                         )}
-//                       </button>
-//                     ) : (
-//                       <>
-//                         <button
-//                           onClick={() => setNotifOpen((o) => !o)}
-//                           className="relative p-1 text-gray-900 hover:text-black transition-colors flex items-center"
-//                           aria-label="Notifications"
-//                         >
-//                           {notifOpen ? (
-//                             <BellSolid className="h-6 w-6 text-black" />
-//                           ) : (
-//                             <BellIcon className="h-5 w-5 stroke-[1.4]" />
-//                           )}
-//                           {unreadCount > 0 && (
-//                             <span className="absolute -top-1 -right-1.5 min-w-[17px] h-[17px] bg-red-600 text-[10px] text-white font-bold rounded-full flex items-center justify-center px-0.5">
-//                               {unreadCount > 99 ? "99+" : unreadCount}
-//                             </span>
-//                           )}
-//                         </button>
-
-//                         {/* Dropdown panel */}
-//                         {notifOpen && (
-//                           <div className="absolute right-0 mt-3 w-80 bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden">
-//                             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-//                               <h3 className="font-semibold text-gray-900 text-xs uppercase tracking-wider">
-//                                 Notifications
-//                               </h3>
-//                               {unreadCount > 0 && (
-//                                 <span className="text-[10px] bg-red-50 text-red-600 rounded-full px-2 py-0.5 font-bold">
-//                                   {unreadCount} new
-//                                 </span>
-//                               )}
-//                             </div>
-
-//                             <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-//                               {userNotifications.length === 0 ? (
-//                                 <p className="text-center text-xs text-gray-400 py-8">
-//                                   No notifications yet
-//                                 </p>
-//                               ) : (
-//                                 userNotifications.slice(0, 8).map((n) => {
-//                                   const id = n.id ?? n._id;
-//                                   return (
-//                                     <button
-//                                       key={id}
-//                                       className={`w-full text-left px-4 py-3 text-xs flex items-start gap-2 hover:bg-gray-50 transition-colors ${
-//                                         !n.isRead ? "bg-red-50/30 font-medium" : "text-gray-600"
-//                                       }`}
-//                                       onClick={() => {
-//                                         if (!n.isRead && id) markAsRead(id);
-//                                         setNotifOpen(false);
-//                                       }}
-//                                     >
-//                                       {!n.isRead && (
-//                                         <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red-600" />
-//                                       )}
-//                                       <div className={n.isRead ? "pl-3.5" : ""}>
-//                                         <p className="line-clamp-2 text-gray-800">
-//                                           {n.message}
-//                                         </p>
-//                                         {n.createdAt && (
-//                                           <p className="text-[10px] text-gray-400 mt-1">
-//                                             {new Date(
-//                                               n.createdAt
-//                                             ).toLocaleString("en-IN", {
-//                                               day: "numeric",
-//                                               month: "short",
-//                                               hour: "2-digit",
-//                                               minute: "2-digit",
-//                                             })}
-//                                           </p>
-//                                         )}
-//                                       </div>
-//                                     </button>
-//                                   );
-//                                 })
-//                               )}
-//                             </div>
-//                           </div>
-//                         )}
-//                       </>
-//                     )}
-//                   </div>
-//                 )}
-//               </div>
-//             </div>
-//           </div>
-//         </nav>
-
-//         {/* MOBILE MENU */}
-//         <Dialog
-//           open={mobileMenuOpen}
-//           onClose={setMobileMenuOpen}
-//           className="relative z-[100] lg:hidden"
-//         >
-//           <DialogBackdrop className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 z-[100]" />
-//           <div className="fixed inset-0 z-[100] flex">
-//             <DialogPanel className="relative mr-auto flex h-full w-[300px] max-w-[80vw] flex-col overflow-y-auto bg-white shadow-2xl transition-transform duration-300">
-//               <div className="p-4 flex items-center justify-between border-b border-gray-100">
-//                 <Link to="/" onClick={() => setMobileMenuOpen(false)}>
-//                   <div className="flex items-center gap-2">
-//                     {branding.companyLogo ? (
-//                       <img
-//                         src={
-//                           branding.companyLogo.startsWith("http")
-//                             ? branding.companyLogo
-//                             : `${domainUrl}/${branding.companyLogo}`
-//                         }
-//                         alt={branding.companyName || ""}
-//                         className="h-7 w-auto object-contain"
-//                       />
-//                     ) : null}
-//                     <span className="font-bold text-gray-900 text-sm">
-//                       {branding.companyName}
-//                     </span>
-//                   </div>
-//                 </Link>
-//                 <button
-//                   onClick={() => setMobileMenuOpen(false)}
-//                   className="p-1 rounded-md text-gray-500 hover:bg-gray-100"
-//                 >
-//                   <XMarkIcon className="h-6 w-6" />
-//                 </button>
-//               </div>
-
-//               <div className="p-4 space-y-4 flex-1">
-//                 <div className="relative">
-//                   <input
-//                     type="text"
-//                     value={searchQuery}
-//                     onChange={(e) => setSearchQuery(e.target.value)}
-//                     placeholder="Search anything..."
-//                     className="w-full pl-3 pr-8 py-2 text-xs bg-gray-50 border border-gray-200 rounded-full focus:outline-none"
-//                   />
-//                   <MagnifyingGlassIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-600" />
-//                 </div>
-
-//                 <div className="space-y-1">
-//                   {navigation.map((item) => (
-//                     <Link
-//                       key={item.name}
-//                       to={item.href}
-//                       onClick={(e) => {
-//                         if (item.protected && !isAuthenticated) {
-//                           handleGatedNavigation(e, item.href, true);
-//                         }
-//                         setMobileMenuOpen(false);
-//                       }}
-//                       className="block px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
-//                     >
-//                       {item.name}
-//                     </Link>
-//                   ))}
-//                 </div>
-//               </div>
-
-//               <div className="p-4 border-t border-gray-100">
-//                 {!isAuthenticated ? (
-//                   <button
-//                     onClick={() => {
-//                       setMobileMenuOpen(false);
-//                       setCustomerAuthOpen(true);
-//                     }}
-//                     className="w-full py-2 bg-black text-white text-xs font-semibold rounded-lg"
-//                   >
-//                     Sign In
-//                   </button>
-//                 ) : (
-//                   <div className="space-y-2">
-//                     <Link
-//                       to="/profile"
-//                       onClick={() => setMobileMenuOpen(false)}
-//                       className="block w-full text-center py-2 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg"
-//                     >
-//                       My Profile
-//                     </Link>
-//                     <button
-//                       onClick={() => {
-//                         logout();
-//                         setMobileMenuOpen(false);
-//                       }}
-//                       className="block w-full text-center py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
-//                     >
-//                       Logout
-//                     </button>
-//                   </div>
-//                 )}
-//               </div>
-//             </DialogPanel>
-//           </div>
-//         </Dialog>
-//       </header>
-
-//       <CustomerAuthModal
-//         open={customerAuthOpen}
-//         onClose={() => setCustomerAuthOpen(false)}
-//       />
-//     </>
-//   );
-// };
-
-// export default Navbar;

@@ -1,6 +1,9 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "leaflet/dist/leaflet.css";
+import { setupToastDeduplication } from "./utils/setupToastDeduplication";
+
+setupToastDeduplication();
 
 // Browsers silently change a focused <input type="number">'s value when the user
 // scrolls over it — easy to trigger by accident while scrolling the page. Blur the

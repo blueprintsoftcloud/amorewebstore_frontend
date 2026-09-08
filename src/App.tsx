@@ -20,6 +20,7 @@ import { PulseLoader } from "react-spinners";
 import { GLOBAL_COLORS } from "./utils/colors";
 
 import { Toaster } from "react-hot-toast";
+import ToastDeduplicator from "./components/ToastDeduplicator";
 
 // Single QueryClient instance — created outside the component to avoid re-creation on re-renders
 const queryClient = new QueryClient({
@@ -82,6 +83,7 @@ function AppContent() {
                   },
                 }}
               />
+              <ToastDeduplicator />
               {isOnline ? (
                 user.isInitialLoad ? (
                   <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 font-sans">

@@ -844,7 +844,7 @@ function Template2({ data }: { data: HeroTemplateData }) {
   return (
     // Changed to a clean neutral background color to beautifully frame the high-quality asset layout
     <div 
-      style={{ minHeight: "calc(100vh - 4rem)" }}
+      style={{ minHeight: "calc(100vh + 6rem)" }}
       className="relative w-full bg-neutral-950 mt-16 sm:mt-20 lg:mt-24 flex items-center overflow-hidden"
     >
       
@@ -1931,7 +1931,12 @@ export default function HeroSection({ onReady }: { onReady?: () => void }) {
       ? "bg-[var(--theme-primary)]"
       : "bg-white";
 
-  const skeletonStyle: React.CSSProperties = { minHeight: "calc(100vh - 4rem)" };
+  const skeletonStyle: React.CSSProperties = {
+    minHeight:
+      config.activeTemplate === 2
+        ? "calc(100vh + 6rem)"
+        : "calc(100vh - 4rem)",
+  };
 
   const skeletonMargin =
     config.activeTemplate === 1

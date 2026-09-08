@@ -1316,7 +1316,7 @@ export default function AllProducts() {
           <motion.h2
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="text-3xl font-bold tracking-tight sm:text-4xl font-sans text-[var(--theme-ink)]"
+            className="text-3xl font-bold tracking-tight sm:text-4xl font-sans text-gray-900"
           >
             {filters.category || "All Products"}
           </motion.h2>

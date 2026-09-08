@@ -110,11 +110,9 @@ const Template1 = ({
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="text-3xl font-bold tracking-tighter sm:text-4xl"
+              className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl"
             >
-              <span className="bg-black bg-clip-text text-transparent">
-                {sectionTitle}
-              </span>
+              {sectionTitle}
             </motion.h2>
             {sectionSubtitle && (
               <p className="text-gray-500 text-sm mt-2">{sectionSubtitle}</p>
@@ -272,7 +270,7 @@ const SectionHeader = ({
         initial={{ opacity: 0, x: -20 }}
         whileInView={{ opacity: 1, x: 0 }}
         viewport={{ once: true }}
-        className="text-3xl font-bold tracking-tighter text-gray-900 sm:text-4xl"
+        className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl"
       >
         {sectionTitle}
       </motion.h2>

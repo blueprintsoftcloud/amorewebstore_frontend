@@ -47,7 +47,48 @@ import { StarIcon as StarSolidIcon } from "@heroicons/react/24/solid";
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type BannerType = "DISCOUNT_PANEL" | "CAROUSEL_ITEM" | "PROMO_BANNER";
-type Tab = BannerType | "FEATURED" | "ANNOUNCEMENT" | "HERO" | "FOOTER" | "NAVIGATION" | "THEME" | "OCCASIONS";
+type Tab = BannerType | "FEATURED" | "ANNOUNCEMENT" | "HERO" | "HEADER" | "FOOTER" | "NAVIGATION" | "THEME" | "OCCASIONS";
+
+interface NavbarConfig {
+  activeTemplate: 1 | 2 | 3 | 4 | 5 | 6;
+}
+
+const DEFAULT_NAVBAR: NavbarConfig = {
+  activeTemplate: 1,
+};
+
+const NAVBAR_TEMPLATE_LABELS: Record<string, { name: string; desc: string; tag: string }> = {
+  "1": {
+    name: "Dark Professional",
+    desc: "Obsidian noir background with crisp white typography, micro-lift pill links, and sleek circular icons.",
+    tag: "Pairs with Footer 1",
+  },
+  "2": {
+    name: "Light Editorial",
+    desc: "Refined off-white magazine canvas with centered small baseline active indicators and curated classic buttons.",
+    tag: "Pairs with Footer 2",
+  },
+  "3": {
+    name: "Gradient with Aurora",
+    desc: "Deep indigo & slate glowing backdrop with luminous tech pills and matching neon focus accents.",
+    tag: "Pairs with Footer 3",
+  },
+  "4": {
+    name: "Minimal Centered",
+    desc: "Pure white balanced layout with centered brand mark, subtle micro-dot indicator, and airy spacing.",
+    tag: "Pairs with Footer 4",
+  },
+  "5": {
+    name: "Festive Accent Band",
+    desc: "Full theme-primary brand header with high-contrast white active tabs and festive energetic energy.",
+    tag: "Pairs with Footer 5",
+  },
+  "6": {
+    name: "Split Statement",
+    desc: "Bold modern asymmetric high-fashion design with sculpted squircle tabs and magnetic spring physics.",
+    tag: "Pairs with Footer 6",
+  },
+};
 
 interface NavCategory {
   id: string;
@@ -491,6 +532,11 @@ export default function HomepageManager() {
     DEFAULT_HERO.templates["1"],
   );
 
+  // Navbar config state
+  const [navbarConfig, setNavbarConfig] =
+    useState<NavbarConfig>(DEFAULT_NAVBAR);
+  const [savingNavbar, setSavingNavbar] = useState(false);
+
   // Footer config state
   const [footerConfig, setFooterConfig] =
     useState<FooterConfig>(DEFAULT_FOOTER);
@@ -636,6 +682,12 @@ export default function HomepageManager() {
           ),
         });
       }
+      if (configResp.data?.navbarConfig) {
+        const fetchedNavbar = configResp.data.navbarConfig;
+        setNavbarConfig({
+          activeTemplate: fetchedNavbar.activeTemplate ?? DEFAULT_NAVBAR.activeTemplate,
+        });
+      }
       if (configResp.data?.footerConfig) {
         const fetchedFooter = configResp.data.footerConfig;
         setFooterConfig({
@@ -762,9 +814,10 @@ export default function HomepageManager() {
 
   const saveNavSettings = async () => {
     if (!canCategoryEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "nav-perm-error" });
       return;
     }
+    if (navSaving) return;
     setNavSaving(true);
     try {
       const items = navCategories.map((c, index) => ({
@@ -773,12 +826,12 @@ export default function HomepageManager() {
         navOrder: index,
       }));
       await api.patch("/category/nav-order", { items });
-      toast.success("Navigation menu updated");
+      toast.success("Navigation menu updated", { id: "nav-settings-updated" });
       setNavDirty(false);
       fetchNavCategories();
       refreshPreview();
     } catch {
-      toast.error("Failed to save navigation settings");
+      toast.error("Failed to save navigation settings", { id: "nav-settings-error" });
     } finally {
       setNavSaving(false);
     }
@@ -788,18 +841,19 @@ export default function HomepageManager() {
 
   const saveAnnouncement = async () => {
     if (isStaff) {
-      toast.error("Only an admin can edit the announcement bar.");
+      toast.error("Only an admin can edit the announcement bar.", { id: "announcement-admin-error" });
       return;
     }
+    if (savingAnnouncement) return;
     try {
       setSavingAnnouncement(true);
       await api.put("/admin/company-settings", {
         announcementBar: announcementText,
       });
-      toast.success("Announcement bar updated");
+      toast.success("Announcement bar updated", { id: "announcement-bar-updated" });
       refreshPreview();
     } catch {
-      toast.error("Failed to save announcement");
+      toast.error("Failed to save announcement", { id: "announcement-bar-error" });
     } finally {
       setSavingAnnouncement(false);
     }
@@ -807,17 +861,18 @@ export default function HomepageManager() {
 
   const toggleAnnouncement = async (enabled: boolean) => {
     if (isStaff) {
-      toast.error("Only an admin can enable/disable the announcement bar.");
+      toast.error("Only an admin can enable/disable the announcement bar.", { id: "announcement-toggle-perm" });
       return;
     }
+    if (togglingAnnouncement) return;
     try {
       setTogglingAnnouncement(true);
       await api.patch("/admin/announcement-toggle", { enabled });
       setAnnouncementEnabled(enabled);
-      toast.success(`Announcement bar ${enabled ? "enabled" : "disabled"}`);
+      toast.success(`Announcement bar ${enabled ? "enabled" : "disabled"}`, { id: "announcement-toggle-status" });
       refreshPreview();
     } catch {
-      toast.error("Failed to update announcement bar visibility");
+      toast.error("Failed to update announcement bar visibility", { id: "announcement-toggle-error" });
     } finally {
       setTogglingAnnouncement(false);
     }
@@ -829,14 +884,15 @@ export default function HomepageManager() {
       toast.error(NO_PERMISSION_MSG);
       return;
     }
+    if (savingTheme) return;
     setSavingTheme(true);
     try {
       await api.put("/admin/homepage-config/theme", { themeId: draftThemeId });
       setThemeId(draftThemeId);
-      toast.success("Storefront theme updated");
+      toast.success("Storefront theme updated", { id: "storefront-theme-updated" });
       refreshPreview();
     } catch {
-      toast.error("Failed to update storefront theme");
+      toast.error("Failed to update storefront theme", { id: "storefront-theme-error" });
       // Roll the draft back to the last saved value so the picker/preview don't keep
       // showing a theme that never actually saved.
       setDraftThemeId(themeId);
@@ -857,16 +913,16 @@ export default function HomepageManager() {
     setter: React.Dispatch<React.SetStateAction<number>>,
   ) => {
     if (!canBannerEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "section-perm-error" });
       return;
     }
     setter(templateNum); // optimistic — the picker should react instantly
     try {
       await api.put(endpoint, { activeTemplate: templateNum });
-      toast.success("Template updated");
+      toast.success("Template updated", { id: `template-update-${endpoint}` });
       refreshPreview();
     } catch {
-      toast.error("Failed to update template");
+      toast.error("Failed to update template", { id: `template-error-${endpoint}` });
       setter(currentValue); // roll back to whatever was actually saved before this click
     }
   };
@@ -978,7 +1034,7 @@ export default function HomepageManager() {
 
   const handleHeroTemplateSelect = async (templateNum: number) => {
     if (!canBannerEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "hero-perm-error" });
       return;
     }
     const updated = {
@@ -988,10 +1044,10 @@ export default function HomepageManager() {
     setHeroConfig(updated);
     try {
       await api.put("/admin/homepage-config/hero", updated);
-      toast.success(`Hero template ${templateNum} activated`);
+      toast.success(`Hero template ${templateNum} activated`, { id: "hero-template-activated" });
       refreshPreview();
     } catch {
-      toast.error("Failed to update hero template");
+      toast.error("Failed to update hero template", { id: "hero-template-error" });
     }
   };
 
@@ -999,31 +1055,56 @@ export default function HomepageManager() {
     // Falls back to THIS template's own defaults, not template 1's — matters whenever
     // the DB's saved HERO_CONFIG predates a newly-added template (e.g. right after
     // Template6 shipped, existing installs' saved blob has no "6" entry yet).
-    setHeroForm({
-      ...(heroConfig.templates[templateKey] ?? DEFAULT_HERO.templates[templateKey] ?? DEFAULT_HERO.templates["1"]),
-    });
+    const rawData =
+      heroConfig.templates[templateKey] ??
+      DEFAULT_HERO.templates[templateKey] ??
+      DEFAULT_HERO.templates["1"];
+    const cleaned = { ...rawData };
+    // Prevent cross-template field leakage between collage templates and background image templates
+    if (["1", "3", "5"].includes(templateKey)) {
+      delete cleaned.bgImage;
+    } else if (["2", "4", "6", "9"].includes(templateKey)) {
+      delete cleaned.images;
+    } else if (["7", "8"].includes(templateKey)) {
+      delete cleaned.bgImage;
+      delete cleaned.images;
+    }
+    setHeroForm(cleaned);
     setEditingHeroTemplate(templateKey);
   };
 
   const saveHeroTemplate = async () => {
     if (!editingHeroTemplate) return;
     if (!canBannerEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "hero-perm-error" });
       return;
     }
+    if (savingHero) return;
+
+    // Sanitize template data to prevent cross-pollution between bgImage and images
+    const sanitizedForm: HeroTemplateData = { ...heroForm };
+    if (["1", "3", "5"].includes(editingHeroTemplate)) {
+      delete sanitizedForm.bgImage;
+    } else if (["2", "4", "6", "9"].includes(editingHeroTemplate)) {
+      delete sanitizedForm.images;
+    } else if (["7", "8"].includes(editingHeroTemplate)) {
+      delete sanitizedForm.bgImage;
+      delete sanitizedForm.images;
+    }
+
     const updated: HeroConfig = {
       ...heroConfig,
-      templates: { ...heroConfig.templates, [editingHeroTemplate]: heroForm },
+      templates: { ...heroConfig.templates, [editingHeroTemplate]: sanitizedForm },
     };
     try {
       setSavingHero(true);
       await api.put("/admin/homepage-config/hero", updated);
       setHeroConfig(updated);
       setEditingHeroTemplate(null);
-      toast.success("Hero template saved");
+      toast.success("Hero template saved", { id: "hero-template-saved" });
       refreshPreview();
     } catch {
-      toast.error("Failed to save hero template");
+      toast.error("Failed to save hero template", { id: "hero-template-save-error" });
     } finally {
       setSavingHero(false);
     }
@@ -1031,23 +1112,27 @@ export default function HomepageManager() {
 
   const uploadHeroImage = async (file: File, index: number) => {
     if (!canBannerEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "hero-upload-perm-error" });
       return;
     }
+    const previousUrl = heroForm.images?.[index];
     try {
       setUploadingHeroImage(index);
       const fd = new FormData();
       fd.append("image", file);
       fd.append("folder", "hero");
+      if (previousUrl && previousUrl.includes("cloudinary.com")) {
+        fd.append("previousUrl", previousUrl);
+      }
       const { data } = await api.post("/admin/upload-image", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const imgs = [...(heroForm.images ?? [])];
       imgs[index] = data.url;
       setHeroForm((p) => ({ ...p, images: imgs }));
-      toast.success("Image uploaded successfully");
+      toast.success("Image uploaded successfully", { id: "hero-img-uploaded" });
     } catch {
-      toast.error("Image upload failed");
+      toast.error("Image upload failed", { id: "hero-img-upload-error" });
     } finally {
       setUploadingHeroImage(null);
     }
@@ -1055,37 +1140,90 @@ export default function HomepageManager() {
 
   const uploadHeroBgImage = async (file: File) => {
     if (!canBannerEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "hero-upload-perm-error" });
       return;
     }
+    const previousUrl = heroForm.bgImage;
     try {
       setUploadingBgImage(true);
       const fd = new FormData();
       fd.append("image", file);
       fd.append("folder", "hero");
+      if (previousUrl && previousUrl.includes("cloudinary.com")) {
+        fd.append("previousUrl", previousUrl);
+      }
       const { data } = await api.post("/admin/upload-image", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setHeroForm((p) => ({ ...p, bgImage: data.url }));
-      toast.success("Image uploaded successfully");
+      toast.success("Image uploaded successfully", { id: "hero-bg-uploaded" });
     } catch {
-      toast.error("Image upload failed");
+      toast.error("Image upload failed", { id: "hero-bg-upload-error" });
     } finally {
       setUploadingBgImage(false);
     }
   };
 
-  const removeHeroImage = (index: number) => {
+  const removeHeroImage = async (index: number) => {
+    const oldUrl = heroForm.images?.[index];
     const imgs = [...(heroForm.images ?? [])];
     imgs[index] = "";
     setHeroForm((p) => ({ ...p, images: imgs }));
+
+    if (oldUrl && oldUrl.includes("cloudinary.com")) {
+      try {
+        await api.post("/admin/delete-image", { url: oldUrl });
+        toast.success("Image removed", { id: "hero-img-removed" });
+      } catch (err) {
+        console.warn("Failed to delete removed hero image from Cloudinary", err);
+      }
+    }
+  };
+
+  const removeHeroBgImage = async () => {
+    const oldUrl = heroForm.bgImage;
+    setHeroForm((p) => ({ ...p, bgImage: "" }));
+
+    if (oldUrl && oldUrl.includes("cloudinary.com")) {
+      try {
+        await api.post("/admin/delete-image", { url: oldUrl });
+        toast.success("Background image removed", { id: "hero-bg-removed" });
+      } catch (err) {
+        console.warn("Failed to delete background image from Cloudinary", err);
+      }
+    }
+  };
+
+  // ── Header / Navbar Config ──────────────────────────────────────────────────
+
+  const handleNavbarTemplateSelect = async (templateNum: number) => {
+    if (!canBannerEdit) {
+      toast.error(NO_PERMISSION_MSG, { id: "navbar-perm-error" });
+      return;
+    }
+    if (savingNavbar) return;
+    const updated: NavbarConfig = {
+      ...navbarConfig,
+      activeTemplate: templateNum as 1 | 2 | 3 | 4,
+    };
+    setNavbarConfig(updated);
+    try {
+      setSavingNavbar(true);
+      await api.put("/admin/homepage-config/navbar", updated);
+      toast.success(`Header template ${templateNum} activated`, { id: "navbar-template-activated" });
+      refreshPreview();
+    } catch {
+      toast.error("Failed to update navbar template", { id: "navbar-template-error" });
+    } finally {
+      setSavingNavbar(false);
+    }
   };
 
   // â”€â”€ Footer Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const handleFooterTemplateSelect = async (templateNum: number) => {
     if (!canBannerEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "footer-perm-error" });
       return;
     }
     const updated = {
@@ -1095,10 +1233,10 @@ export default function HomepageManager() {
     setFooterConfig(updated);
     try {
       await api.put("/admin/homepage-config/footer", updated);
-      toast.success(`Footer template ${templateNum} activated`);
+      toast.success(`Footer template ${templateNum} activated`, { id: "footer-template-activated" });
       refreshPreview();
     } catch {
-      toast.error("Failed to update footer template");
+      toast.error("Failed to update footer template", { id: "footer-template-error" });
     }
   };
 
@@ -1131,9 +1269,10 @@ export default function HomepageManager() {
   const saveFooterTemplate = async () => {
     if (!editingFooterTemplate) return;
     if (!canBannerEdit) {
-      toast.error(NO_PERMISSION_MSG);
+      toast.error(NO_PERMISSION_MSG, { id: "footer-perm-error" });
       return;
     }
+    if (savingFooter) return;
     const updated: FooterConfig = {
       ...footerConfig,
       templates: {
@@ -1146,10 +1285,10 @@ export default function HomepageManager() {
       await api.put("/admin/homepage-config/footer", updated);
       setFooterConfig(updated);
       setEditingFooterTemplate(null);
-      toast.success("Footer template saved");
+      toast.success("Footer template saved", { id: "footer-template-saved" });
       refreshPreview();
     } catch {
-      toast.error("Failed to save footer template");
+      toast.error("Failed to save footer template", { id: "footer-template-save-error" });
     } finally {
       setSavingFooter(false);
     }
@@ -1492,6 +1631,11 @@ export default function HomepageManager() {
       icon: <SpeakerWaveIcon className="w-4 h-4" />,
     },
     {
+      key: "HEADER",
+      label: "Header / Navbar",
+      icon: <ComputerDesktopIcon className="w-4 h-4" />,
+    },
+    {
       key: "HERO",
       label: "Hero Section",
       icon: <HeroPhotoIcon className="w-4 h-4" />,
@@ -1529,8 +1673,10 @@ export default function HomepageManager() {
   const previewAnchor: string | undefined =
     activeTab === "ANNOUNCEMENT"
       ? "announcement"
-      : activeTab === "HERO"
-        ? "hero"
+      : activeTab === "HEADER"
+        ? "header"
+        : activeTab === "HERO"
+          ? "hero"
         : activeTab === "FOOTER"
           ? "footer"
           : activeTab === "DISCOUNT_PANEL"
@@ -2124,12 +2270,24 @@ export default function HomepageManager() {
                             </label>
                           </div>
                           {heroForm.bgImage && (
-                            <div className="mt-2 h-20 rounded-lg overflow-hidden border border-gray-200">
+                            <div className="mt-2 min-h-[160px] max-h-72 w-full rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 relative group flex items-center justify-center p-2.5 shadow-inner">
                               <img
                                 src={heroForm.bgImage}
                                 alt=""
-                                className="w-full h-full object-cover"
+                                className="max-h-64 w-auto h-auto object-contain rounded-lg shadow-md"
                               />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  removeHeroBgImage();
+                                }}
+                                className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
+                                title="Remove image from Cloudinary"
+                              >
+                                <TrashIcon className="w-3 h-3" />
+                                Remove
+                              </button>
                             </div>
                           )}
                         </div>
@@ -2328,12 +2486,24 @@ export default function HomepageManager() {
                               <span>⚠️</span> For best results, use a PNG image with a transparent background.
                             </p>
                             {heroForm.bgImage && (
-                              <div className="mt-2 h-20 rounded-lg overflow-hidden border border-gray-200">
+                              <div className="mt-2 min-h-[160px] max-h-72 w-full rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 relative group flex items-center justify-center p-2.5 shadow-inner">
                                 <img
                                   src={heroForm.bgImage}
                                   alt=""
-                                  className="w-full h-full object-contain"
+                                  className="max-h-64 w-auto h-auto object-contain rounded-lg shadow-md"
                                 />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    removeHeroBgImage();
+                                  }}
+                                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
+                                  title="Remove image from Cloudinary"
+                                >
+                                  <TrashIcon className="w-3 h-3" />
+                                  Remove
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2527,8 +2697,20 @@ export default function HomepageManager() {
                               </label>
                             </div>
                             {heroForm.bgImage && (
-                              <div className="mt-2 h-20 rounded-lg overflow-hidden border border-gray-200">
-                                <img src={heroForm.bgImage} alt="" className="w-full h-full object-cover" />
+                              <div className="mt-2 min-h-[160px] max-h-72 w-full rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 relative group flex items-center justify-center p-2.5 shadow-inner">
+                                <img src={heroForm.bgImage} alt="" className="max-h-64 w-auto h-auto object-contain rounded-lg shadow-md" />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    removeHeroBgImage();
+                                  }}
+                                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
+                                  title="Remove image from Cloudinary"
+                                >
+                                  <TrashIcon className="w-3 h-3" />
+                                  Remove
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2661,8 +2843,20 @@ export default function HomepageManager() {
                               </label>
                             </div>
                             {heroForm.bgImage && (
-                              <div className="mt-2 h-20 rounded-lg overflow-hidden border border-gray-200">
-                                <img src={heroForm.bgImage} alt="" className="w-full h-full object-cover" />
+                              <div className="mt-2 min-h-[160px] max-h-72 w-full rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 relative group flex items-center justify-center p-2.5 shadow-inner">
+                                <img src={heroForm.bgImage} alt="" className="max-h-64 w-auto h-auto object-contain rounded-lg shadow-md" />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    removeHeroBgImage();
+                                  }}
+                                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
+                                  title="Remove image from Cloudinary"
+                                >
+                                  <TrashIcon className="w-3 h-3" />
+                                  Remove
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2684,7 +2878,212 @@ export default function HomepageManager() {
         </div>
       )}
 
-      {/* â”€â”€ FOOTER TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── HEADER TAB ─────────────────────────────────────────────────── */}
+      {activeTab === "HEADER" && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-sm text-slate-700 font-medium">
+              Choose one of 6 Navbar designs paired directly with each Footer UI combination. Each navbar UI is crafted with unique aesthetics and butter-smooth transitions.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {(["1", "2", "3", "4", "5", "6"] as const).map((key) => {
+              const label = NAVBAR_TEMPLATE_LABELS[key];
+              const isActive = String(navbarConfig.activeTemplate) === key;
+              return (
+                <div
+                  key={key}
+                  className={`border-2 rounded-xl overflow-hidden transition-all duration-300 flex flex-col ${
+                    isActive
+                      ? "border-indigo-500 shadow-lg shadow-indigo-100 bg-white"
+                      : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md"
+                  }`}
+                >
+                  {/* Visual Preview Strip */}
+                  <div className="h-28 flex flex-col justify-center px-4 relative overflow-hidden select-none border-b border-gray-100">
+                    {key === "1" && (
+                      <div className="w-full bg-[#0a0a0a] text-white rounded-lg p-2.5 border border-white/10 shadow-xs flex items-center justify-between h-20">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-4 h-4 rounded-md bg-[var(--theme-primary,#C9A227)] text-[8px] font-black text-[var(--theme-primary-ink,#0B0B0C)] flex items-center justify-center">
+                            A
+                          </div>
+                          <div className="h-2 w-8 bg-white rounded-xs" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="px-2 py-0.5 bg-[var(--theme-primary,#C9A227)] text-[8px] text-[var(--theme-primary-ink,#0B0B0C)] font-bold rounded-md shadow-xs">
+                            Home
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[8px] text-zinc-400">
+                            Products
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3.5 h-3.5 rounded-full border border-white/20 flex items-center justify-center" />
+                          <div className="w-3.5 h-3.5 rounded-full bg-[var(--theme-primary,#C9A227)] text-[var(--theme-primary-ink,#0B0B0C)]" />
+                        </div>
+                      </div>
+                    )}
+
+                    {key === "2" && (
+                      <div className="w-full bg-gray-50 rounded-lg p-2.5 border border-gray-200 shadow-xs flex items-center justify-between h-20 text-gray-900">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-4 h-4 rounded-md bg-gray-900 text-[8px] font-bold text-white flex items-center justify-center">
+                            A
+                          </div>
+                          <div className="h-2.5 w-10 bg-gray-900 rounded-xs" />
+                        </div>
+                        <div className="flex items-center gap-2 text-[8px] uppercase tracking-wider font-semibold">
+                          <div className="flex flex-col items-center">
+                            <span className="font-bold text-gray-900">
+                              Home
+                            </span>
+                            <span className="w-2.5 h-[2px] bg-[var(--theme-primary,#C9A227)] rounded-full mt-0.5" />
+                          </div>
+                          <span className="text-gray-400">Shop</span>
+                          <span className="text-gray-400">Story</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 border border-gray-300 rounded-md" />
+                          <div className="px-2 py-0.5 bg-[var(--theme-primary,#C9A227)] text-[var(--theme-primary-ink,#0B0B0C)] text-[7px] font-bold rounded-md uppercase shadow-xs">
+                            Sign In
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {key === "3" && (
+                      <div className="w-full bg-gradient-to-r from-indigo-950 via-slate-900 to-gray-950 text-white rounded-lg p-2.5 border border-indigo-500/30 shadow-xs flex items-center justify-between h-20">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-4 h-4 rounded-full bg-indigo-500 text-[8px] font-bold text-white flex items-center justify-center shadow-[0_0_8px_rgba(99,102,241,0.6)]">
+                            A
+                          </div>
+                          <div className="h-2 w-8 bg-indigo-200 rounded-xs" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="px-2 py-0.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-[8px] text-white font-bold rounded-full shadow-[0_0_8px_rgba(99,102,241,0.4)]">
+                            Home
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[8px] text-indigo-300">
+                            Explore
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="h-3 w-8 bg-white/10 border border-white/20 rounded-full" />
+                          <div className="w-3.5 h-3.5 rounded-full bg-indigo-500/80" />
+                        </div>
+                      </div>
+                    )}
+
+                    {key === "4" && (
+                      <div className="w-full bg-white rounded-lg p-2.5 border border-gray-100 shadow-xs flex items-center justify-between h-20 text-gray-900">
+                        <div className="flex items-center gap-1.5 text-[7px] uppercase tracking-widest font-medium text-gray-400">
+                          <span className="text-black font-bold">Home</span>
+                          <span>Shop</span>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[10px] font-black tracking-widest uppercase font-serif text-gray-900">
+                            AMORE
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded-full bg-gray-100" />
+                          <div className="w-3 h-3 rounded-full bg-black" />
+                        </div>
+                      </div>
+                    )}
+
+                    {key === "5" && (
+                      <div className="w-full bg-indigo-600 text-white rounded-lg p-2.5 border border-indigo-700 shadow-xs flex items-center justify-between h-20">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-4 h-4 rounded-md bg-white text-[8px] font-bold text-indigo-700 flex items-center justify-center">
+                            A
+                          </div>
+                          <div className="h-2 w-8 bg-white/90 rounded-xs" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="px-2 py-0.5 bg-white text-[8px] text-indigo-900 font-bold rounded-md shadow-xs">
+                            Home
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[8px] text-white/80">
+                            Festive
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="h-3 w-8 bg-white/20 rounded-full" />
+                          <div className="w-3.5 h-3.5 rounded-full bg-white text-indigo-900" />
+                        </div>
+                      </div>
+                    )}
+
+                    {key === "6" && (
+                      <div className="w-full bg-white rounded-lg p-2.5 border border-black/10 shadow-xs flex items-center justify-between h-20 text-gray-900">
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded-xl bg-black text-[8px] font-black text-white flex items-center justify-center">
+                            A
+                          </div>
+                          <div className="h-2.5 w-7 bg-black rounded-xs" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="px-2 py-1 bg-black text-[7px] text-white font-black rounded-xl">
+                            HOME
+                          </span>
+                          <span className="px-1.5 py-1 bg-gray-100 text-[7px] font-bold text-gray-700 rounded-xl">
+                            SHOP
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded-xl bg-gray-100" />
+                          <div className="w-4 h-4 rounded-xl bg-black" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Content & Action */}
+                  <div className="p-4 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <p className="text-xs font-bold text-gray-900">
+                          {label.name}
+                        </p>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-indigo-50 font-semibold text-indigo-700 whitespace-nowrap">
+                          {label.tag}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-3 leading-snug">
+                        {label.desc}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isActive || savingNavbar}
+                      onClick={() => handleNavbarTemplateSelect(Number(key))}
+                      className={`w-full py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isActive
+                          ? "bg-indigo-100 text-indigo-700 cursor-default"
+                          : "bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
+                      }`}
+                    >
+                      {isActive ? (
+                        <>
+                          <CheckCircleIcon className="w-3.5 h-3.5 text-indigo-600" />
+                          Active
+                        </>
+                      ) : (
+                        "Set Active"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── FOOTER TAB ─────────────────────────────────────────────────── */}
       {activeTab === "FOOTER" && (
         <div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">

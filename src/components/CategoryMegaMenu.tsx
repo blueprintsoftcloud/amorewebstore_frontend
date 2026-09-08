@@ -158,7 +158,7 @@ const CategoryMegaMenu: React.FC = () => {
                   type="button"
                   onClick={() => goTo(top.id)}
                   className={`px-3 py-2 xl:px-4 xl:py-2.5 text-xs xl:text-sm font-bold tracking-tight whitespace-nowrap transition-colors duration-200 cursor-pointer ${
-                    isOpen ? "text-black" : "text-slate-600 hover:text-black"
+                    isOpen ? "text-[var(--theme-primary)]" : "text-slate-600 hover:text-[var(--theme-primary)]"
                   }`}
                 >
                   {top.name}
@@ -203,7 +203,7 @@ const CategoryMegaMenu: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => goTo(col.id)}
-                      className="block text-left text-xs font-bold uppercase tracking-wide text-gray-900 hover:text-black mb-2 cursor-pointer whitespace-nowrap"
+                      className="block text-left text-xs font-bold uppercase tracking-wide text-gray-900 hover:text-[var(--theme-primary)] mb-2 cursor-pointer whitespace-nowrap"
                     >
                       {col.name}
                     </button>
@@ -214,7 +214,7 @@ const CategoryMegaMenu: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => goTo(leaf.id)}
-                              className="text-left text-xs text-gray-500 hover:text-black transition-colors cursor-pointer whitespace-nowrap"
+                              className="text-left text-xs text-gray-500 hover:text-[var(--theme-primary)] transition-colors cursor-pointer whitespace-nowrap"
                             >
                               {leaf.name}
                             </button>

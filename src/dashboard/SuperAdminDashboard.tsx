@@ -520,19 +520,32 @@ export default function SuperAdminDashboard() {
     <>
       <div
         className={classNames(
-          "flex h-16 shrink-0 items-center gap-3",
-          collapsed && "justify-center",
+          "flex h-16 shrink-0 items-center",
+          collapsed ? "justify-center px-2" : "gap-2.5 px-3",
         )}
       >
         <img
           src={branding.companyLogo || logo123}
           alt={branding.companyName || "CRM Logo"}
-          className="h-10 w-auto object-contain shrink-0"
+          className={classNames(
+            "object-contain shrink-0 transition-all duration-300",
+            collapsed ? "h-9 w-auto max-w-[36px]" : "h-9 w-auto max-w-[125px]",
+          )}
         />
         {!collapsed && (
-          <span className="font-extrabold text-sm tracking-tight text-slate-800 break-words whitespace-normal line-clamp-2">
-            {branding.companyName || "blueprint_crm"}
-          </span>
+          <div className="flex items-center min-w-0">
+            <div className="h-6 w-px bg-slate-200 mx-1 shrink-0" />
+            <div className="flex flex-col justify-center min-w-0 pl-1.5 text-left">
+              <span className="font-extrabold text-xs tracking-tight text-slate-900 truncate leading-tight">
+                {branding.companyName || "blueprint_crm"}
+              </span>
+              {branding.companyTagline && (
+                <span className="text-[10px] text-slate-400 font-medium tracking-wide truncate leading-tight mt-0.5">
+                  {branding.companyTagline}
+                </span>
+              )}
+            </div>
+          </div>
         )}
       </div>
 

@@ -178,13 +178,13 @@ const CategoryActionMenu = ({
           setIsOpen((prev) => !prev);
         }}
         title="Category actions"
-        className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 transition-all duration-200"
+        className="p-2 rounded-lg border border-slate-200 bg-white/95 backdrop-blur-sm text-slate-600 shadow-sm hover:bg-white hover:text-slate-900 hover:border-slate-300 hover:shadow transition-all duration-200"
       >
         <MoreVertical className="h-4 w-4" />
       </button>
       {isOpen && (
         <div
-          className={`absolute right-0 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-10 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
+          className={`absolute right-0 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
             openDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"
           }`}
         >
@@ -929,10 +929,8 @@ const ListCategory = () => {
                 key={cat._id ?? cat.id}
                 className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/30 shadow-lg hover:shadow-2xl hover:scale-[1.02] transition-all duration-300"
               >
-                {/* Edit/Delete — tucked into the top-right corner and only revealed on
-                    card hover, out of the way of the always-visible Open/Attributes
-                    actions below. */}
-                <div className="absolute top-3 right-3 z-30 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+                {/* Edit/Delete — always visible on mobile/touch, hover-revealed on desktop */}
+                <div className="absolute top-3 right-3 z-30 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity duration-200">
                   <CategoryActionMenu
                     canEdit={canEdit}
                     canDelete={canDelete}
@@ -1086,6 +1084,20 @@ const ListCategory = () => {
                       <FolderOpen className="h-3.5 w-3.5" />
                       Open
                     </button>
+
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditClick(cat);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors sm:hidden"
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                        Edit
+                      </button>
+                    )}
 
                     {canEdit && childCountOf(getCatId(cat)) === 0 && (
                       <button
@@ -1476,12 +1488,27 @@ const ListCategory = () => {
                   Category Details
                 </h2>
 
-                <button
-                  onClick={closeDetailModal}
-                  className="p-2 rounded-lg hover:bg-slate-100 transition"
-                >
-                  <X className="h-5 w-5 text-slate-500" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeDetailModal();
+                        handleEditClick(selectedCategory);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    onClick={closeDetailModal}
+                    className="p-2 rounded-lg hover:bg-slate-100 transition"
+                  >
+                    <X className="h-5 w-5 text-slate-500" />
+                  </button>
+                </div>
               </div>
             </div>
 

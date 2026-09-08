@@ -87,8 +87,7 @@ const CategorySection = () => {
             viewport={{ once: true }}
             className="text-xl font-bold tracking-tighter sm:text-5xl"
           >
-            {/* <span className="bg-gradient-to-r from-gray-900 via-indigo-800 to-rose-700 bg-clip-text text-transparent"> */}
-            <span className="bg-[var(--theme-ink)] bg-clip-text text-transparent text-3xl uppercase">
+            <span className="text-gray-900 text-3xl uppercase">
               Shop by Category
             </span>
           </motion.h2>
