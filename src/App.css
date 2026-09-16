@@ -46,12 +46,8 @@ input[type=number]::-webkit-outer-spin-button {
   background-color: #94a3b8 !important;
 }
 
-/* Leaflet map attribution ("Leaflet | © OpenStreetMap") — near-invisible by default
-   across every map on the site, restored on hover so it's still reachable/legible. */
+/* Leaflet map attribution ("Leaflet | © OpenStreetMap") — visible watermark on all maps */
 .leaflet-control-attribution {
-  opacity: 0.04;
-  transition: opacity 0.15s ease;
+  opacity: 1 !important;
 }
-.leaflet-control-attribution:hover {
-  opacity: 1;
-}
+

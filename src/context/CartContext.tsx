@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import api from "../utils/api";
 import { useCartStore, CartItem } from "../store/cartStore";
 import { useAuth } from "./AuthContext";
+import { calculateDiscountedPrice } from "../utils/product";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export type { CartItem };
@@ -73,7 +74,7 @@ const fetchCartFromServer = async (): Promise<{
       // item.product.price/stock are already the variant's own values when this row
       // carries a variantId — see cart.controller.ts's cartList.
       price: item.product?.discount && item.product?.discount > 0
-        ? item.product?.price * (1 - item.product?.discount / 100)
+        ? calculateDiscountedPrice(item.product.price, item.product.discount)
         : item.product?.price,
       image: item.product?.image,
       stock: item.product?.stock ?? 0,
@@ -236,7 +237,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         await removeMutation.mutateAsync({ productId, variantId });
-        toast("Item removed", { id: "item-removed" });
         // Sync with server to confirm
         try {
           await refetch();

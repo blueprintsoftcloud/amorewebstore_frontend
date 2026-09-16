@@ -55,6 +55,7 @@ interface SeoFormData {
   SEO_KEYWORDS: string;
   SEO_GOOGLE_SITE_VERIFICATION: string;
   SEO_GA_MEASUREMENT_ID: string;
+  META_PIXEL_ID: string;
   SEO_ROBOTS_EXTRA: string;
   SEO_ORG_TYPE: string;
   SEO_ORG_ADDRESS: string;
@@ -76,6 +77,7 @@ const EMPTY_SEO_FORM: SeoFormData = {
   SEO_KEYWORDS: "",
   SEO_GOOGLE_SITE_VERIFICATION: "",
   SEO_GA_MEASUREMENT_ID: "",
+  META_PIXEL_ID: "",
   SEO_ROBOTS_EXTRA: "",
   SEO_ORG_TYPE: "",
   SEO_ORG_ADDRESS: "",
@@ -202,6 +204,7 @@ const AdminProfile = () => {
           SEO_KEYWORDS: s.SEO_KEYWORDS ?? "",
           SEO_GOOGLE_SITE_VERIFICATION: s.SEO_GOOGLE_SITE_VERIFICATION ?? "",
           SEO_GA_MEASUREMENT_ID: s.SEO_GA_MEASUREMENT_ID ?? "",
+          META_PIXEL_ID: s.META_PIXEL_ID ?? "",
           SEO_ROBOTS_EXTRA: s.SEO_ROBOTS_EXTRA ?? "",
           SEO_ORG_TYPE: s.SEO_ORG_TYPE ?? "",
           SEO_ORG_ADDRESS: s.SEO_ORG_ADDRESS ?? "",
@@ -320,6 +323,7 @@ const AdminProfile = () => {
       fd.append("seoKeywords", seo.SEO_KEYWORDS.trim());
       fd.append("seoGoogleSiteVerification", seo.SEO_GOOGLE_SITE_VERIFICATION.trim());
       fd.append("seoGaMeasurementId", seo.SEO_GA_MEASUREMENT_ID.trim());
+      fd.append("metaPixelId", seo.META_PIXEL_ID.trim());
       fd.append("seoRobotsExtra", seo.SEO_ROBOTS_EXTRA);
       fd.append("seoOrgType", seo.SEO_ORG_TYPE.trim());
       fd.append("seoOrgAddress", seo.SEO_ORG_ADDRESS.trim());
@@ -350,9 +354,17 @@ const AdminProfile = () => {
     }
   };
 
+  const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1 MB
+
   const handleOgImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Please select an image file."); return; }
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB");
+      e.target.value = "";
+      return;
+    }
     setOgImageFile(file);
     setOgImagePreview(URL.createObjectURL(file));
   };
@@ -366,6 +378,11 @@ const AdminProfile = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) { toast.error("Please select an image file."); return; }
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB");
+      e.target.value = "";
+      return;
+    }
     setLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
   };
@@ -375,6 +392,11 @@ const AdminProfile = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) { toast.error("Please select an image file."); return; }
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB");
+      e.target.value = "";
+      return;
+    }
     setFaviconFile(file);
     setFaviconPreview(URL.createObjectURL(file));
   };
@@ -390,6 +412,11 @@ const AdminProfile = () => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Please upload an image file (PNG, JPG, WebP)");
+      return;
+    }
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB");
+      e.target.value = "";
       return;
     }
     setQrFile(file);
@@ -1205,14 +1232,18 @@ const AdminProfile = () => {
 
                     {seoAdvancedOpen && (
                       <div className="space-y-6 pt-2 border-t border-slate-100">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
                           <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Google Search Console Code</label>
-                            <input type="text" value={seo.SEO_GOOGLE_SITE_VERIFICATION} onChange={(e) => setSeo((p) => ({ ...p, SEO_GOOGLE_SITE_VERIFICATION: e.target.value }))} placeholder="verification code from Search Console" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all text-sm outline-none" />
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Google Search Console</label>
+                            <input type="text" value={seo.SEO_GOOGLE_SITE_VERIFICATION} onChange={(e) => setSeo((p) => ({ ...p, SEO_GOOGLE_SITE_VERIFICATION: e.target.value }))} placeholder="Verification code" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all text-sm outline-none" />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Google Analytics (GA4) ID</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Google Analytics (GA4)</label>
                             <input type="text" value={seo.SEO_GA_MEASUREMENT_ID} onChange={(e) => setSeo((p) => ({ ...p, SEO_GA_MEASUREMENT_ID: e.target.value }))} placeholder="G-XXXXXXXXXX" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all text-sm outline-none" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Meta / Facebook Pixel ID</label>
+                            <input type="text" value={seo.META_PIXEL_ID} onChange={(e) => setSeo((p) => ({ ...p, META_PIXEL_ID: e.target.value }))} placeholder="e.g. 1234567890123456" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all text-sm outline-none" />
                           </div>
                         </div>
 

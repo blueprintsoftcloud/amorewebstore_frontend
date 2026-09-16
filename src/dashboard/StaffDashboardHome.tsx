@@ -32,6 +32,7 @@ import {
   X,
   Eye,
   Info,
+  RotateCcw,
 } from "lucide-react";
 import api from "../utils/api";
 import toast from "react-hot-toast";
@@ -132,6 +133,7 @@ const STATUS_COLORS: Record<string, string> = {
   SHIPPED: "#00cfe8",
   DELIVERED: "#28c76f",
   CANCELLED: "#ea5455",
+  RETURNED: "#8b5cf6",
 };
 
 const StatusBadge = ({ status }: { status: string }) => {
@@ -141,6 +143,7 @@ const StatusBadge = ({ status }: { status: string }) => {
     SHIPPED: { label: "Shipped", cls: "bg-cyan-50 text-cyan-600 border-cyan-100" },
     DELIVERED: { label: "Succeed", cls: "bg-emerald-50 text-emerald-600 border-emerald-100" },
     CANCELLED: { label: "Canceled", cls: "bg-rose-50 text-rose-600 border-rose-100" },
+    RETURNED: { label: "Returned", cls: "bg-purple-50 text-purple-600 border-purple-100" },
   };
   const c = cfg[status] ?? { label: status, cls: "bg-slate-50 text-slate-600 border-slate-200" };
   return (
@@ -717,6 +720,14 @@ export default function StaffDashboardHome() {
                     <div>
                       <p className="text-sm font-black text-rose-700 uppercase tracking-wide">Order Cancelled</p>
                       <p className="text-xs text-rose-600 mt-0.5">This order was cancelled and did not proceed through fulfillment.</p>
+                    </div>
+                  </div>
+                ) : selectedOrder.orderStatus === "RETURNED" ? (
+                  <div className="flex items-center gap-3 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3.5">
+                    <RotateCcw className="h-6 w-6 text-purple-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-black text-purple-700 uppercase tracking-wide">Order Returned</p>
+                      <p className="text-xs text-purple-600 mt-0.5">This shipment was returned by courier and stock has been restored to inventory.</p>
                     </div>
                   </div>
                 ) : (

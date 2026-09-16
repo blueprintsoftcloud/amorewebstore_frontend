@@ -9,6 +9,7 @@
 // checklist. Field validation itself is unchanged (same rules, same API call).
 
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import api from "../utils/api";
 import toast from "react-hot-toast";
 import { compressImage } from "../utils/compressImage";
@@ -25,6 +26,9 @@ import {
   FolderTree,
   ChevronRight,
   Eye,
+  Maximize2,
+  Camera,
+  CheckCircle,
 } from "lucide-react";
 
 interface ValidationField {
@@ -73,6 +77,7 @@ interface AddCategoryModalProps {
 export default function AddCategoryModal({ isOpen, onClose, parentId, parentName, parentPath, onSuccess }: AddCategoryModalProps) {
   const [formData, setFormData] = useState<CategoryFormData>(EMPTY_FORM);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [validation, setValidation] = useState<CategoryValidation>(() => ({
@@ -93,6 +98,7 @@ export default function AddCategoryModal({ isOpen, onClose, parentId, parentName
     if (isOpen) {
       setFormData(EMPTY_FORM);
       setImagePreview(null);
+      setLightboxImage(null);
       setTouched({});
     }
   }, [isOpen]);
@@ -193,6 +199,7 @@ export default function AddCategoryModal({ isOpen, onClose, parentId, parentName
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setFormData(EMPTY_FORM);
     setImagePreview(null);
+    setLightboxImage(null);
     setTouched({});
     const input = document.getElementById("addCategoryImageUpload") as HTMLInputElement | null;
     if (input) input.value = "";
@@ -319,9 +326,9 @@ export default function AddCategoryModal({ isOpen, onClose, parentId, parentName
 
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px]">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
               {/* LEFT — compact fields, no card chrome, nothing between the admin and the form */}
-              <div className="px-6 md:px-8 py-6 space-y-6 lg:border-r border-slate-100">
+              <div className="min-w-0 px-6 md:px-8 py-6 space-y-6 lg:border-r border-slate-100">
                 {/* Name */}
                 <div>
                   <label htmlFor="addCategoryName" className="block text-sm font-semibold text-slate-800 mb-1.5">
@@ -406,63 +413,59 @@ export default function AddCategoryModal({ isOpen, onClose, parentId, parentName
                 {!parentId && (
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <label className="block text-sm font-semibold text-slate-800">Image</label>
+                      <label className="block text-sm font-semibold text-slate-800">Category image</label>
                       <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-rose-50 text-rose-500">
                         Required
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <label
-                        htmlFor="addCategoryImageUpload"
-                        className="shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors overflow-hidden"
-                      >
-                        {imagePreview ? (
-                          <img src={imagePreview} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <Upload className="h-5 w-5 text-slate-400" />
-                        )}
-                      </label>
-                      <input
-                        type="file"
-                        id="addCategoryImageUpload"
-                        name="image"
-                        onChange={handleChange}
-                        className="hidden"
-                        accept="image/*"
-                      />
-                      <div className="flex-1 min-w-0">
-                        {formData.image ? (
-                          <>
-                            <p className="text-xs font-medium text-slate-700 truncate">{formData.image.name}</p>
-                            <div className="flex items-center gap-3 mt-0.5">
-                              <span className="text-xs text-slate-400">{(formData.image.size / 1024 / 1024).toFixed(2)} MB</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (imagePreview) URL.revokeObjectURL(imagePreview);
-                                  setFormData((prev) => ({ ...prev, image: null }));
-                                  setImagePreview(null);
-                                  const input = document.getElementById("addCategoryImageUpload") as HTMLInputElement | null;
-                                  if (input) input.value = "";
-                                }}
-                                className="text-xs text-rose-600 hover:text-rose-700 font-medium"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <p className="text-xs text-slate-500">PNG, JPG or WEBP, up to 1MB.</p>
-                        )}
+                    <label
+                      htmlFor="addCategoryImageUpload"
+                      className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-200 hover:border-slate-300 rounded-xl bg-slate-50/30 hover:bg-slate-50/60 cursor-pointer transition-all duration-200 min-w-0"
+                    >
+                      <Upload className="h-8 w-8 text-slate-400 mb-2 shrink-0" />
+                      <span className="text-sm font-medium text-slate-700 text-center max-w-full truncate px-4 block">
+                        {formData.image ? formData.image.name : "Click to upload category image"}
+                      </span>
+                      <span className="text-xs text-slate-500 mt-1">
+                        PNG, JPG, WEBP up to 1MB
+                      </span>
+                    </label>
+                    {formData.image && (
+                      <div className="flex items-center justify-between mt-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs min-w-0">
+                        <span className="text-emerald-700 font-medium truncate mr-2" title={formData.image.name}>
+                          Selected: {formData.image.name} ({(formData.image.size / 1024 / 1024).toFixed(2)} MB)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (imagePreview) URL.revokeObjectURL(imagePreview);
+                            setFormData((prev) => ({ ...prev, image: null }));
+                            setImagePreview(null);
+                            const input = document.getElementById("addCategoryImageUpload") as HTMLInputElement | null;
+                            if (input) input.value = "";
+                          }}
+                          className="text-rose-600 hover:text-rose-700 font-bold shrink-0 cursor-pointer"
+                        >
+                          Remove
+                        </button>
                       </div>
-                    </div>
+                    )}
+
+                    <input
+                      type="file"
+                      id="addCategoryImageUpload"
+                      name="image"
+                      onChange={handleChange}
+                      className="hidden"
+                      accept="image/*"
+                    />
                     <FieldError show={touched.image && !validation.image.isValid} message={validation.image.message} />
                   </div>
                 )}
               </div>
 
               {/* RIGHT — live preview, mirrors the real card markup from Listcategory.tsx */}
-              <div className={`px-6 md:px-8 py-6 ${parentId ? "bg-indigo-50/20" : "bg-slate-50/60"}`}>
+              <div className={`w-full lg:w-[360px] shrink-0 px-6 md:px-8 py-6 ${parentId ? "bg-indigo-50/20" : "bg-slate-50/60"}`}>
                 <div className="lg:sticky lg:top-0 space-y-3">
                   <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
                     <Eye className="h-3.5 w-3.5" />
@@ -483,9 +486,19 @@ export default function AddCategoryModal({ isOpen, onClose, parentId, parentName
                         </div>
                       </div>
                     ) : (
-                      <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200">
+                      <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 group">
                         {imagePreview ? (
-                          <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                          <>
+                            <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setLightboxImage(imagePreview)}
+                              className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-black/60 hover:bg-black/85 text-white shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-105"
+                              title="Full View"
+                            >
+                              <Maximize2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>
                         ) : (
                           <div className="flex h-full w-full flex-col items-center justify-center gap-2">
                             <div className="p-3 rounded-full bg-slate-200/50">
@@ -565,6 +578,43 @@ export default function AddCategoryModal({ isOpen, onClose, parentId, parentName
           </div>
         </form>
       </div>
+
+      {/* Lightbox Modal for Full View */}
+      {lightboxImage && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[90vh] bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/50">
+              <div className="flex items-center gap-2 text-white">
+                <ImageIcon className="h-4 w-4 text-indigo-400" />
+                <span className="text-sm font-bold truncate">Category Image — Full View</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-black/40 min-h-[300px]">
+              <img
+                src={lightboxImage}
+                alt="Category full view"
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl shadow-lg select-none"
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

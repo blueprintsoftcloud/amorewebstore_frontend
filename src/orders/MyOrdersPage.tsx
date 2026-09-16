@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../utils/api";
 import { motion, Variants } from "framer-motion";
@@ -11,6 +11,10 @@ import {
   ShoppingBag,
   Package,
   FileText,
+  RotateCcw,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface OrderProduct {
@@ -37,6 +41,11 @@ interface Order {
   shippingCharge: number;
   finalAmount: number;
   orderStatus: string;
+  deliveryPartnerName?: string;
+  trackingId?: string;
+  trackingLink?: string;
+  shippingNote?: string;
+  shippedAt?: string;
   items: OrderItem[];
 }
 
@@ -47,6 +56,7 @@ const STATUS_CFG: Record<string, { cls: string; icon: React.ReactElement }> = {
   Shipped: { cls: "bg-sky-500 text-white border-sky-600", icon: <Truck className="w-3.5 h-3.5" /> },
   Delivered: { cls: "bg-emerald-500 text-white border-emerald-600", icon: <CheckCircle className="w-3.5 h-3.5" /> },
   Cancelled: { cls: "bg-red-500 text-white border-red-600", icon: <XCircle className="w-3.5 h-3.5" /> },
+  Returned: { cls: "bg-purple-500 text-white border-purple-600", icon: <RotateCcw className="w-3.5 h-3.5" /> },
 };
 
 const StatusBadge = ({ rawStatus }: { rawStatus: string }) => {
@@ -65,6 +75,9 @@ const fmt = (n: number) =>
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+const formatTrackingUrl = (url: string) =>
+  url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
 
 // --- ANIMATION VARIANTS ---
 const containerVariants: Variants = {
@@ -99,6 +112,13 @@ const OrderSkeleton = () => (
 
 export default function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pagination, setPagination] = useState<{
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>({ total: 0, page: 1, limit: 10, totalPages: 1 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -107,13 +127,19 @@ export default function MyOrdersPage() {
   const [searchParams] = useSearchParams();
   const highlightOrderId = searchParams.get("orderId");
   const highlightedRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (pageNumber: number) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get("/order/myOrders");
+      const res = await api.get("/order/myOrders", {
+        params: { page: pageNumber, limit: 10 },
+      });
       setOrders(res.data.order || []);
+      if (res.data.pagination) {
+        setPagination(res.data.pagination);
+      }
     } catch (err) {
       const e = err as any;
       console.error("Error fetching orders:", e);
@@ -128,8 +154,14 @@ export default function MyOrdersPage() {
   }, []);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    fetchOrders(page);
+  }, [fetchOrders, page]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > pagination.totalPages || newPage === page) return;
+    setPage(newPage);
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   useEffect(() => {
     if (!highlightOrderId || loading || orders.length === 0) return;
@@ -166,7 +198,7 @@ export default function MyOrdersPage() {
         style={{ background: "color-mix(in srgb, var(--theme-accent) 35%, transparent)" }}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-6">
+      <div ref={topRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-6">
         {/* --- Header Section --- */}
         <div className="mb-10">
           <button
@@ -193,7 +225,7 @@ export default function MyOrdersPage() {
               </h1>
               {!loading && (
                 <p className="text-sm text-gray-400 mt-1">
-                  {orders.length} order{orders.length !== 1 ? "s" : ""}
+                  {pagination.total} order{pagination.total !== 1 ? "s" : ""}
                 </p>
               )}
             </div>
@@ -290,6 +322,65 @@ export default function MyOrdersPage() {
                   </div>
                 </div>
 
+                {/* Shipment Details Bar */}
+                {(order.deliveryPartnerName || order.trackingId || order.trackingLink || order.shippingNote) && (
+                  <div className="bg-slate-50/70 border-b border-gray-100 px-6 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-gray-600">
+                    <span className="inline-flex items-center gap-1.5 font-bold text-gray-800 shrink-0">
+                      <Truck className="w-3.5 h-3.5 text-sky-600" />
+                      Shipment:
+                    </span>
+                    {order.deliveryPartnerName && (
+                      <span className="shrink-0">
+                        Courier:{" "}
+                        {order.trackingLink ? (
+                          <a
+                            href={formatTrackingUrl(order.trackingLink)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-sky-700 hover:text-sky-900 underline underline-offset-2 inline-flex items-center gap-0.5"
+                            title="Open courier link"
+                          >
+                            {order.deliveryPartnerName}
+                            <ExternalLink className="w-3 h-3 inline ml-0.5" />
+                          </a>
+                        ) : (
+                          <strong className="font-semibold text-gray-900">{order.deliveryPartnerName}</strong>
+                        )}
+                      </span>
+                    )}
+                    {order.trackingId && (
+                      <span className="inline-flex items-center gap-1 shrink-0">
+                        Tracking ID:{" "}
+                        <strong className="font-mono font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">
+                          {order.trackingId}
+                        </strong>
+                      </span>
+                    )}
+                    {order.trackingLink && (
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        Courier Link:{" "}
+                        <a
+                          href={formatTrackingUrl(order.trackingLink)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-sky-600 hover:text-sky-800 underline underline-offset-2 inline-flex items-center gap-1"
+                          title={order.trackingLink}
+                        >
+                          <span className="truncate max-w-[220px] sm:max-w-[340px] md:max-w-[480px]">
+                            {order.trackingLink}
+                          </span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        </a>
+                      </span>
+                    )}
+                    {order.shippingNote && (
+                      <span className="text-gray-500 italic shrink-0">
+                        Note: {order.shippingNote}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Order Items */}
                 <div className="px-6 py-2 divide-y divide-gray-50">
                   {order.items.map((item, index) => {
@@ -362,6 +453,72 @@ export default function MyOrdersPage() {
               </motion.div>
               );
             })}
+
+            {/* Pagination Controls */}
+            {pagination.totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-12 pt-6 border-t border-gray-100">
+                <p className="text-xs text-gray-500 font-medium">
+                  Showing <span className="font-bold text-gray-900">{(page - 1) * pagination.limit + 1}</span> to{" "}
+                  <span className="font-bold text-gray-900">{Math.min(page * pagination.limit, pagination.total)}</span> of{" "}
+                  <span className="font-bold text-gray-900">{pagination.total}</span> orders
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={page === 1 || loading}
+                    className="p-2.5 px-3.5 rounded-xl border border-gray-200 bg-white text-gray-700 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-all flex items-center gap-1 text-xs font-bold cursor-pointer"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
+                    <span className="hidden sm:inline">Previous</span>
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === pagination.totalPages || Math.abs(p - page) <= 1)
+                      .map((p, idx, arr) => {
+                        const prev = arr[idx - 1];
+                        const hasGap = prev && p - prev > 1;
+                        return (
+                          <Fragment key={p}>
+                            {hasGap && <span className="px-1 text-gray-400 text-xs font-mono">…</span>}
+                            <button
+                              onClick={() => handlePageChange(p)}
+                              disabled={loading}
+                              className={`w-9 h-9 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                p === page
+                                  ? "shadow-sm"
+                                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                              }`}
+                              style={
+                                p === page
+                                  ? {
+                                      background: "var(--theme-primary)",
+                                      color: "var(--theme-primary-ink)",
+                                    }
+                                  : undefined
+                              }
+                            >
+                              {p}
+                            </button>
+                          </Fragment>
+                        );
+                      })}
+                  </div>
+
+                  <button
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={page === pagination.totalPages || loading}
+                    className="p-2.5 px-3.5 rounded-xl border border-gray-200 bg-white text-gray-700 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-all flex items-center gap-1 text-xs font-bold cursor-pointer"
+                    title="Next Page"
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </div>

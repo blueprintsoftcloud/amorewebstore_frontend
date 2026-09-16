@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, ArrowUpRight } from "lucide-react";
 import { resolveAssetUrl } from "../utils/category";
+import { calculateDiscountedPrice } from "../utils/product";
 import api from "../utils/api";
 
 interface Product {
@@ -214,7 +215,7 @@ const Template1 = ({
                           {product.discount && product.discount > 0 ? (
                             <>
                               <span className="text-sm font-bold text-gray-900">
-                                ₹{(product.price * (1 - product.discount / 100)).toFixed(0)}
+                                ₹{calculateDiscountedPrice(product.price, product.discount).toFixed(0)}
                               </span>
                               <span className="text-xs text-gray-400 line-through">
                                 ₹{product.price.toFixed(0)}
@@ -293,7 +294,7 @@ const ProductPrice = ({ product }: { product: Product }) =>
   product.discount && product.discount > 0 ? (
     <>
       <span className="text-sm font-bold text-gray-900">
-        ₹{(product.price * (1 - product.discount / 100)).toFixed(0)}
+        ₹{calculateDiscountedPrice(product.price, product.discount).toFixed(0)}
       </span>
       <span className="text-xs text-gray-400 line-through">₹{product.price.toFixed(0)}</span>
       <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">-{product.discount}%</span>

@@ -594,6 +594,7 @@ const VariantsManagerFields = forwardRef<VariantsManagerFieldsHandle, VariantsMa
                   pattern={key === "stock" ? "[0-9]*" : undefined}
                   min={key === "stock" ? undefined : 0}
                   max={key === "stock" ? undefined : max}
+                  step={key === "stock" ? undefined : "any"}
                   placeholder={placeholder}
                   value={edit?.[key] ?? v[key] ?? ""}
                   onChange={(e) =>

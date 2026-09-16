@@ -70,7 +70,24 @@ interface Pagination {
 
 // ── Badge helpers ─────────────────────────────────────────────────────────────
 
-const PaymentStatusBadge = ({ status }: { status: string }) => {
+const PaymentStatusBadge = ({
+  status,
+  orderStatus,
+  paymentMethod,
+}: {
+  status: string;
+  orderStatus?: string;
+  paymentMethod?: string;
+}) => {
+  const isCod = paymentMethod === "POD" || paymentMethod === "COD" || paymentMethod === "CASH";
+
+  if (orderStatus === "CANCELLED" && status === "PENDING" && isCod) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-slate-100 text-slate-600 border-slate-200">
+        <XCircle className="w-3.5 h-3.5 text-slate-400" /> No Payment Made
+      </span>
+    );
+  }
   const cfg: Record<string, { cls: string; icon: React.ReactElement }> = {
     PAID: { cls: "bg-green-100 text-green-700 border-green-200", icon: <CheckCircle className="w-3.5 h-3.5" /> },
     PENDING: { cls: "bg-yellow-100 text-yellow-700 border-yellow-200", icon: <Clock className="w-3.5 h-3.5" /> },
@@ -91,6 +108,7 @@ const ORDER_STATUS_CFG: Record<string, { cls: string; icon: React.ReactElement; 
   SHIPPED: { cls: "bg-cyan-50 text-cyan-700 border-cyan-200", icon: <Truck className="w-3.5 h-3.5" />, label: "Shipped" },
   DELIVERED: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <Package className="w-3.5 h-3.5" />, label: "Delivered" },
   CANCELLED: { cls: "bg-red-50 text-red-700 border-red-200", icon: <XCircle className="w-3.5 h-3.5" />, label: "Cancelled" },
+  RETURNED: { cls: "bg-purple-50 text-purple-700 border-purple-200", icon: <Undo2 className="w-3.5 h-3.5" />, label: "Returned" },
 };
 
 const OrderStatusBadge = ({ status }: { status: string }) => {
@@ -130,7 +148,7 @@ const PaymentDetails = ({
   onRefund: (tx: Transaction) => void;
   refunding: boolean;
 }) => {
-  const canRefund = tx.paymentStatus === "PAID" && tx.orderStatus === "CANCELLED";
+  const canRefund = tx.paymentStatus === "PAID" && (tx.orderStatus === "CANCELLED" || tx.orderStatus === "RETURNED");
   return (
     <div className="space-y-4">
       <div>
@@ -214,7 +232,7 @@ const PaymentDetails = ({
         </div>
       )}
 
-      {/* Refund action — only reachable for a PAID payment on a now-CANCELLED order.
+      {/* Refund action — reachable for a PAID payment on a CANCELLED or RETURNED order.
           Storra has no live gateway refund integration; this only records that a
           refund was already handled outside the system (see order.controller.ts's
           refundOrder), so paymentStatus doesn't stay stuck on "PAID" forever. */}
@@ -223,7 +241,9 @@ const PaymentDetails = ({
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-amber-800">Payment collected on a cancelled order</p>
+              <p className="text-xs font-semibold text-amber-800">
+                Payment collected on a {tx.orderStatus === "RETURNED" ? "returned" : "cancelled"} order
+              </p>
               <p className="text-[11px] text-amber-700 mt-0.5">
                 Once you've refunded this customer outside Storra, record it here so this doesn't keep showing as PAID.
               </p>
@@ -467,7 +487,7 @@ export default function CustomerTransactions() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {transactions.map((tx) => {
-                  const needsRefundAttention = tx.paymentStatus === "PAID" && tx.orderStatus === "CANCELLED";
+                  const needsRefundAttention = tx.paymentStatus === "PAID" && (tx.orderStatus === "CANCELLED" || tx.orderStatus === "RETURNED");
                   return (
                   <React.Fragment key={tx.id}>
                     <tr
@@ -491,7 +511,7 @@ export default function CustomerTransactions() {
                         <PaymentMethodBadge method={tx.paymentMethod} />
                       </td>
                       <td className="px-4 py-3">
-                        <PaymentStatusBadge status={tx.paymentStatus} />
+                        <PaymentStatusBadge status={tx.paymentStatus} orderStatus={tx.orderStatus} paymentMethod={tx.paymentMethod} />
                       </td>
                       <td className="px-4 py-3">
                         <OrderStatusBadge status={tx.orderStatus} />
@@ -557,7 +577,7 @@ export default function CustomerTransactions() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
             {transactions.map((tx) => {
-              const needsRefundAttention = tx.paymentStatus === "PAID" && tx.orderStatus === "CANCELLED";
+              const needsRefundAttention = tx.paymentStatus === "PAID" && (tx.orderStatus === "CANCELLED" || tx.orderStatus === "RETURNED");
               return (
               <motion.div
                 key={tx.id}
@@ -579,7 +599,7 @@ export default function CustomerTransactions() {
                     <p className="font-bold text-gray-900">{fmt(tx.finalAmount)}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
-                    <PaymentStatusBadge status={tx.paymentStatus} />
+                    <PaymentStatusBadge status={tx.paymentStatus} orderStatus={tx.orderStatus} paymentMethod={tx.paymentMethod} />
                     <OrderStatusBadge status={tx.orderStatus} />
                     <PaymentMethodBadge method={tx.paymentMethod} />
                     <span className="text-xs text-gray-400 ml-auto">{fmtDate(tx.createdAt)}</span>

@@ -9,6 +9,7 @@ import { useAuth } from "./AuthContext";
 import api from "../utils/api";
 import { useWishlistStore, WishlistProduct } from "../store/wishlistStore";
 import { normalizeProduct } from "../utils/product";
+import toast from "react-hot-toast";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export type { WishlistProduct };
@@ -116,7 +117,13 @@ export const WishlistProvider = ({
 
   const toggleWishlist = useCallback(
     async (productId: string, variantId?: string | null): Promise<boolean> => {
-      if (!isAuthenticated) return false;
+      if (!isAuthenticated) {
+        toast.error("Please login to add product to wishlist", {
+          id: "login-to-wishlist",
+        });
+        window.dispatchEvent(new CustomEvent("openCustomerAuth"));
+        return false;
+      }
       try {
         const isInWishlist = items.some(
           (item) => String(item.id) === String(productId) && String(item.variantId ?? "") === String(variantId ?? ""),

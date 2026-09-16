@@ -2587,9 +2587,10 @@ import api from "../utils/api";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 import { useAuth } from "../context/AuthContext";
-import { normalizeProduct } from "../utils/product";
+import { normalizeProduct, calculateDiscountedPrice } from "../utils/product";
 import PageSeo from "../components/seo/PageSeo";
 import { ProductJsonLd, BreadcrumbJsonLd } from "../components/seo/JsonLd";
+import { trackMetaViewContent, trackMetaAddToCart } from "../utils/metaPixel";
 
 interface ProductVariantOption {
   id: string;
@@ -3059,6 +3060,7 @@ function classNames(...c: (string | false | undefined | null)[]) {
 // --- MODERN CARD COMPONENT ---
 const ModernProductCard = React.memo(function ModernProductCard({ product, addToCart, cartItems }: { product: RelatedProduct; addToCart: (productId: string) => Promise<unknown>; cartItems: { productId: string }[] }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const isInCart = cartItems.some((item) => String(item.productId) === String(product.id));
   const imageUrl = product.image || "https://placehold.co/600x800?text=No+Image";
 
@@ -3069,6 +3071,12 @@ const ModernProductCard = React.memo(function ModernProductCard({ product, addTo
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!user.isAuthenticated) {
+      toast.error("Please login to add items to your cart", { id: "login-to-add-cart" });
+      window.dispatchEvent(new CustomEvent("openCustomerAuth"));
+      return;
+    }
+
     if (isInCart) {
       toast.error("This item is already in your cart", { id: "This item is already in your cartmnmnm" });
       return;
@@ -3076,6 +3084,16 @@ const ModernProductCard = React.memo(function ModernProductCard({ product, addTo
 
     try {
       await addToCart(product.id);
+      const productPrice = product.discount && product.discount > 0 
+        ? calculateDiscountedPrice(product.price, product.discount)
+        : (product.price ?? 0);
+      trackMetaAddToCart({
+        content_ids: [String(product.id)],
+        content_name: product.name,
+        content_type: "product",
+        value: productPrice,
+        currency: "INR",
+      });
       toast.success(`${product.name} added to cart`, { id: "added-to-cart-related-product" });
     } catch (err: any) {
       if (err?.message !== "Not authenticated") {
@@ -3091,6 +3109,11 @@ const ModernProductCard = React.memo(function ModernProductCard({ product, addTo
 
   const handleToggleWishlist = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!user.isAuthenticated) {
+      toast.error("Please login to add product to wishlist", { id: "login-to-wishlist" });
+      window.dispatchEvent(new CustomEvent("openCustomerAuth"));
+      return;
+    }
     const success = await toggleWishlist(product.id);
     if (success) {
       toast.success(isWishlisted ? "Removed from wishlist" : "Added to wishlist", {id:"wishlist-toggle-related"});
@@ -3147,7 +3170,7 @@ const ModernProductCard = React.memo(function ModernProductCard({ product, addTo
               {product.discount && product.discount > 0 ? (
                 <>
                   <span className="text-xs font-bold text-gray-900">
-                    ₹{(product.price * (1 - product.discount / 100)).toFixed(2)}
+                    ₹{calculateDiscountedPrice(product.price, product.discount).toFixed(2)}
                   </span>
                   <span className="text-[10px] text-gray-400 line-through">
                     ₹{product.price?.toFixed(2)}
@@ -3331,6 +3354,22 @@ export default function ProductDetailPage() {
     if (productId) fetchProduct();
   }, [productId]);
 
+  // Track Meta Pixel ViewContent event when product details are viewed
+  useEffect(() => {
+    if (product) {
+      const finalPrice = product.discount && product.discount > 0
+        ? calculateDiscountedPrice(product.price, product.discount)
+        : (product.price ?? 0);
+      trackMetaViewContent({
+        content_ids: [String(product.id)],
+        content_name: product.name,
+        content_type: "product",
+        value: finalPrice,
+        currency: "INR",
+      });
+    }
+  }, [product?.id]);
+
   useEffect(() => {
     const scrollContainer = document.querySelector(".h-screen.overflow-y-auto") as HTMLElement;
     if (showDeliveryModal) {
@@ -3378,6 +3417,22 @@ export default function ProductDetailPage() {
         fetchCart();
         toast.success(`${product.name} added to cart!`, { id: "added to cart done" });
       }
+
+      const finalUnitPrice = selectedVariant
+        ? (selectedVariant.discountOverride
+            ? calculateDiscountedPrice(selectedVariant.priceOverride ?? product.price, selectedVariant.discountOverride)
+            : (selectedVariant.priceOverride ?? product.price))
+        : (product.discount
+            ? calculateDiscountedPrice(product.price, product.discount)
+            : (product.price ?? 0));
+
+      trackMetaAddToCart({
+        content_ids: [String(product.id)],
+        content_name: product.name,
+        content_type: "product",
+        value: finalUnitPrice * quantity,
+        currency: "INR",
+      });
     } catch (err) {
       const _e = err as any;
       if (_e.response?.status === 401) {
@@ -3410,21 +3465,12 @@ export default function ProductDetailPage() {
 
   const handleRelatedAddToCart = async (productId: string): Promise<void> => {
     if (!addToCart) return;
-
-    try {
-      await addToCart(productId);
-      toast.success("Added to cart", { id: "added-related-product-to-cart" });
-    } catch (err: any) {
-      if (err?.message !== "Not authenticated") {
-        toast.error(err?.response?.data?.message || "Failed to add to cart", {
-          id: "failed-related-add-to-cart",
-        });
-      }
-    }
+    await addToCart(productId);
   };
 
   const handleToggleWishlist = async () => {
     if (!user?.isAuthenticated) {
+      toast.error("Please login to add product to wishlist", { id: "login-to-wishlist" });
       window.dispatchEvent(new CustomEvent("openCustomerAuth"));
       return;
     }
@@ -3453,7 +3499,7 @@ export default function ProductDetailPage() {
   const needsVariantSelection = hasVariants && !selectedVariant;
   const categoryName = safeRender(product.category, "Collection");
   const hasDiscount = effectiveDiscount > 0;
-  const discountedPrice = hasDiscount ? effectivePrice * (1 - effectiveDiscount / 100) : effectivePrice;
+  const discountedPrice = hasDiscount ? calculateDiscountedPrice(effectivePrice, effectiveDiscount) : effectivePrice;
 
   // Meta description falls back to the product's own (HTML) description, stripped to
   // plain text and trimmed to a search-result-friendly length.

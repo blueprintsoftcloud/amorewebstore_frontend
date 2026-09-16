@@ -41,12 +41,28 @@ import {
   Squares2X2Icon,
 } from "@heroicons/react/24/outline";
 import api from "../utils/api";
-import { Upload, Plus, LayoutGrid, List, Search, Filter, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Upload,
+  Plus,
+  LayoutGrid,
+  List,
+  Search,
+  Filter,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Camera,
+  Trash2,
+  Eye,
+  RotateCcw,
+  X,
+  Image as ImageIcon,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 import { useStaffPermissions } from "../context/StaffPermissionContext";
-import { normalizeCategory } from "../utils/category";
-import { normalizeProduct } from "../utils/product";
+import { normalizeProduct, calculateDiscountedPrice, calculateDiscountAmount } from "../utils/product";
 import { compressImage } from "../utils/compressImage";
 import { PulseLoader } from "react-spinners";
 import AttributeFilterPanel from "../components/AttributeFilterPanel";
@@ -397,7 +413,7 @@ const DashboardProductCard = ({
   const basePrice = product?.price != null ? Number(product.price) : null;
   const discountPercent = product?.discount != null ? Number(product.discount) : 0;
   const hasDiscount = !hasRange && discountPercent > 0 && basePrice != null && basePrice > 0;
-  const discountedPrice = hasDiscount ? basePrice * (1 - discountPercent / 100) : basePrice;
+  const discountedPrice = hasDiscount ? calculateDiscountedPrice(basePrice, discountPercent) : basePrice;
 
   const price =
     hasRange
@@ -643,13 +659,20 @@ interface ListproductsProps {
   /** When set (typically alongside `embedded`), locks the product list to this
    * category and skips the sidebar's own category-selection/auto-select behavior. */
   lockedCategoryId?: string;
+  /** Name of the locked category, passed by the parent host page to ensure accurate title display */
+  lockedCategoryName?: string;
   /** Embedded mode's own "Add Product" trigger, rendered next to Refresh instead of
    * the (hidden, in embedded mode) page-level header button — the host page
    * (Listcategory.tsx) owns the actual Add Product modal, this just opens it. */
   onAddProduct?: () => void;
 }
 
-const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: ListproductsProps = {}) => {
+const Listproducts = ({
+  embedded = false,
+  lockedCategoryId,
+  lockedCategoryName,
+  onAddProduct,
+}: ListproductsProps = {}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const dashboardBase = location.pathname.startsWith("/super-admin-dashboard")
@@ -686,8 +709,9 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
   // Category Filters no longer gets its own tab — once a product has options, every
   // filter value is assigned per-variant anyway, so it lives right in each variant's
   // own row instead of a second full list of the same variants. Reset to the first
-  // tab whenever a different product is opened (handleEditClick).
   const [editSectionTab, setEditSectionTab] = useState<"variants" | "images">("variants");
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState<string>("");
   // Full variant list (not just the count) for the product currently open in the edit
   // form — lets the Category Filters section offer "applies to: <variant>" per
   // selected value once a product has variants. Refreshed alongside editingVariantStock.
@@ -916,7 +940,18 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  useBodyScrollLock(showEditModal || showDeleteModal || showProductDetailModal);
+  useBodyScrollLock(showEditModal || showDeleteModal || showProductDetailModal || !!lightboxImage);
+
+  // Close lightbox on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && lightboxImage) {
+        setLightboxImage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxImage]);
 
   // 🔹 Filtered Categories and Products (for search)
   const filteredCategories = useMemo(() => {
@@ -934,8 +969,9 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
   const productsToDisplay = filteredProductsToDisplay;
 
   const selectedCategoryName = useMemo(() => {
+    if (lockedCategoryName) return lockedCategoryName;
     return categories.find((c) => (c.id ?? c._id) === selectedCategoryId)?.name;
-  }, [categories, selectedCategoryId]);
+  }, [categories, selectedCategoryId, lockedCategoryName]);
 
   // 🔹 Fetch category attributes when edit modal's category changes
   useEffect(() => {
@@ -1174,6 +1210,7 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
       ...prev,
       additionalImages: prev.additionalImages.filter((_, i) => i !== index),
     }));
+    toast.success("Unsaved gallery image removed", { id: "gallery-remove", duration: 1500 });
   };
 
   const removeExistingImage = (url: string) => {
@@ -1182,6 +1219,17 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
       ...prev,
       removeImages: [...prev.removeImages, url],
     }));
+    toast.success("Gallery image marked for removal", { id: "gallery-remove", duration: 2000 });
+  };
+
+  const restoreRemovedImages = () => {
+    const restored = formData.removeImages;
+    setExistingAdditionalImages((prev) => [...prev, ...restored]);
+    setFormData((prev) => ({
+      ...prev,
+      removeImages: [],
+    }));
+    toast.success("Restored removed images", { id: "gallery-restore", duration: 2000 });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -1737,9 +1785,11 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
                     <h2 className="text-2xl font-black text-slate-950 flex items-center gap-2">
                       {selectedCategoryName
                         ? `${selectedCategoryName} Products`
-                        : "Select a Category"}
+                        : embedded || lockedCategoryId
+                          ? "Products"
+                          : "Select a Category"}
                     </h2>
-                    {selectedCategoryName && (
+                    {(selectedCategoryName || embedded || lockedCategoryId) && (
                       <p className="text-slate-500 text-xs font-medium mt-1">
                         {totalProducts > 0
                           ? `Showing ${filteredProductsToDisplay.length} of ${totalProducts} items`
@@ -2356,11 +2406,11 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-emerald-800">Final Customer Price:</span>
                                 <span className="font-mono text-base font-extrabold text-emerald-900">
-                                  ₹{(parseFloat(String(formData.price)) * (1 - parseFloat(String(formData.discount)) / 100)).toFixed(2)}
+                                  ₹{calculateDiscountedPrice(formData.price, formData.discount)}
                                 </span>
                               </div>
                               <span className="font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full text-[11px]">
-                                Save ₹{(parseFloat(String(formData.price)) * (parseFloat(String(formData.discount)) / 100)).toFixed(2)} ({formData.discount}% OFF)
+                                Save ₹{calculateDiscountAmount(formData.price, formData.discount)} ({formData.discount}% OFF)
                               </span>
                             </div>
                           )}
@@ -2409,29 +2459,140 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
                         />
                       </div>
 
-                      {/* Discount */}
+                      {/* Discount, Discount Amount & Final Offer Price */}
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Discount %{" "}
-                          <span className="text-xs text-slate-400">
-                            (Optional — 0 to 100)
-                          </span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            name="discount"
-                            value={formData.discount}
-                            onChange={handleChange}
-                            placeholder="Eg: 10"
-                            min={0}
-                            max={100}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50"
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">
-                            %
-                          </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {/* Discount % */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Discount %{" "}
+                              <span className="text-xs text-slate-400">
+                                (0 to 100)
+                              </span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                name="discount"
+                                value={formData.discount}
+                                onChange={handleChange}
+                                placeholder="Eg: 23.85"
+                                min={0}
+                                max={100}
+                                step="any"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">
+                                %
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Discount Amount (₹ off) */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Discount Amount{" "}
+                              <span className="text-xs text-amber-600 font-medium">
+                                (₹ off)
+                              </span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="any"
+                                min={0}
+                                max={parseFloat(String(formData.price || 0)) || undefined}
+                                placeholder="e.g. 119"
+                                disabled={!formData.price || parseFloat(String(formData.price)) <= 0}
+                                value={
+                                  formData.price && formData.discount !== "" && parseFloat(String(formData.discount)) > 0
+                                    ? calculateDiscountAmount(formData.price, formData.discount)
+                                    : ""
+                                }
+                                onChange={(e) => {
+                                  const discAmt = parseFloat(e.target.value);
+                                  const basePrice = parseFloat(String(formData.price || 0));
+                                  if (isNaN(discAmt) || e.target.value === "") {
+                                    setFormData((prev) => ({ ...prev, discount: "" }));
+                                  } else if (basePrice > 0) {
+                                    const boundedDiscAmt = Math.max(0, Math.min(basePrice, discAmt));
+                                    const calculatedDiscount = (boundedDiscAmt / basePrice) * 100;
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      discount: calculatedDiscount > 0 ? Number(calculatedDiscount.toFixed(2)).toString() : "0",
+                                    }));
+                                  }
+                                }}
+                                className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50/30 text-amber-900 font-semibold focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-600 font-semibold">
+                                ₹
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Final Offer Price (₹) Calculator */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Final Offer Price{" "}
+                              <span className="text-xs text-emerald-600 font-medium">
+                                (Selling ₹)
+                              </span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="any"
+                                min={0}
+                                max={parseFloat(String(formData.price || 0)) || undefined}
+                                placeholder={
+                                  formData.price && parseFloat(String(formData.price)) > 0
+                                    ? `e.g. ${Math.round(parseFloat(String(formData.price)) * 0.8)}`
+                                    : "Enter MRP first"
+                                }
+                                disabled={!formData.price || parseFloat(String(formData.price)) <= 0}
+                                value={
+                                  formData.price && formData.discount !== "" && parseFloat(String(formData.discount)) >= 0
+                                    ? calculateDiscountedPrice(formData.price, formData.discount)
+                                    : ""
+                                }
+                                onChange={(e) => {
+                                  const offerVal = parseFloat(e.target.value);
+                                  const basePrice = parseFloat(String(formData.price || 0));
+                                  if (isNaN(offerVal) || e.target.value === "") {
+                                    setFormData((prev) => ({ ...prev, discount: "" }));
+                                  } else if (basePrice > 0) {
+                                    const boundedOffer = Math.max(0, Math.min(basePrice, offerVal));
+                                    const calculatedDiscount = ((basePrice - boundedOffer) / basePrice) * 100;
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      discount: calculatedDiscount > 0 ? Number(calculatedDiscount.toFixed(2)).toString() : "0",
+                                    }));
+                                  }
+                                }}
+                                className="w-full px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50/30 text-emerald-900 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-emerald-600 font-semibold">
+                                ₹
+                              </span>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Live discount amount readout */}
+                        {formData.price !== "" && parseFloat(String(formData.price)) > 0 && formData.discount !== "" && parseFloat(String(formData.discount)) > 0 && (
+                          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs px-3.5 py-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-slate-700">
+                            <span>
+                              MRP: <span className="line-through font-mono font-semibold">₹{formData.price}</span>
+                            </span>
+                            <span className="font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                              Discount: ₹{calculateDiscountAmount(formData.price, formData.discount)} ({formData.discount}%)
+                            </span>
+                            <span className="font-bold text-emerald-950 font-mono">
+                              Customer pays: ₹{calculateDiscountedPrice(formData.price, formData.discount)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -2446,14 +2607,18 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
                     {(
                       [
                         { key: "variants", label: "Variants", count: editingVariantsList.length },
-                        { key: "images", label: "Images", count: 0 },
+                        {
+                          key: "images",
+                          label: "Images",
+                          count: (imagePreview ? 1 : 0) + existingAdditionalImages.length + additionalPreviews.length,
+                        },
                       ] as const
                     ).map((tab) => (
                       <button
                         key={tab.key}
                         type="button"
                         onClick={() => setEditSectionTab(tab.key)}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
                           editSectionTab === tab.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                         }`}
                       >
@@ -2568,127 +2733,295 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
                   )}
 
                   {editSectionTab === "images" && (
-                  <>
-                  {/* IMAGE UPLOAD – PRIMARY */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Primary Image
-                    </label>
-
-                    <label
-                      htmlFor="productImage"
-                      className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed
-                         border-slate-200 rounded-xl bg-slate-50/30 hover:bg-slate-50/50
-                         cursor-pointer transition"
-                    >
-                      <Upload className="h-8 w-8 text-slate-400 mb-2" />
-                      <span className="text-sm font-medium text-slate-700">
-                        {formData.image
-                          ? formData.image.name
-                          : "Click to change primary image"}
-                      </span>
-                      <span className="text-xs text-slate-500 mt-1">
-                        PNG, JPG, WEBP up to 1MB
-                      </span>
-                    </label>
-
-                    <input
-                      type="file"
-                      id="productImage"
-                      name="image"
-                      accept="image/*"
-                      onChange={handleChange}
-                      className="hidden"
-                    />
-                  </div>
-
-                  {/* GALLERY IMAGES */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-slate-700">
-                        Gallery Images
-                      </label>
-                      <span className="text-xs text-slate-400">
-                        {existingAdditionalImages.length +
-                          formData.additionalImages.length}
-                        /5
-                      </span>
-                    </div>
-                    {/* Existing images */}
-                    {existingAdditionalImages.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2 mb-3">
-                        {existingAdditionalImages.map((url, i) => (
-                          <div
-                            key={i}
-                            className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100"
-                          >
-                            <img
-                              src={url.startsWith("http") ? url : `${BACKEND_BASE_URL}/${url}`}
-                              alt={`gallery ${i + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeExistingImage(url)}
-                              className="absolute top-1 right-1 bg-black/60 hover:bg-rose-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all"
-                            >
-                              <FaTimes className="h-2.5 w-2.5" />
-                            </button>
+                    <div className="space-y-6">
+                      {/* PRIMARY IMAGE */}
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-sm font-bold text-slate-800">
+                              Primary Product Image
+                            </label>
+                            <p className="text-xs text-slate-500">
+                              Main thumbnail shown across catalog, storefront, and search
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* New images to be added */}
-                    {additionalPreviews.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2 mb-3">
-                        {additionalPreviews.map((url, i) => (
-                          <div
-                            key={i}
-                            className="relative group aspect-square rounded-xl overflow-hidden border-2 border-dashed border-emerald-300 bg-emerald-50"
+                          {formData.image && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                              New image selected
+                            </span>
+                          )}
+                        </div>
+
+                        {imagePreview ? (
+                          <div className="flex flex-col sm:flex-row items-center gap-4 p-3 bg-white rounded-xl border border-slate-200/80 shadow-xs">
+                            {/* Thumbnail container */}
+                            <div className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group flex items-center justify-center shrink-0">
+                              <img
+                                src={resolveProductImage(imagePreview)}
+                                alt={formData.productName || "Product"}
+                                className="w-full h-full object-contain p-2 cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                                onClick={() => {
+                                  setLightboxImage(resolveProductImage(imagePreview));
+                                  setLightboxTitle(`Primary Image — ${formData.productName || selectedProduct?.name || "Product"}`);
+                                }}
+                              />
+                              <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/75 text-white text-[10px] font-semibold backdrop-blur-sm pointer-events-none">
+                                Primary
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLightboxImage(resolveProductImage(imagePreview));
+                                  setLightboxTitle(`Primary Image — ${formData.productName || selectedProduct?.name || "Product"}`);
+                                }}
+                                className="absolute top-2 right-2 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-950 text-white shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-110 flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                                title="View Full Size"
+                              >
+                                <Maximize2 className="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            {/* Controls and file info */}
+                            <div className="space-y-3 flex-1 min-w-0 w-full">
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                  Current Selection
+                                </p>
+                                <p className="text-sm font-bold text-slate-800 truncate mt-0.5">
+                                  {formData.image
+                                    ? formData.image.name
+                                    : (selectedProduct?.name ? `${selectedProduct.name} main image` : "Saved primary image")}
+                                </p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  {formData.image
+                                    ? `Size: ${(formData.image.size / 1024).toFixed(0)} KB (Ready to upload)`
+                                    : "Saved on server"}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <label
+                                  htmlFor="productImage"
+                                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                                >
+                                  <Camera className="h-3.5 w-3.5" />
+                                  Change Image
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLightboxImage(resolveProductImage(imagePreview));
+                                    setLightboxTitle(`Primary Image — ${formData.productName || selectedProduct?.name || "Product"}`);
+                                  }}
+                                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                                >
+                                  <Maximize2 className="h-3.5 w-3.5 text-slate-500" />
+                                  Full View Preview
+                                </button>
+
+                                {formData.image && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData((prev) => ({ ...prev, image: null }));
+                                      setImagePreview(selectedProduct?.image || "");
+                                      toast.success("Reverted to original primary image", { id: "primary-revert" });
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-all cursor-pointer"
+                                    title="Revert to original saved image"
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                    Revert
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <label
+                            htmlFor="productImage"
+                            className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl bg-white hover:bg-indigo-50/20 cursor-pointer transition-all text-center group"
                           >
-                            <img
-                              src={url}
-                              alt={`new ${i + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute top-1 left-1 bg-emerald-500 text-white text-[9px] rounded px-1">
-                              New
+                            <div className="p-3 rounded-full bg-slate-100 group-hover:bg-indigo-100 transition mb-2">
+                              <Upload className="h-6 w-6 text-slate-400 group-hover:text-indigo-600 transition" />
+                            </div>
+                            <span className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700">
+                              Upload Primary Image
+                            </span>
+                            <span className="text-xs text-slate-400 mt-1">
+                              PNG, JPG, WEBP up to 1MB
+                            </span>
+                          </label>
+                        )}
+
+                        <input
+                          type="file"
+                          id="productImage"
+                          name="image"
+                          accept="image/*"
+                          onChange={handleChange}
+                          className="hidden"
+                        />
+                      </div>
+
+                      {/* GALLERY IMAGES */}
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-sm font-bold text-slate-800">
+                              Gallery Images
+                            </label>
+                            <p className="text-xs text-slate-500">
+                              Additional angles and variation views. Hover or tap to preview full size or remove.
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold text-slate-600 bg-slate-200/80 px-2.5 py-1 rounded-full">
+                            {existingAdditionalImages.length + formData.additionalImages.length}/5
+                          </span>
+                        </div>
+
+                        {/* Gallery Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          {/* Existing images */}
+                          {existingAdditionalImages.map((url, i) => (
+                            <div
+                              key={`existing-${i}`}
+                              className="relative group aspect-square rounded-2xl overflow-hidden border-2 border-slate-200 bg-white shadow-xs hover:shadow-md hover:border-indigo-300 transition-all flex items-center justify-center"
+                            >
+                              <img
+                                src={resolveProductImage(url)}
+                                alt={`gallery ${i + 1}`}
+                                className="w-full h-full object-contain p-2 cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                                onClick={() => {
+                                  setLightboxImage(resolveProductImage(url));
+                                  setLightboxTitle(`Gallery Image ${i + 1} — ${formData.productName || selectedProduct?.name || "Product"}`);
+                                }}
+                              />
+                              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/75 text-white text-[10px] font-semibold backdrop-blur-sm pointer-events-none">
+                                #{i + 1}
+                              </div>
+
+                              {/* Preview Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLightboxImage(resolveProductImage(url));
+                                  setLightboxTitle(`Gallery Image ${i + 1} — ${formData.productName || selectedProduct?.name || "Product"}`);
+                                }}
+                                className="absolute top-2 left-2 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-950 text-white shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-110 flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                                title="Full View Preview"
+                              >
+                                <Maximize2 className="h-3.5 w-3.5" />
+                              </button>
+
+                              {/* Remove Button */}
+                              <button
+                                type="button"
+                                onClick={() => removeExistingImage(url)}
+                                className="absolute top-2 right-2 p-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white shadow-md transition-all cursor-pointer hover:scale-110 flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                                title="Remove this gallery image"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* New images to be added */}
+                          {additionalPreviews.map((url, i) => (
+                            <div
+                              key={`new-${i}`}
+                              className="relative group aspect-square rounded-2xl overflow-hidden border-2 border-dashed border-emerald-300 bg-emerald-50/50 shadow-xs hover:shadow-md transition-all flex items-center justify-center"
+                            >
+                              <img
+                                src={url}
+                                alt={`new gallery ${i + 1}`}
+                                className="w-full h-full object-contain p-2 cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                                onClick={() => {
+                                  setLightboxImage(url);
+                                  setLightboxTitle(`New Gallery Image ${i + 1}`);
+                                }}
+                              />
+                              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-bold shadow-xs pointer-events-none">
+                                New
+                              </div>
+
+                              {/* Preview Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLightboxImage(url);
+                                  setLightboxTitle(`New Gallery Image ${i + 1}`);
+                                }}
+                                className="absolute top-2 left-2 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-950 text-white shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-110 flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                                title="Full View Preview"
+                              >
+                                <Maximize2 className="h-3.5 w-3.5" />
+                              </button>
+
+                              {/* Remove Button */}
+                              <button
+                                type="button"
+                                onClick={() => removeNewAdditionalImage(i)}
+                                className="absolute top-2 right-2 p-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white shadow-md transition-all cursor-pointer hover:scale-110 flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                                title="Remove unsaved image"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* Add Images Dropzone */}
+                          {existingAdditionalImages.length + formData.additionalImages.length < 5 && (
+                            <label
+                              htmlFor="editAdditionalImages"
+                              className="aspect-square rounded-2xl border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-white hover:bg-indigo-50/20 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all p-3 text-center group shadow-2xs"
+                            >
+                              <div className="p-2.5 rounded-full bg-slate-100 group-hover:bg-indigo-100 transition">
+                                <Upload className="h-5 w-5 text-slate-400 group-hover:text-indigo-600 transition" />
+                              </div>
+                              <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-700">
+                                Add Image
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {5 - (existingAdditionalImages.length + formData.additionalImages.length)} remaining
+                              </span>
+                            </label>
+                          )}
+                        </div>
+
+                        <input
+                          type="file"
+                          id="editAdditionalImages"
+                          multiple
+                          accept="image/*"
+                          onChange={handleAdditionalImages}
+                          className="hidden"
+                        />
+
+                        {/* Undo Banner for removed images */}
+                        {formData.removeImages.length > 0 && (
+                          <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs mt-3">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                              <span>
+                                {formData.removeImages.length} gallery image{formData.removeImages.length > 1 ? "s" : ""} will be deleted upon saving.
+                              </span>
                             </div>
                             <button
                               type="button"
-                              onClick={() => removeNewAdditionalImage(i)}
-                              className="absolute top-1 right-1 bg-black/60 hover:bg-rose-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all"
+                              onClick={restoreRemovedImages}
+                              className="font-bold text-indigo-700 hover:text-indigo-900 underline hover:no-underline cursor-pointer ml-3 shrink-0"
                             >
-                              <FaTimes className="h-2.5 w-2.5" />
+                              Undo All
                             </button>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
-                    {existingAdditionalImages.length +
-                      formData.additionalImages.length <
-                      5 && (
-                      <label
-                        htmlFor="editAdditionalImages"
-                        className="flex flex-col items-center justify-center gap-1.5 p-4 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-all"
-                      >
-                        <Upload className="h-5 w-5 text-slate-400" />
-                        <span className="text-xs text-slate-500">
-                          Add gallery images
-                        </span>
-                      </label>
-                    )}
-                    <input
-                      type="file"
-                      id="editAdditionalImages"
-                      multiple
-                      accept="image/*"
-                      onChange={handleAdditionalImages}
-                      className="hidden"
-                    />
-                  </div>
-                  </>
+                    </div>
                   )}
+
+
 
                   {/* Description */}
                   <div>
@@ -2837,17 +3170,60 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
               <div className="p-6 grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
                 {/* IMAGE + badges */}
                 <div className="space-y-3">
-                  <div className="aspect-square flex items-center justify-center bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                  <div className="relative group aspect-square flex items-center justify-center bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
                     {detailProduct.image ? (
-                      <img
-                        src={`${resolveProductImage(detailProduct.image)}?v=${detailProduct.updatedAt || Date.now()}`}
-                        alt={detailProduct.name}
-                        className="h-full w-full object-contain"
-                      />
+                      <>
+                        <img
+                          src={`${resolveProductImage(detailProduct.image)}?v=${detailProduct.updatedAt || Date.now()}`}
+                          alt={detailProduct.name}
+                          className="h-full w-full object-contain p-2 cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                          onClick={() => {
+                            setLightboxImage(resolveProductImage(detailProduct.image));
+                            setLightboxTitle(`Primary Image — ${detailProduct.name}`);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLightboxImage(resolveProductImage(detailProduct.image));
+                            setLightboxTitle(`Primary Image — ${detailProduct.name}`);
+                          }}
+                          className="absolute top-2.5 right-2.5 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-950 text-white shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-110 flex items-center justify-center"
+                          title="View Full Size"
+                        >
+                          <Maximize2 className="h-4 w-4" />
+                        </button>
+                      </>
                     ) : (
                       <FaImage className="text-6xl text-slate-300" />
                     )}
                   </div>
+
+                  {/* Gallery Thumbnails in Detail View */}
+                  {detailProduct.images && detailProduct.images.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">
+                        Gallery ({detailProduct.images.length})
+                      </p>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        {detailProduct.images.map((gUrl, gIdx) => (
+                          <button
+                            key={gIdx}
+                            type="button"
+                            onClick={() => {
+                              setLightboxImage(resolveProductImage(gUrl));
+                              setLightboxTitle(`Gallery #${gIdx + 1} — ${detailProduct.name}`);
+                            }}
+                            className="relative w-12 h-12 rounded-xl overflow-hidden border border-slate-200 hover:border-indigo-400 bg-white p-0.5 transition-all shrink-0 cursor-pointer hover:scale-105"
+                            title={`View Gallery Image ${gIdx + 1}`}
+                          >
+                            <img src={resolveProductImage(gUrl)} alt="" className="w-full h-full object-contain" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-1.5">
                     {detailProduct.brand && (
                       <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
@@ -2871,7 +3247,7 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
                         {detailProduct.discount && detailProduct.discount > 0 && !(detailProductVariants && detailProductVariants.length > 0) ? (
                           <div className="flex items-baseline gap-2 flex-wrap">
                             <span className="text-xl font-extrabold text-slate-900 font-mono">
-                              ₹{(Number(detailProduct.price) * (1 - detailProduct.discount / 100)).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                              ₹{calculateDiscountedPrice(detailProduct.price, detailProduct.discount).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                             </span>
                             <span className="text-xs text-slate-400 line-through font-mono">
                               ₹{Number(detailProduct.price).toLocaleString("en-IN")}
@@ -3034,6 +3410,43 @@ const Listproducts = ({ embedded = false, lockedCategoryId, onAddProduct }: List
             setVariantsModalProduct(null);
           }}
         />
+
+        {/* Lightbox Modal for Full View */}
+        {lightboxImage && createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-200"
+            onClick={() => setLightboxImage(null)}
+          >
+            <div
+              className="relative max-w-4xl w-full max-h-[90vh] bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/50">
+                <div className="flex items-center gap-2 text-white min-w-0">
+                  <ImageIcon className="h-4 w-4 text-indigo-400 shrink-0" />
+                  <span className="text-sm font-bold truncate">
+                    {lightboxTitle || "Product Image — Full View"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-black/40 min-h-[300px]">
+                <img
+                  src={lightboxImage}
+                  alt={lightboxTitle || "Product full view"}
+                  className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl shadow-lg select-none"
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
 
     </div>

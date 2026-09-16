@@ -319,6 +319,9 @@ const DEFAULT_FOOTER: FooterConfig = {
   },
 };
 
+const DEFAULT_ANNOUNCEMENT_TEXT =
+  "Free shipping on orders above ₹999 | New arrivals every week | 100% authentic products | Secure payments";
+
 const emptyForm = {
   type: "DISCOUNT_PANEL" as BannerType,
   title: "",
@@ -516,7 +519,7 @@ export default function HomepageManager() {
 
   // Announcement state
   const [announcementText, setAnnouncementText] = useState(
-    "Free shipping on orders above ₹999 | New arrivals every week | 100% authentic products | Secure payments",
+    DEFAULT_ANNOUNCEMENT_TEXT,
   );
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
   const [togglingAnnouncement, setTogglingAnnouncement] = useState(false);
@@ -616,10 +619,12 @@ export default function HomepageManager() {
   const [confirmingPreset, setConfirmingPreset] = useState<OccasionPreset | null>(null);
   const [presetCustomization, setPresetCustomization] = useState<PresetCustomization | null>(null);
   const [applyingPreset, setApplyingPreset] = useState(false);
+  const [disablingOccasion, setDisablingOccasion] = useState(false);
 
   // Banner modal
   const [showModal, setShowModal] = useState(false);
-  useBodyScrollLock(showModal || !!confirmingPreset || desktopPreviewOpen);
+  const [bannerToDelete, setBannerToDelete] = useState<HomeBanner | null>(null);
+  useBodyScrollLock(showModal || !!confirmingPreset || desktopPreviewOpen || !!bannerToDelete);
   const [editBanner, setEditBanner] = useState<HomeBanner | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -971,6 +976,9 @@ export default function HomepageManager() {
     discountTemplate === preset.discountTemplate &&
     featuredTemplate === preset.featuredTemplate;
 
+  const activeOccasion = OCCASION_PRESETS.find((preset) => isPresetApplied(preset));
+  const isOccasionActive = Boolean(activeOccasion);
+
   const applyOccasionPreset = async (preset: OccasionPreset, customization: PresetCustomization) => {
     if (!canBannerEdit) {
       toast.error(NO_PERMISSION_MSG);
@@ -978,6 +986,26 @@ export default function HomepageManager() {
       return;
     }
     setApplyingPreset(true);
+
+    // Snapshot pre-occasion store layout to allow clean restoration when toggled off
+    if (!isOccasionActive) {
+      try {
+        const snapshot = {
+          themeId,
+          heroActiveTemplate: heroConfig.activeTemplate,
+          footerActiveTemplate: footerConfig.activeTemplate,
+          announcementTemplate,
+          carouselTemplate,
+          discountTemplate,
+          featuredTemplate,
+          announcementText,
+        };
+        localStorage.setItem("storra_pre_occasion_snapshot", JSON.stringify(snapshot));
+      } catch (err) {
+        console.warn("Failed to cache pre-occasion snapshot", err);
+      }
+    }
+
     const heroDefaults = DEFAULT_HERO.templates[String(preset.heroTemplate)] ?? DEFAULT_HERO.templates["1"];
     const footerKey = String(preset.footerTemplate);
     // Every one of these is the exact same PUT an admin's individual picker already
@@ -1017,6 +1045,8 @@ export default function HomepageManager() {
     ]);
     const failures = results.filter((r) => r.status === "rejected").length;
 
+    setThemeId(preset.themeId);
+    setDraftThemeId(preset.themeId);
     await fetchHomepageConfig(); // resync every local field from what actually saved
     refreshPreview();
     setApplyingPreset(false);
@@ -1027,6 +1057,119 @@ export default function HomepageManager() {
       toast.success(`${preset.name} applied`);
     } else {
       toast.error(`${preset.name} applied with ${failures} field${failures > 1 ? "s" : ""} that didn't save — check your permissions and try again`);
+    }
+  };
+
+  const disableActiveOccasion = async () => {
+    if (!canBannerEdit) {
+      toast.error(NO_PERMISSION_MSG);
+      return;
+    }
+    setDisablingOccasion(true);
+
+    let targetThemeId = DEFAULT_THEME_ID;
+    let targetHeroTemplate = 1;
+    let targetFooterTemplate = 1;
+    let targetAnnouncementTemplate = 1;
+    let targetCarouselTemplate = 1;
+    let targetDiscountTemplate = 1;
+    let targetFeaturedTemplate = 1;
+    let targetAnnouncementText = DEFAULT_ANNOUNCEMENT_TEXT;
+
+    try {
+      const savedRaw = localStorage.getItem("storra_pre_occasion_snapshot");
+      if (savedRaw) {
+        const saved = JSON.parse(savedRaw);
+        // Ensure saved snapshot doesn't match an occasion preset
+        const matchesAnyPreset = OCCASION_PRESETS.some(
+          (p) =>
+            p.themeId === saved.themeId &&
+            p.heroTemplate === saved.heroActiveTemplate &&
+            p.footerTemplate === saved.footerActiveTemplate
+        );
+        if (!matchesAnyPreset) {
+          if (saved.themeId) targetThemeId = saved.themeId;
+          if (typeof saved.heroActiveTemplate === "number") targetHeroTemplate = saved.heroActiveTemplate;
+          if (typeof saved.footerActiveTemplate === "number") targetFooterTemplate = saved.footerActiveTemplate;
+          if (typeof saved.announcementTemplate === "number") targetAnnouncementTemplate = saved.announcementTemplate;
+          if (typeof saved.carouselTemplate === "number") targetCarouselTemplate = saved.carouselTemplate;
+          if (typeof saved.discountTemplate === "number") targetDiscountTemplate = saved.discountTemplate;
+          if (typeof saved.featuredTemplate === "number") targetFeaturedTemplate = saved.featuredTemplate;
+          if (saved.announcementText) targetAnnouncementText = saved.announcementText;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to read pre-occasion snapshot", err);
+    }
+
+    const heroKey = String(targetHeroTemplate);
+    const heroDefaults = DEFAULT_HERO.templates[heroKey] ?? DEFAULT_HERO.templates["1"];
+    const footerKey = String(targetFooterTemplate);
+    const footerDefaults = DEFAULT_FOOTER.templates[footerKey] ?? DEFAULT_FOOTER.templates["1"];
+
+    const results = await Promise.allSettled([
+      api.put("/admin/homepage-config/theme", { themeId: targetThemeId }),
+      api.put("/admin/homepage-config/hero", {
+        activeTemplate: targetHeroTemplate,
+        templates: {
+          ...heroConfig.templates,
+          [heroKey]: {
+            ...DEFAULT_HERO.templates[heroKey],
+            ...heroDefaults,
+          },
+        },
+      }),
+      api.put("/admin/homepage-config/footer", {
+        ...footerConfig,
+        activeTemplate: targetFooterTemplate,
+        templates: {
+          ...footerConfig.templates,
+          [footerKey]: {
+            ...DEFAULT_FOOTER.templates[footerKey],
+            ...footerDefaults,
+          },
+        },
+      }),
+      api.put("/admin/homepage-config/announcement-template", { activeTemplate: targetAnnouncementTemplate }),
+      api.put("/admin/homepage-config/carousel-template", { activeTemplate: targetCarouselTemplate }),
+      api.put("/admin/homepage-config/discount-template", { activeTemplate: targetDiscountTemplate }),
+      api.put("/admin/homepage-config/featured-template", { activeTemplate: targetFeaturedTemplate }),
+      ...(!isStaff && targetAnnouncementText
+        ? [api.put("/admin/company-settings", { announcementBar: targetAnnouncementText })]
+        : []),
+    ]);
+
+    try {
+      localStorage.removeItem("storra_pre_occasion_snapshot");
+    } catch {}
+
+    setThemeId(targetThemeId);
+    setDraftThemeId(targetThemeId);
+    await fetchHomepageConfig();
+    refreshPreview();
+    setDisablingOccasion(false);
+
+    const failures = results.filter((r) => r.status === "rejected").length;
+    if (failures === 0) {
+      toast.success("Occasion turned off — default store layout restored");
+    } else {
+      toast.error(`Occasion turned off with ${failures} unsaved field${failures > 1 ? "s" : ""}`);
+    }
+  };
+
+  const handleOccasionToggle = () => {
+    if (!canBannerEdit) {
+      toast.error(NO_PERMISSION_MSG);
+      return;
+    }
+    if (isOccasionActive) {
+      disableActiveOccasion();
+    } else {
+      toast("Select any festive occasion below and click Apply to turn it on.", {
+        icon: "✨",
+        id: "occasion-toggle-hint",
+      });
+      document.getElementById("occasion-presets-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
@@ -1110,9 +1253,15 @@ export default function HomepageManager() {
     }
   };
 
+  const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1 MB
+
   const uploadHeroImage = async (file: File, index: number) => {
     if (!canBannerEdit) {
       toast.error(NO_PERMISSION_MSG, { id: "hero-upload-perm-error" });
+      return;
+    }
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB", { id: "hero-img-upload-error" });
       return;
     }
     const previousUrl = heroForm.images?.[index];
@@ -1131,8 +1280,9 @@ export default function HomepageManager() {
       imgs[index] = data.url;
       setHeroForm((p) => ({ ...p, images: imgs }));
       toast.success("Image uploaded successfully", { id: "hero-img-uploaded" });
-    } catch {
-      toast.error("Image upload failed", { id: "hero-img-upload-error" });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Image upload failed";
+      toast.error(msg, { id: "hero-img-upload-error" });
     } finally {
       setUploadingHeroImage(null);
     }
@@ -1141,6 +1291,10 @@ export default function HomepageManager() {
   const uploadHeroBgImage = async (file: File) => {
     if (!canBannerEdit) {
       toast.error(NO_PERMISSION_MSG, { id: "hero-upload-perm-error" });
+      return;
+    }
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB", { id: "hero-bg-upload-error" });
       return;
     }
     const previousUrl = heroForm.bgImage;
@@ -1157,8 +1311,9 @@ export default function HomepageManager() {
       });
       setHeroForm((p) => ({ ...p, bgImage: data.url }));
       toast.success("Image uploaded successfully", { id: "hero-bg-uploaded" });
-    } catch {
-      toast.error("Image upload failed", { id: "hero-bg-upload-error" });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Image upload failed";
+      toast.error(msg, { id: "hero-bg-upload-error" });
     } finally {
       setUploadingBgImage(false);
     }
@@ -1539,6 +1694,11 @@ export default function HomepageManager() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB");
+      e.target.value = "";
+      return;
+    }
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
@@ -1577,25 +1737,35 @@ export default function HomepageManager() {
       setShowModal(false);
       fetchBanners();
       refreshPreview();
-    } catch {
-      toast.error("Failed to save banner");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Failed to save banner";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (banner: HomeBanner) => {
     if (!canBannerDelete) {
       toast.error(NO_PERMISSION_MSG);
       return;
     }
-    if (!confirm("Delete this banner? This cannot be undone.")) return;
+    setBannerToDelete(banner);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!bannerToDelete) return;
+    if (!canBannerDelete) {
+      toast.error(NO_PERMISSION_MSG);
+      return;
+    }
     try {
-      setDeletingId(id);
-      await api.delete(`/home-banners/${id}`);
+      setDeletingId(bannerToDelete.id);
+      await api.delete(`/home-banners/${bannerToDelete.id}`);
       toast.success("Banner deleted");
-      setBanners((prev) => prev.filter((b) => b.id !== id));
+      setBanners((prev) => prev.filter((b) => b.id !== bannerToDelete.id));
       refreshPreview();
+      setBannerToDelete(null);
     } catch {
       toast.error("Failed to delete banner");
     } finally {
@@ -1720,6 +1890,14 @@ export default function HomepageManager() {
           >
             {icon && <span className={activeTab === key ? "text-white" : "text-gray-400 group-hover:text-gray-600"}>{icon}</span>}
             {label}
+            {key === "OCCASIONS" && isOccasionActive && (
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  activeTab === key ? "bg-emerald-300" : "bg-emerald-500"
+                } animate-pulse`}
+                title={`Active Occasion: ${activeOccasion?.name}`}
+              />
+            )}
           </button>
         ))}
       </div>
@@ -1734,6 +1912,136 @@ export default function HomepageManager() {
       {/* ── OCCASIONS TAB ────────────────────────────────────────────────────── */}
       {activeTab === "OCCASIONS" && (
         <div className="space-y-6 animate-fadeIn">
+          {/* Master Occasion Status & Toggle Card */}
+          <div
+            className={`rounded-2xl border p-5 transition-all duration-300 shadow-sm ${
+              isOccasionActive
+                ? "bg-gradient-to-r from-emerald-500/10 via-emerald-50/50 to-white border-emerald-300 ring-1 ring-emerald-200"
+                : "bg-white border-gray-200"
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 transition-colors ${
+                    isOccasionActive
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-200"
+                      : "bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  {isOccasionActive ? (activeOccasion?.emoji ?? "🎉") : "✨"}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-gray-950">
+                      {isOccasionActive ? (
+                        <>
+                          <span>Active Occasion:</span>{" "}
+                          <span className="text-emerald-700 font-black">
+                            {activeOccasion?.name}
+                          </span>
+                        </>
+                      ) : (
+                        "Festive Occasions Mode"
+                      )}
+                    </h3>
+                    {isOccasionActive && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        Live on Store
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5 max-w-xl leading-relaxed">
+                    {isOccasionActive
+                      ? `Your storefront theme, hero, footer, and promotional layouts are currently running the ${activeOccasion?.name} preset. Toggle off to return to your standard store layout.`
+                      : "No festive occasion is currently active. Your storefront is using standard store themes and section templates."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Master Toggle Switch & Turn Off Action */}
+              <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                <span
+                  className={`text-xs font-bold uppercase tracking-wider transition-colors ${
+                    isOccasionActive ? "text-emerald-700" : "text-gray-400"
+                  }`}
+                >
+                  {disablingOccasion
+                    ? "Turning off…"
+                    : isOccasionActive
+                    ? "Occasion On"
+                    : "Occasion Off"}
+                </span>
+
+                {/* Toggle Button */}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isOccasionActive}
+                  disabled={disablingOccasion || applyingPreset || !canBannerEdit}
+                  onClick={handleOccasionToggle}
+                  title={
+                    isOccasionActive
+                      ? "Click to disable occasion and restore default store settings"
+                      : "Click to activate an occasion preset"
+                  }
+                  className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isOccasionActive ? "bg-emerald-600" : "bg-gray-300"
+                  }`}
+                >
+                  <span className="sr-only">Toggle festive occasion</span>
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      isOccasionActive ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+
+                {/* Explicit Turn Off Button when active */}
+                {isOccasionActive && (
+                  <button
+                    type="button"
+                    disabled={disablingOccasion || applyingPreset || !canBannerEdit}
+                    onClick={disableActiveOccasion}
+                    className="px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                  >
+                    {disablingOccasion ? (
+                      <>
+                        <svg
+                          className="animate-spin h-3.5 w-3.5 text-rose-700"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        <span>Turning Off…</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircleIcon className="w-4 h-4 text-rose-600" />
+                        <span>Turn Off</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
             <p className="text-sm text-indigo-700 font-medium">
               One click sets the theme, hero, footer, and every section's layout at once —
@@ -1742,12 +2050,19 @@ export default function HomepageManager() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div id="occasion-presets-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {OCCASION_PRESETS.map((preset) => {
               const theme = THEMES.find((t) => t.id === preset.themeId);
               const applied = isPresetApplied(preset);
               return (
-                <div key={preset.id} className={`border-2 rounded-xl overflow-hidden transition-all ${applied ? "border-emerald-400" : "border-gray-200 hover:border-indigo-300"}`}>
+                <div
+                  key={preset.id}
+                  className={`border-2 rounded-xl overflow-hidden transition-all ${
+                    applied
+                      ? "border-emerald-400 ring-2 ring-emerald-100 shadow-sm"
+                      : "border-gray-200 hover:border-indigo-300"
+                  }`}
+                >
                   <div
                     className="h-20 flex items-center gap-3 px-5 relative"
                     style={{ background: theme?.primary ?? "#111", color: theme?.primaryInk ?? "#fff" }}
@@ -1758,24 +2073,40 @@ export default function HomepageManager() {
                       <p className="text-[11px] opacity-75">{theme?.name ?? preset.themeId}</p>
                     </div>
                     {applied && (
-                      <span className="absolute top-2 right-2 flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full">
+                      <span className="absolute top-2 right-2 flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full shadow-sm">
                         <CheckCircleIcon className="w-3 h-3" /> Applied
                       </span>
                     )}
                   </div>
                   <div className="p-4 bg-white">
                     <p className="text-xs text-gray-500 mb-4 leading-snug">{preset.description}</p>
-                    <button
-                      onClick={() => openPresetConfirm(preset)}
-                      disabled={!canBannerEdit}
-                      className={`w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                        applied
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-                          : "bg-indigo-600 text-white hover:bg-indigo-700"
-                      }`}
-                    >
-                      {applied ? "✓ Applied — Reapply" : `Apply ${preset.name}`}
-                    </button>
+                    {applied ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={disableActiveOccasion}
+                          disabled={disablingOccasion || applyingPreset || !canBannerEdit}
+                          className="flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wide bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                        >
+                          <XCircleIcon className="w-3.5 h-3.5 text-rose-600" />
+                          {disablingOccasion ? "Disabling…" : "Turn Off"}
+                        </button>
+                        <button
+                          onClick={() => openPresetConfirm(preset)}
+                          disabled={disablingOccasion || applyingPreset || !canBannerEdit}
+                          className="flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                        >
+                          ✓ Reapply
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openPresetConfirm(preset)}
+                        disabled={disablingOccasion || applyingPreset || !canBannerEdit}
+                        className="w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wide bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Apply {preset.name}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -3713,7 +4044,7 @@ export default function HomepageManager() {
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDelete(banner.id)}
+                          onClick={() => handleDelete(banner)}
                           disabled={deletingId === banner.id}
                           className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
                         >
@@ -3798,7 +4129,7 @@ export default function HomepageManager() {
                         </button>
 
                         <button
-                          onClick={() => handleDelete(banner.id)}
+                          onClick={() => handleDelete(banner)}
                           disabled={deletingId === banner.id}
                           className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-40"
                         >
@@ -4509,6 +4840,55 @@ export default function HomepageManager() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE BANNER CONFIRMATION MODAL ── */}
+      {bannerToDelete && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-sm w-full overflow-hidden animate-scaleIn">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 mx-auto mb-4 shadow-xs">
+                <TrashIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">
+                Are you sure?
+              </h3>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                Do you really want to delete this banner? This action cannot be undone.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3 px-6 py-4 bg-gray-50/70 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={deletingId !== null}
+                onClick={() => setBannerToDelete(null)}
+                className="flex-1 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingId !== null}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-sm shadow-rose-600/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {deletingId === bannerToDelete.id ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  <>
+                    <TrashIcon className="w-4 h-4" />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

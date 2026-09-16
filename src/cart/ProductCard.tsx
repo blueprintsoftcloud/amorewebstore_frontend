@@ -6,6 +6,7 @@ import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 import { domainUrl } from "../utils/constant";
 import { useAuth } from "../context/AuthContext";
+import { calculateDiscountedPrice } from "../utils/product";
 
 
 
@@ -73,6 +74,7 @@ const ProductCard = ({ product }: { product: Product }) => {
     setIsWishlistLoading(true);
     try {
       if (!user.isAuthenticated) {
+        toast.error("Please login to add product to wishlist", { id: "login-to-wishlist" });
         window.dispatchEvent(new CustomEvent("openCustomerAuth"));
         return;
       }
@@ -182,7 +184,7 @@ const ProductCard = ({ product }: { product: Product }) => {
             {product.discount && product.discount > 0 ? (
               <div className="mt-0.5 flex items-baseline gap-1.5 flex-wrap">
                 <span className="text-xs font-extrabold text-gray-900">
-                  ₹{(product.price * (1 - product.discount / 100)).toFixed(0)}
+                  ₹{calculateDiscountedPrice(product.price, product.discount).toFixed(0)}
                 </span>
                 <span className="text-[10px] text-gray-400 line-through">
                   ₹{product.price?.toLocaleString()}

@@ -13,6 +13,7 @@ import {
   TrashIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
   PlusIcon,
   MinusIcon,
   DocumentTextIcon,
@@ -21,6 +22,13 @@ import {
   EnvelopeIcon,
   XMarkIcon,
   TicketIcon,
+  HomeIcon,
+  BuildingOffice2Icon,
+  MapIcon,
+  HashtagIcon,
+  GlobeAmericasIcon,
+  SparklesIcon,
+  CheckIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import ShipOrderModal, { ShipOrderPayload } from "./ShipOrderModal";
@@ -148,6 +156,16 @@ const CUSTOMER_MODE_TABS: { key: "existing" | "new"; label: string; icon: typeof
   { key: "new", label: "New Customer", icon: UserPlusIcon },
 ];
 
+const INDIAN_STATES = [
+  "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
+  "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand",
+  "Karnataka", "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra",
+  "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab",
+  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+  "Uttarakhand", "West Bengal"
+];
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 export default function AdminOrderPage() {
   const navigate = useNavigate();
@@ -198,6 +216,96 @@ export default function AdminOrderPage() {
     zipCode: "",
     country: "India",
   });
+  const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
+  const [stateFilter, setStateFilter] = useState("");
+  const stateDropdownRef = useRef<HTMLDivElement>(null);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const pincodeLookupAbortRef = useRef<AbortController | null>(null);
+
+  const handlePincodeChange = async (val: string) => {
+    const cleanPincode = val.replace(/\D/g, "").slice(0, 6);
+    setAddress(prev => ({ ...prev, zipCode: cleanPincode }));
+
+    if (pincodeLookupAbortRef.current) {
+      pincodeLookupAbortRef.current.abort();
+    }
+
+    if (cleanPincode.length === 6) {
+      const abortController = new AbortController();
+      pincodeLookupAbortRef.current = abortController;
+      setPincodeLoading(true);
+
+      try {
+        // 1. Primary: Query through backend lookup endpoint (uses Nominatim + fallbacks with User-Agent)
+        const { data } = await api.get(`/order/admin-order/lookup-pincode/${cleanPincode}`, {
+          signal: abortController.signal,
+          timeout: 6000,
+        });
+
+        if (data && data.success) {
+          const fetchedCity = data.city || data.district || "";
+          const rawState = data.state || "";
+          const matchedState = INDIAN_STATES.find(
+            s => s.toLowerCase() === rawState.trim().toLowerCase()
+          ) || INDIAN_STATES.find(
+            s => s.toLowerCase().includes(rawState.trim().toLowerCase()) || rawState.trim().toLowerCase().includes(s.toLowerCase())
+          ) || rawState;
+
+          setAddress(prev => ({
+            ...prev,
+            city: fetchedCity || prev.city,
+            state: matchedState || prev.state,
+          }));
+          toast.success(`Location detected: ${fetchedCity}${matchedState ? `, ${matchedState}` : ""}`);
+        } else {
+          toast.error("Location not found for this PIN code");
+        }
+      } catch (err: any) {
+        if (err?.name === "CanceledError" || err?.name === "AbortError" || err?.code === "ERR_CANCELED") {
+          return;
+        }
+
+        // Secondary: Quick fallback to zippopotam if backend route failed
+        try {
+          const zipRes = await fetch(`https://api.zippopotam.us/in/${cleanPincode}`, {
+            signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+          });
+          if (zipRes.ok) {
+            const zipData = await zipRes.json();
+            if (zipData?.places?.[0]) {
+              const place = zipData.places[0];
+              const fetchedCity = place["place name"] || "";
+              const rawState = place.state || "";
+              const matchedState = INDIAN_STATES.find(
+                s => s.toLowerCase() === rawState.trim().toLowerCase()
+              ) || rawState;
+              setAddress(prev => ({
+                ...prev,
+                city: fetchedCity || prev.city,
+                state: matchedState || prev.state,
+              }));
+              toast.success(`Location detected: ${fetchedCity}${matchedState ? `, ${matchedState}` : ""}`);
+              return;
+            }
+          }
+        } catch {
+          // ignore fallback error
+        }
+
+        toast.error(err?.response?.data?.message ?? "Unable to auto-detect location. Please enter manually.");
+      } finally {
+        setPincodeLoading(false);
+      }
+    }
+  };
+
+  const handleClearPincode = () => {
+    if (pincodeLookupAbortRef.current) {
+      pincodeLookupAbortRef.current.abort();
+    }
+    setPincodeLoading(false);
+    setAddress(p => ({ ...p, zipCode: "" }));
+  };
 
   // ── Payment state ──
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
@@ -252,6 +360,9 @@ export default function AdminOrderPage() {
     const onClickOutside = (e: MouseEvent) => {
       if (customerContainerRef.current && !customerContainerRef.current.contains(e.target as Node)) {
         setCustomerDropdownOpen(false);
+      }
+      if (stateDropdownRef.current && !stateDropdownRef.current.contains(e.target as Node)) {
+        setStateDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", onClickOutside);
@@ -508,6 +619,8 @@ export default function AdminOrderPage() {
               setSelectedVariantByProduct({});
               setCouponCode("");
               setAppliedCoupon(null);
+              if (pincodeLookupAbortRef.current) pincodeLookupAbortRef.current.abort();
+              setPincodeLoading(false);
               setAddress({ fullAddress: "", city: "", state: "", zipCode: "", country: "India" });
               setPaymentMethod("CASH");
               setPaymentNote("");
@@ -705,33 +818,106 @@ export default function AdminOrderPage() {
             {/* New customer form */}
             {customerMode === "new" && (
               <div className="max-w-lg space-y-4 animate-fadeIn">
-                <div>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                    <UserCircleIcon className="w-3.5 h-3.5" />
-                    Full Name <span className="text-blue-500 normal-case">*</span>
-                  </label>
-                  <input type="text" autoFocus placeholder="Customer name" value={newCustomer.username}
-                    onChange={e => setNewCustomer(p => ({ ...p, username: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" />
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <UserCircleIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      Full Name <span className="text-rose-500 font-bold normal-case">*</span>
+                    </label>
+                    {newCustomer.username.trim() && (
+                      <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                        <CheckCircleSolid className="w-3.5 h-3.5" /> Valid
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                    <UserCircleIcon className="w-4 h-4 ml-3.5 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none shrink-0" />
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Customer name"
+                      value={newCustomer.username}
+                      onChange={e => setNewCustomer(p => ({ ...p, username: e.target.value }))}
+                      className="w-full pl-3 pr-9 h-11 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none"
+                    />
+                    {newCustomer.username && (
+                      <button
+                        type="button"
+                        onClick={() => setNewCustomer(p => ({ ...p, username: "" }))}
+                        className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                        title="Clear name"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                      <PhoneIcon className="w-3.5 h-3.5" />
-                      Phone <span className="text-blue-500 normal-case">*</span>
-                    </label>
-                    <input type="tel" placeholder="+91 XXXXX XXXXX" value={newCustomer.phone}
-                      onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        <PhoneIcon className="w-3.5 h-3.5 text-indigo-600" />
+                        Phone <span className="text-rose-500 font-bold normal-case">*</span>
+                      </label>
+                      {newCustomer.phone.trim() && (
+                        <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                          <CheckCircleSolid className="w-3.5 h-3.5" /> Valid
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                      <PhoneIcon className="w-4 h-4 ml-3.5 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none shrink-0" />
+                      <input
+                        type="tel"
+                        placeholder="+91 XXXXX XXXXX"
+                        value={newCustomer.phone}
+                        onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))}
+                        className="w-full pl-3 pr-9 h-11 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none"
+                      />
+                      {newCustomer.phone && (
+                        <button
+                          type="button"
+                          onClick={() => setNewCustomer(p => ({ ...p, phone: "" }))}
+                          className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                          title="Clear phone"
+                        >
+                          <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                      <EnvelopeIcon className="w-3.5 h-3.5" />
-                      Email <span className="normal-case text-gray-400 font-medium">(optional)</span>
-                    </label>
-                    <input type="email" placeholder="customer@email.com" value={newCustomer.email}
-                      onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value.toLowerCase() }))}
-                      className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        <EnvelopeIcon className="w-3.5 h-3.5 text-indigo-600" />
+                        Email <span className="normal-case text-gray-400 font-medium">(optional)</span>
+                      </label>
+                      {newCustomer.email.trim() && (
+                        <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                          <CheckCircleSolid className="w-3.5 h-3.5" /> Valid
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                      <EnvelopeIcon className="w-4 h-4 ml-3.5 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none shrink-0" />
+                      <input
+                        type="email"
+                        placeholder="customer@email.com"
+                        value={newCustomer.email}
+                        onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value.toLowerCase() }))}
+                        className="w-full pl-3 pr-9 h-11 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none"
+                      />
+                      {newCustomer.email && (
+                        <button
+                          type="button"
+                          onClick={() => setNewCustomer(p => ({ ...p, email: "" }))}
+                          className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                          title="Clear email"
+                        >
+                          <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <p className="text-[11px] text-gray-400">This customer will be created and linked to the order.</p>
@@ -746,15 +932,25 @@ export default function AdminOrderPage() {
             {/* Product picker */}
             <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
               <h2 className="text-lg font-bold text-gray-800">Add Products</h2>
-              <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+              <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                <MagnifyingGlassIcon className="w-4 h-4 ml-3.5 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none shrink-0" />
                 <input
                   type="text"
-                  placeholder="Search products…"
+                  placeholder="Search products by title, SKU, or category…"
                   value={productSearch}
                   onChange={e => handleProductSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-3 pr-9 h-11 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none"
                 />
+                {productSearch && (
+                  <button
+                    type="button"
+                    onClick={() => handleProductSearch("")}
+                    className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                    title="Clear search"
+                  >
+                    <XMarkIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {productsLoading ? (
@@ -948,40 +1144,310 @@ export default function AdminOrderPage() {
 
         {/* ── STEP 3: Address ── */}
         {currentStep === "address" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
-            <h2 className="text-lg font-bold text-gray-800">Delivery Address</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Full Address <span className="text-red-500">*</span></label>
-                <textarea rows={2} placeholder="House no, street, locality…" value={address.fullAddress}
-                  onChange={e => setAddress(p => ({ ...p, fullAddress: e.target.value }))}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-7 space-y-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-gray-100">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-xs shrink-0">
+                  <MapPinIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Delivery Address</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Enter the customer shipping destination for this order</p>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">City <span className="text-red-500">*</span></label>
-                  <input type="text" placeholder="City" value={address.city}
-                    onChange={e => setAddress(p => ({ ...p, city: e.target.value }))}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-gray-200/80 rounded-xl text-xs font-medium text-gray-600 self-start sm:self-auto">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Standard Domestic Delivery
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              {/* Zip / PIN & Country */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                {/* Zip / PIN Code */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <HashtagIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      Zip / PIN Code <span className="text-rose-500 font-bold normal-case">*</span>
+                    </label>
+                    {pincodeLoading ? (
+                      <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1.5 animate-fadeIn">
+                        <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                        Detecting…
+                      </span>
+                    ) : address.zipCode.trim().length === 6 ? (
+                      <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                        <CheckCircleSolid className="w-3.5 h-3.5" /> Valid
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                    <HashtagIcon className="w-4 h-4 ml-3.5 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="600001"
+                      maxLength={6}
+                      value={address.zipCode}
+                      onChange={e => handlePincodeChange(e.target.value)}
+                      className="w-full pl-3 pr-9 h-11 text-sm font-semibold tracking-wider text-gray-900 placeholder:text-gray-400 placeholder:font-normal placeholder:tracking-normal bg-transparent focus:outline-none"
+                    />
+                    {pincodeLoading ? (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : address.zipCode ? (
+                      <button
+                        type="button"
+                        onClick={handleClearPincode}
+                        className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                        title="Clear PIN code"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Enter 6-digit PIN code to auto-detect City / District and State, or enter details manually below.
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">State <span className="text-red-500">*</span></label>
-                  <input type="text" placeholder="State" value={address.state}
-                    onChange={e => setAddress(p => ({ ...p, state: e.target.value }))}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+
+                {/* Country */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <GlobeAmericasIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      Country
+                    </label>
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200/60">
+                      Domestic
+                    </span>
+                  </div>
+                  <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                    <span className="ml-3.5 text-base leading-none select-none pointer-events-none">🇮🇳</span>
+                    <input
+                      type="text"
+                      placeholder="India"
+                      value={address.country}
+                      onChange={e => setAddress(p => ({ ...p, country: e.target.value }))}
+                      className="w-full pl-3 pr-9 h-11 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none"
+                    />
+                    {address.country && address.country !== "India" && (
+                      <button
+                        type="button"
+                        onClick={() => setAddress(p => ({ ...p, country: "India" }))}
+                        className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                        title="Reset to India"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Zip / PIN Code <span className="text-red-500">*</span></label>
-                  <input type="text" placeholder="600001" value={address.zipCode}
-                    onChange={e => setAddress(p => ({ ...p, zipCode: e.target.value }))}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+
+              {/* City & State */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                {/* City */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <BuildingOffice2Icon className="w-3.5 h-3.5 text-indigo-600" />
+                      City / District <span className="text-rose-500 font-bold normal-case">*</span>
+                    </label>
+                    {address.city.trim() && (
+                      <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                        <CheckCircleSolid className="w-3.5 h-3.5" /> Valid
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                    <BuildingOffice2Icon className="w-4 h-4 ml-3.5 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Mumbai, Bengaluru, Delhi"
+                      value={address.city}
+                      onChange={e => setAddress(p => ({ ...p, city: e.target.value }))}
+                      className="w-full pl-3 pr-9 h-11 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none"
+                    />
+                    {address.city && (
+                      <button
+                        type="button"
+                        onClick={() => setAddress(p => ({ ...p, city: "" }))}
+                        className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                        title="Clear city"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Country</label>
-                  <input type="text" placeholder="India" value={address.country}
-                    onChange={e => setAddress(p => ({ ...p, country: e.target.value }))}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+
+                {/* State */}
+                <div className="space-y-1.5" ref={stateDropdownRef}>
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      <MapIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      State <span className="text-rose-500 font-bold normal-case">*</span>
+                    </label>
+                    {address.state.trim() && (
+                      <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                        <CheckCircleSolid className="w-3.5 h-3.5" /> Valid
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    {/* Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStateDropdownOpen(prev => !prev);
+                        setStateFilter("");
+                      }}
+                      className={`w-full flex items-center justify-between px-3.5 h-11 rounded-xl border text-sm font-medium transition-all duration-200 text-left ${
+                        stateDropdownOpen
+                          ? "border-indigo-500 bg-white ring-4 ring-indigo-500/15 shadow-md"
+                          : "bg-gray-50/60 hover:bg-gray-50/20 hover:border-gray-300 border-gray-200 shadow-xs"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <MapIcon
+                          className={`w-4 h-4 shrink-0 transition-colors ${
+                            stateDropdownOpen || address.state ? "text-indigo-600" : "text-gray-400"
+                          }`}
+                        />
+                        <span className={`truncate ${address.state ? "text-gray-900 font-semibold" : "text-gray-400 font-normal"}`}>
+                          {address.state || "Select State"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {address.state && (
+                          <span
+                            role="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddress(p => ({ ...p, state: "" }));
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                            title="Clear state"
+                          >
+                            <XMarkIcon className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+                        <ChevronDownIcon
+                          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                            stateDropdownOpen ? "rotate-180 text-indigo-600" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+
+                    {/* Matching Custom Dropdown Menu */}
+                    {stateDropdownOpen && (
+                      <div className="absolute left-0 right-0 z-30 mt-1.5 bg-white border border-gray-100 rounded-2xl shadow-xl shadow-indigo-950/10 p-2 animate-fadeIn">
+                        {/* Search filter inside dropdown */}
+                        <div className="relative mb-2">
+                          <MagnifyingGlassIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="Type to search state…"
+                            value={stateFilter}
+                            onChange={e => setStateFilter(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                          />
+                        </div>
+
+                        {/* Options List */}
+                        <div className="max-h-56 overflow-y-auto space-y-0.5">
+                          {INDIAN_STATES.filter(st =>
+                            st.toLowerCase().includes(stateFilter.trim().toLowerCase())
+                          ).map(st => {
+                            const isSelected = address.state === st;
+                            return (
+                              <button
+                                key={st}
+                                type="button"
+                                onClick={() => {
+                                  setAddress(p => ({ ...p, state: st }));
+                                  setStateDropdownOpen(false);
+                                  setStateFilter("");
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl transition-colors text-left ${
+                                  isSelected
+                                    ? "bg-indigo-50 text-indigo-700 font-bold"
+                                    : "text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
+                                }`}
+                              >
+                                <span>{st}</span>
+                                {isSelected && <CheckIcon className="w-4 h-4 text-indigo-600 shrink-0" />}
+                              </button>
+                            );
+                          })}
+                          {INDIAN_STATES.filter(st =>
+                            st.toLowerCase().includes(stateFilter.trim().toLowerCase())
+                          ).length === 0 && (
+                            <div className="py-4 text-center">
+                              <p className="text-xs text-gray-400 mb-2">No matching state</p>
+                              {stateFilter.trim() && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddress(p => ({ ...p, state: stateFilter.trim() }));
+                                    setStateDropdownOpen(false);
+                                    setStateFilter("");
+                                  }}
+                                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 underline"
+                                >
+                                  Use "{stateFilter.trim()}"
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              </div>
+
+              {/* Full Address */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <HomeIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    Full Address <span className="text-rose-500 font-bold normal-case">*</span>
+                  </label>
+                  {address.fullAddress.trim() && (
+                    <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                      <CheckCircleSolid className="w-3.5 h-3.5" /> Filled
+                    </span>
+                  )}
+                </div>
+                <div className="relative flex bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group">
+                  <div className="pl-3.5 pt-3 pointer-events-none text-gray-400 group-focus-within:text-indigo-600 transition-colors">
+                    <HomeIcon className="w-4 h-4" />
+                  </div>
+                  <textarea
+                    rows={2}
+                    placeholder="House / Flat no., Building name, Street, Locality, Landmark…"
+                    value={address.fullAddress}
+                    onChange={e => setAddress(p => ({ ...p, fullAddress: e.target.value }))}
+                    className="w-full pl-3 pr-9 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none resize-none leading-relaxed"
+                  />
+                  {address.fullAddress && (
+                    <button
+                      type="button"
+                      onClick={() => setAddress(p => ({ ...p, fullAddress: "" }))}
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                      title="Clear address"
+                    >
+                      <XMarkIcon className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-400">Include door number, street, and nearby landmark for seamless delivery.</p>
               </div>
             </div>
           </div>
@@ -1015,10 +1481,30 @@ export default function AdminOrderPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Payment Note <span className="text-gray-400 font-normal">(optional — receipt no, UPI ref, etc.)</span></label>
-              <input type="text" placeholder="e.g. Receipt #1234, UPI ref: abc123xyz" value={paymentNote}
-                onChange={e => setPaymentNote(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                <DocumentTextIcon className="w-3.5 h-3.5 text-indigo-600" />
+                Payment Note <span className="text-gray-400 font-normal lowercase tracking-normal">(receipt no, UPI ref, etc.)</span>
+              </label>
+              <div className="relative flex items-center bg-gray-50/60 hover:bg-gray-50/20 focus-within:bg-white border border-gray-200 hover:border-gray-300 focus-within:border-indigo-500 rounded-xl shadow-xs focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/15 transition-all duration-200 group max-w-xl">
+                <DocumentTextIcon className="w-4 h-4 ml-3.5 text-gray-400 group-focus-within:text-indigo-600 transition-colors pointer-events-none shrink-0" />
+                <input
+                  type="text"
+                  placeholder="e.g. Receipt #1234, UPI ref: abc123xyz"
+                  value={paymentNote}
+                  onChange={e => setPaymentNote(e.target.value)}
+                  className="w-full pl-3 pr-9 h-11 text-sm font-medium text-gray-900 placeholder:text-gray-400 placeholder:font-normal bg-transparent focus:outline-none"
+                />
+                {paymentNote && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentNote("")}
+                    className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                    title="Clear note"
+                  >
+                    <XMarkIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

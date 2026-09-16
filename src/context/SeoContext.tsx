@@ -14,6 +14,7 @@ export interface SeoSettings {
   keywords: string;
   googleSiteVerification: string;
   gaMeasurementId: string;
+  metaPixelId: string;
   orgType: string;
   orgAddress: string;
   orgPhone: string;
@@ -46,6 +47,7 @@ const EMPTY_SEO: SeoSettings = {
   keywords: "",
   googleSiteVerification: "",
   gaMeasurementId: "",
+  metaPixelId: "",
   orgType: "",
   orgAddress: "",
   orgPhone: "",
@@ -89,6 +91,7 @@ export const SeoProvider = ({ children }: { children: ReactNode }) => {
         keywords: s.SEO_KEYWORDS ?? "",
         googleSiteVerification: s.SEO_GOOGLE_SITE_VERIFICATION ?? "",
         gaMeasurementId: s.SEO_GA_MEASUREMENT_ID ?? "",
+        metaPixelId: s.META_PIXEL_ID ?? "",
         orgType: s.SEO_ORG_TYPE ?? "",
         orgAddress: s.SEO_ORG_ADDRESS ?? "",
         orgPhone: s.SEO_ORG_PHONE ?? "",

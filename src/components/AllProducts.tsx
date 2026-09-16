@@ -852,8 +852,7 @@ import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { domainUrl } from "../utils/constant";
 import FooterSection from "../components/FooterSection";
-import { normalizeCategory } from "../utils/category";
-import { normalizeProduct } from "../utils/product";
+import { normalizeProduct, calculateDiscountedPrice } from "../utils/product";
 import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import PageSeo from "./seo/PageSeo";
 import { useSeoSettings } from "../context/SeoContext";
@@ -975,7 +974,7 @@ const ModernProductCard = React.memo(function ModernProductCard({ product }: { p
               {product.discount && product.discount > 0 ? (
                 <>
                   <span className="text-xs font-bold text-gray-900">
-                    ₹{(product.price * (1 - product.discount / 100)).toFixed(2)}
+                    ₹{calculateDiscountedPrice(product.price, product.discount).toFixed(2)}
                   </span>
                   <span className="text-[10px] text-gray-400 line-through">
                     ₹{product.price?.toFixed(2)}

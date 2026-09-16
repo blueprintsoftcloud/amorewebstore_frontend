@@ -230,6 +230,7 @@ const AppRoutes = () => {
         <Route path="manage-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-products/add-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-products/list-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
+        <Route path="product-management" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="order-management" element={<AdminOrderManagement />} />
         <Route path="profile" element={<AdminProfile />} />
         <Route path="coupon-management" element={<CouponManagement />} />
@@ -278,6 +279,7 @@ const AppRoutes = () => {
         <Route path="manage-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-products/add-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-products/list-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
+        <Route path="product-management" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="order-management" element={<AdminOrderManagement />} />
         <Route path="profile" element={<AdminProfile />} />
         <Route path="coupon-management" element={<CouponManagement />} />
@@ -341,8 +343,10 @@ const AppRoutes = () => {
         <Route path="manage-categories/add-category" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-categories/list-category" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-categories/attributes/:categoryId" element={<LegacyCatalogRedirect toSuffix="manage-catalog/attributes/:categoryId" />} />
+        <Route path="manage-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-products/add-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-products/list-products" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
+        <Route path="product-management" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route
           path="order-management"
           element={

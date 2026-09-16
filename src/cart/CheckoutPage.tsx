@@ -52,8 +52,10 @@ const validateTransactionId = (val: string) => {
   };
 };
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../utils/api";
+import CancellationFeedbackModal, { SurveyItemSnapshot } from "../components/CancellationFeedbackModal";
 import {
   MapContainer,
   TileLayer,
@@ -65,6 +67,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import toast, { Toaster } from "react-hot-toast";
+import { trackMetaInitiateCheckout, trackMetaPurchase } from "../utils/metaPixel";
 
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -95,6 +98,15 @@ interface Suggestion {
 }
 
 const DEFAULT_MAP_CENTER: [number, number] = [20.5937, 78.9629];
+
+const INDIA_BOUNDS: [[number, number], [number, number]] = [
+  [6.5, 68.0],
+  [37.5, 97.5],
+];
+
+const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
+  return lat >= 6.0 && lat <= 38.0 && lng >= 68.0 && lng <= 98.0;
+};
 
 function MapRecenter({
   center,
@@ -127,12 +139,23 @@ function MapClickHandler({
 }
 
 const CheckoutPage = () => {
+  const { user } = useAuth();
   const { cartItems, cartTotal, clearCart, fetchCart } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [feedbackTriggerSource, setFeedbackTriggerSource] = useState("CHECKOUT_CANCELLED");
+  const [feedbackOrderId, setFeedbackOrderId] = useState<string | undefined>(undefined);
+  const [userProfile, setUserProfile] = useState<{
+    username?: string;
+    email?: string;
+    phone?: string;
+  } | null>(null);
   const prefill = location.state as {
     addressPrefill?: {
       fullAddress: string;
+      detectedArea?: string;
       city: string;
       state: string;
       zipCode: string;
@@ -142,13 +165,19 @@ const CheckoutPage = () => {
     };
     shippingCharge?: number;
     buyNowProductId?: string;
+    buyNowVariantId?: string | null;
   } | null;
   const buyNowProductId = prefill?.buyNowProductId ?? null;
+  const buyNowVariantId = prefill?.buyNowVariantId ?? null;
   const isPaymentSuccess = useRef(false);
 
   // For Buy Now: only process the specific product, not the entire cart
   const checkoutItems = buyNowProductId
-    ? cartItems.filter((i) => i.productId === buyNowProductId)
+    ? cartItems.filter(
+        (i) =>
+          i.productId === buyNowProductId &&
+          (!buyNowVariantId || (i.variantId ?? null) === buyNowVariantId),
+      )
     : cartItems;
   const checkoutSubtotal = checkoutItems.reduce(
     (sum, i) => sum + i.price * i.quantity,
@@ -167,6 +196,10 @@ const CheckoutPage = () => {
     lng: prefill?.addressPrefill?.lng ?? null,
   });
 
+  const [detectedArea, setDetectedArea] = useState<string>(
+    prefill?.addressPrefill?.detectedArea ?? ""
+  );
+
   const [isGpsLocked, setIsGpsLocked] = useState<boolean>(
     !!prefill?.addressPrefill?.isGpsLocked || (!!prefill?.addressPrefill?.lat && !!prefill?.addressPrefill?.lng),
   );
@@ -174,6 +207,15 @@ const CheckoutPage = () => {
   const [shippingCharge, setShippingCharge] = useState(
     prefill?.shippingCharge ?? 0,
   );
+  const [shippingToggles, setShippingToggles] = useState<{
+    calculateShippingForCOD: boolean;
+    calculateShippingForOnline: boolean;
+    calculateShippingForQR: boolean;
+  }>({
+    calculateShippingForCOD: true,
+    calculateShippingForOnline: true,
+    calculateShippingForQR: true,
+  });
   const [paymentMethod, setPaymentMethod] = useState("Online");
   const [loading, setLoading] = useState(false);
   const [position, setPosition] = useState<[number, number] | null>(
@@ -201,6 +243,18 @@ const CheckoutPage = () => {
   useEffect(() => {
     toast.dismiss();
   }, []);
+
+  // Track Meta Pixel InitiateCheckout event when checkout loads with items
+  useEffect(() => {
+    if (checkoutItems.length > 0) {
+      trackMetaInitiateCheckout({
+        content_ids: checkoutItems.map((i) => String(i.productId)),
+        num_items: checkoutItems.reduce((sum, i) => sum + i.quantity, 0),
+        value: checkoutSubtotal,
+        currency: "INR",
+      });
+    }
+  }, [checkoutItems.length]);
 
   // Pay with QR state
   const [qrConfig, setQrConfig] = useState<{
@@ -236,16 +290,47 @@ const CheckoutPage = () => {
       .catch(() => {});
   }, []);
 
-  // Protect route
+  // Fetch logged in customer profile details for accurate activity tracking
   useEffect(() => {
-    if (!cartItems || cartItems.length === 0) {
-      if (!isPaymentSuccess.current) {
+    if (user?.isAuthenticated) {
+      api
+        .get("/user/profile")
+        .then((res) => {
+          if (res.data?.users) {
+            setUserProfile(res.data.users);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.isAuthenticated]);
+
+  // Fetch shipping toggles so checkout knows if COD, Online, or QR have free shipping configured
+  useEffect(() => {
+    api.get("/order/shipping-toggles")
+      .then((res) => {
+        if (res.data?.toggles) {
+          setShippingToggles({
+            calculateShippingForCOD: res.data.toggles.calculateShippingForCOD !== false,
+            calculateShippingForOnline: res.data.toggles.calculateShippingForOnline !== false,
+            calculateShippingForQR: res.data.toggles.calculateShippingForQR !== false,
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load shipping toggles", err);
+      });
+  }, []);
+
+  // Protect route: Redirect to cart if there are no items to checkout
+  useEffect(() => {
+    if (!showSuccessModal) {
+      if (!buyNowProductId && (!cartItems || cartItems.length === 0)) {
         navigate("/cart", { replace: true });
       }
     }
-  }, [cartItems, navigate]);
+  }, [cartItems, buyNowProductId, showSuccessModal, navigate]);
 
-  // Update shipping charge when state or pincode changes (manual mode)
+  // Update shipping charge when state, city, or pincode changes (manual mode)
   useEffect(() => {
     if (isGpsLocked) return;
 
@@ -263,13 +348,47 @@ const CheckoutPage = () => {
           zipCode: address.pincode.trim(),
         });
         setShippingCharge(res.data.shippingCharge);
+        if (typeof res.data?.calculateShippingForCOD === "boolean") {
+          setShippingToggles({
+            calculateShippingForCOD: res.data.calculateShippingForCOD !== false,
+            calculateShippingForOnline: res.data.calculateShippingForOnline !== false,
+            calculateShippingForQR: res.data.calculateShippingForQR !== false,
+          });
+        }
       } catch (err) {
         console.error("Error updating shipping charge", err);
       }
     }, 500);
 
     return () => clearTimeout(delayDebounce);
-  }, [address.state, address.pincode, isGpsLocked]);
+  }, [address.state, address.city, address.pincode, isGpsLocked]);
+
+  // Re-verify shipping charge when GPS is locked to ensure rates from DB are fresh
+  useEffect(() => {
+    if (isGpsLocked && address.lat !== null && address.lng !== null) {
+      api.post("/address/preview-shipping", {
+        latitude: address.lat,
+        longitude: address.lng,
+        state: address.state,
+        city: address.city,
+        zipCode: address.pincode,
+      }).then((res) => {
+        if (typeof res.data?.shippingCharge === "number") {
+          setShippingCharge(res.data.shippingCharge);
+        }
+        if (typeof res.data?.calculateShippingForCOD === "boolean") {
+          setShippingToggles({
+            calculateShippingForCOD: res.data.calculateShippingForCOD !== false,
+            calculateShippingForOnline: res.data.calculateShippingForOnline !== false,
+            calculateShippingForQR: res.data.calculateShippingForQR !== false,
+          });
+        }
+      }).catch((err) => {
+        console.error("Error refreshing GPS shipping charge", err);
+      });
+    }
+  }, [isGpsLocked, address.lat, address.lng, address.city, address.state]);
+
 
   const handleResetGpsLock = () => {
     setAddress({
@@ -309,17 +428,26 @@ const CheckoutPage = () => {
         lat,
         lng,
       });
+      setDetectedArea(addr.fullAddress || "");
 
       setShippingCharge(shippingCharge);
+      if (typeof res.data?.calculateShippingForCOD === "boolean") {
+        setShippingToggles({
+          calculateShippingForCOD: res.data.calculateShippingForCOD !== false,
+          calculateShippingForOnline: res.data.calculateShippingForOnline !== false,
+          calculateShippingForQR: res.data.calculateShippingForQR !== false,
+        });
+      }
       setPosition([lat, lng]);
       setSuggestions([]);
       setQuery("");
       setIsGpsLocked(true);
       toast.dismiss(toastId);
       toast.success(`Shipping ₹${shippingCharge}`);
-    } catch {
+    } catch (err: any) {
       toast.dismiss(toastId);
-      toast.error("Failed to calculate shipping");
+      const msg = err.response?.data?.message || "Failed to calculate shipping for this location.";
+      toast.error(msg);
     }
   };
 
@@ -384,9 +512,16 @@ const CheckoutPage = () => {
         return;
       }
 
+      const shippingAddressPayload = getFinalShippingAddress();
       const res = await api.post("/order/place", {
         couponId: appliedCoupon?.couponId,
-        ...(buyNowProductId ? { buyNowProductId } : {}),
+        shippingAddress: shippingAddressPayload,
+        ...(buyNowProductId
+          ? {
+              buyNowProductId,
+              ...(buyNowVariantId ? { buyNowVariantId } : {}),
+            }
+          : {}),
       });
 
       if (!res.data || !res.data.rzpOrder) {
@@ -441,7 +576,12 @@ const CheckoutPage = () => {
           try {
             await api.post("/order/verifyPayment", {
               ...response,
-              ...(buyNowProductId ? { buyNowProductId } : {}),
+              ...(buyNowProductId
+                ? {
+                    buyNowProductId,
+                    ...(buyNowVariantId ? { buyNowVariantId } : {}),
+                  }
+                : {}),
             });
           } catch (err) {
             console.error("Verification API Error:", err);
@@ -469,6 +609,14 @@ const CheckoutPage = () => {
           setShippingCharge(0);
           setPosition(null);
           setLoading(false);
+
+          trackMetaPurchase({
+            content_ids: checkoutItems.map((i) => String(i.productId)),
+            num_items: checkoutItems.reduce((sum, i) => sum + i.quantity, 0),
+            value: Number(totalAmount),
+            currency: "INR",
+          });
+
           setShowSuccessModal(true);
         },
         theme: { color: "#000000" },
@@ -480,6 +628,11 @@ const CheckoutPage = () => {
             if (isPaymentSuccess.current) return;
             await cancelPendingOrder();
             toast.error("Payment cancelled.");
+            setTimeout(() => {
+              setFeedbackTriggerSource("RAZORPAY_CANCELLED");
+              setFeedbackOrderId(res.data.order?.id);
+              setFeedbackModalOpen(true);
+            }, 300);
           },
         },
       };
@@ -496,6 +649,11 @@ const CheckoutPage = () => {
         if (!isPaymentSuccess.current) {
           await cancelPendingOrder();
         }
+        setTimeout(() => {
+          setFeedbackTriggerSource("PAYMENT_FAILED");
+          setFeedbackOrderId(res.data.order?.id);
+          setFeedbackModalOpen(true);
+        }, 300);
       });
 
       setIsRazorpayOpen(true);
@@ -518,6 +676,12 @@ const CheckoutPage = () => {
         const { latitude, longitude } = data;
         if (latitude === undefined || longitude === undefined) throw new Error("Invalid coordinates");
 
+        if (!isWithinIndiaBoundingBox(latitude, longitude)) {
+          toast.dismiss(toastId);
+          toast.error("Detected location is outside India. Delivery is only available within India.");
+          return;
+        }
+
         setPosition([latitude, longitude]);
 
         const res = await api.post("/address/save-geo", {
@@ -534,14 +698,23 @@ const CheckoutPage = () => {
           lat: latitude,
           lng: longitude,
         });
+        setDetectedArea(addr.fullAddress || "");
 
         setShippingCharge(shippingCharge);
+        if (typeof res.data?.calculateShippingForCOD === "boolean") {
+          setShippingToggles({
+            calculateShippingForCOD: res.data.calculateShippingForCOD !== false,
+            calculateShippingForOnline: res.data.calculateShippingForOnline !== false,
+            calculateShippingForQR: res.data.calculateShippingForQR !== false,
+          });
+        }
         setIsGpsLocked(true);
         toast.dismiss(toastId);
         toast.success(`Location estimated via IP! Shipping: ₹${shippingCharge}`);
-      } catch {
+      } catch (err: any) {
         toast.dismiss(toastId);
-        toast.error("Could not estimate location. Please enter manually.");
+        const msg = err.response?.data?.message || "Could not estimate location. Please enter manually.";
+        toast.error(msg);
       }
     };
 
@@ -554,6 +727,12 @@ const CheckoutPage = () => {
     navigator.geolocation.getCurrentPosition(
       async (geoPosition) => {
         const { latitude, longitude } = geoPosition.coords;
+        if (!isWithinIndiaBoundingBox(latitude, longitude)) {
+          toast.dismiss(toastId);
+          toast.error("Detected location is outside India. Delivery is only available within India.");
+          return;
+        }
+
         try {
           setPosition([latitude, longitude]);
 
@@ -571,14 +750,23 @@ const CheckoutPage = () => {
             lat: latitude,
             lng: longitude,
           });
+          setDetectedArea(addr.fullAddress || "");
 
           setShippingCharge(shippingCharge);
+          if (typeof res.data?.calculateShippingForCOD === "boolean") {
+            setShippingToggles({
+              calculateShippingForCOD: res.data.calculateShippingForCOD !== false,
+              calculateShippingForOnline: res.data.calculateShippingForOnline !== false,
+              calculateShippingForQR: res.data.calculateShippingForQR !== false,
+            });
+          }
           setIsGpsLocked(true);
           toast.dismiss(toastId);
           toast.success(`Location set! Shipping: ₹${shippingCharge}`);
-        } catch {
+        } catch (err: any) {
           toast.dismiss(toastId);
-          toast.error("Failed to get address details.");
+          const msg = err.response?.data?.message || "Failed to get address details.";
+          toast.error(msg);
         }
       },
       (err) => {
@@ -593,8 +781,32 @@ const CheckoutPage = () => {
     );
   };
 
+  const getFinalShippingAddress = () => {
+    const enteredStreet = address.house.trim();
+    const area = detectedArea.trim();
+    let finalFullAddress = enteredStreet;
+    if (area && !enteredStreet.toLowerCase().includes(area.toLowerCase())) {
+      finalFullAddress = `${enteredStreet}, ${area}`;
+    }
+    return {
+      fullAddress: finalFullAddress,
+      city: address.city.trim(),
+      state: address.state.trim(),
+      zipCode: address.pincode.trim(),
+      country: "India",
+      lat: address.lat ?? undefined,
+      lng: address.lng ?? undefined,
+    };
+  };
+
   // --- PLACE ORDER HANDLER ---
   const handlePlaceOrder = async () => {
+    if (checkoutItems.length === 0 || Number(checkoutSubtotal) <= 0) {
+      toast.error("Your cart is empty. Please add products to continue.", { id: "checkout-empty" });
+      navigate("/cart", { replace: true });
+      return;
+    }
+
     if (!address.house.trim()) {
       toast.error("Please enter your street address.", { id: "checkout-validate" });
       return;
@@ -616,24 +828,20 @@ const CheckoutPage = () => {
       return;
     }
 
-    const isManualAddressFilled = address.house && address.city && address.pincode;
+    const shippingAddressPayload = getFinalShippingAddress();
 
-    if (!address.lat) {
-      if (!isManualAddressFilled) {
-        toast.error("Please enter your shipping address (street, city, pincode).");
-        return;
-      }
-      try {
-        await api.post("/address/save-manual", {
-          fullAddress: address.house,
-          city: address.city,
-          state: address.state,
-          zipCode: address.pincode,
-        });
-      } catch {
-        toast.error("Failed to save address. Please try again.");
-        return;
-      }
+    // Persist full shipping address with GPS coordinates to user's address record
+    try {
+      await api.post("/address/save-manual", {
+        fullAddress: shippingAddressPayload.fullAddress,
+        city: shippingAddressPayload.city,
+        state: shippingAddressPayload.state,
+        zipCode: shippingAddressPayload.zipCode,
+        latitude: shippingAddressPayload.lat,
+        longitude: shippingAddressPayload.lng,
+      });
+    } catch (saveErr) {
+      console.error("Failed to save address before order:", saveErr);
     }
 
     if (paymentMethod === "POD") {
@@ -644,7 +852,13 @@ const CheckoutPage = () => {
 
         await api.post("/order/placeOrderPOD", {
           couponId: appliedCoupon?.couponId,
-          ...(buyNowProductId ? { buyNowProductId } : {}),
+          shippingAddress: shippingAddressPayload,
+          ...(buyNowProductId
+            ? {
+                buyNowProductId,
+                ...(buyNowVariantId ? { buyNowVariantId } : {}),
+              }
+            : {}),
         });
 
         isPaymentSuccess.current = true;
@@ -655,6 +869,14 @@ const CheckoutPage = () => {
         }
         toast.dismiss(toastId);
         toast.success("Order placed successfully!");
+
+        trackMetaPurchase({
+          content_ids: checkoutItems.map((i) => String(i.productId)),
+          num_items: checkoutItems.reduce((sum, i) => sum + i.quantity, 0),
+          value: Number(totalAmount),
+          currency: "INR",
+        });
+
         setShowSuccessModal(true);
       } catch (e) {
         if (toastId) toast.dismiss(toastId);
@@ -688,11 +910,14 @@ const CheckoutPage = () => {
     const toastId = toast.loading("Submitting your order...");
 
     try {
+      const shippingAddressPayload = getFinalShippingAddress();
       const fd = new FormData();
       if (appliedCoupon?.couponId) fd.append("couponId", appliedCoupon.couponId);
       if (buyNowProductId) fd.append("buyNowProductId", buyNowProductId);
+      if (buyNowVariantId) fd.append("buyNowVariantId", buyNowVariantId);
       if (cleanTxId) fd.append("transactionId", cleanTxId);
       if (qrScreenshotFile) fd.append("screenshot", qrScreenshotFile);
+      fd.append("shippingAddress", JSON.stringify(shippingAddressPayload));
 
       await api.post("/order/placeOrderQR", fd, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -712,6 +937,14 @@ const CheckoutPage = () => {
       setQrTransactionId("");
       setQrScreenshotFile(null);
       setQrScreenshotPreview(null);
+
+      trackMetaPurchase({
+        content_ids: checkoutItems.map((i) => String(i.productId)),
+        num_items: checkoutItems.reduce((sum, i) => sum + i.quantity, 0),
+        value: Number(totalAmount),
+        currency: "INR",
+      });
+
       setShowSuccessModal(true);
     } catch (err: any) {
       toast.dismiss(toastId);
@@ -722,10 +955,21 @@ const CheckoutPage = () => {
   };
 
   const discountAmount = appliedCoupon?.discountAmount ?? 0;
-  const totalAmount = Math.max(
-    checkoutSubtotal + Number(shippingCharge) - discountAmount,
-    0,
-  ).toFixed(2);
+  const isShippingDisabledForPayment =
+    (paymentMethod === "POD" && !shippingToggles.calculateShippingForCOD) ||
+    (paymentMethod === "Online" && !shippingToggles.calculateShippingForOnline) ||
+    (paymentMethod === "QR" && !shippingToggles.calculateShippingForQR);
+  const effectiveShippingCharge = checkoutItems.length === 0
+    ? 0
+    : isShippingDisabledForPayment
+    ? 0
+    : Number(shippingCharge || 0);
+  const totalAmount = checkoutItems.length === 0
+    ? "0.00"
+    : Math.max(
+        checkoutSubtotal + effectiveShippingCharge - discountAmount,
+        0,
+      ).toFixed(2);
 
   // Generate dynamic amount-embedded UPI QR code on the fly
   useEffect(() => {
@@ -773,12 +1017,16 @@ const CheckoutPage = () => {
         {/* --- Header & Back Button --- */}
         <div className="mb-8 mt-10">
           <button
-  onClick={() => navigate("/cart", { replace: true })}
-  className="group inline-flex items-center gap-2 text-xs font-bold tracking-widest text-slate-400 hover:text-slate-800 transition-colors duration-200 uppercase"
->
-  <ArrowLeft className="h-3.5 w-3.5 stroke-[2.5]" />
-  Go Back
-</button>
+            type="button"
+            onClick={() => {
+              setFeedbackTriggerSource(paymentMethod === "POD" ? "COD_CHECKOUT_EXIT" : "CHECKOUT_EXIT");
+              setFeedbackModalOpen(true);
+            }}
+            className="group inline-flex items-center gap-2 text-xs font-bold tracking-widest text-slate-400 hover:text-slate-800 transition-colors duration-200 uppercase cursor-pointer"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 stroke-[2.5]" />
+            Go Back
+          </button>
         </div>
 
         <div className="md:grid md:grid-cols-12 md:gap-x-8 lg:gap-x-16 xl:gap-x-28 items-start">
@@ -973,6 +1221,9 @@ const CheckoutPage = () => {
                         <MapContainer
                           center={position ?? DEFAULT_MAP_CENTER}
                           zoom={position ? 16 : 5}
+                          minZoom={4}
+                          maxBounds={INDIA_BOUNDS}
+                          maxBoundsViscosity={1.0}
                           className="h-full w-full"
                           scrollWheelZoom={true}
                           dragging={true}
@@ -980,7 +1231,11 @@ const CheckoutPage = () => {
                           zoomControl={false}
                           style={{ cursor: "pointer" }}
                         >
-                          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                          <TileLayer
+                            attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+                            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                          />
                           <MapRecenter
                             center={position ?? DEFAULT_MAP_CENTER}
                             zoom={position ? 16 : 5}
@@ -1028,6 +1283,15 @@ const CheckoutPage = () => {
                     <p className={`text-xs ${paymentMethod === "Online" ? "text-gray-400" : "text-gray-500"}`}>
                       Credit Card, UPI, Netbanking
                     </p>
+                    {!shippingToggles.calculateShippingForOnline && (
+                      <div className="mt-2.5">
+                        <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          paymentMethod === "Online" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        }`}>
+                          Free Shipping
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {qrConfig.enabled && (qrConfig.upiId || qrConfig.qrCode) && (
@@ -1052,6 +1316,15 @@ const CheckoutPage = () => {
                       <p className={`text-xs ${paymentMethod === "QR" ? "text-gray-400" : "text-gray-500"}`}>
                         Scan QR &amp; Pay via UPI
                       </p>
+                      {!shippingToggles.calculateShippingForQR && (
+                        <div className="mt-2.5">
+                          <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            paymentMethod === "QR" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          }`}>
+                            Free Shipping
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1074,8 +1347,17 @@ const CheckoutPage = () => {
                       />
                     </div>
                     <p className={`text-xs ${paymentMethod === "POD" ? "text-gray-400" : "text-gray-500"}`}>
-                      Pay when you receive
+                      Pay cash upon delivery
                     </p>
+                    {!shippingToggles.calculateShippingForCOD && (
+                      <div className="mt-2.5">
+                        <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          paymentMethod === "POD" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        }`}>
+                          Free Shipping
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1085,16 +1367,18 @@ const CheckoutPage = () => {
                 <button
                   type="button"
                   onClick={handlePlaceOrder}
-                  disabled={loading}
-                  className="w-full rounded-full bg-[var(--theme-primary)] px-6 py-4 text-sm font-bold uppercase tracking-widest text-[var(--theme-primary-ink)] shadow-lg hover:bg-[var(--theme-primary-hover)] disabled:opacity-70 disabled:cursor-not-allowed transition-all hover:-translate-y-1 hover:shadow-xl"
+                  disabled={loading || checkoutItems.length === 0}
+                  className="w-full rounded-full bg-[var(--theme-primary)] px-6 py-4 text-sm font-bold uppercase tracking-widest text-[var(--theme-primary-ink)] shadow-lg hover:bg-[var(--theme-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:-translate-y-1 hover:shadow-xl cursor-pointer"
                 >
                   {loading
                     ? "Processing..."
-                    : paymentMethod === "POD"
-                      ? `Place Order — ₹${totalAmount}`
-                      : paymentMethod === "QR"
-                        ? `Pay with QR — ₹${totalAmount}`
-                        : `Pay Now — ₹${totalAmount}`}
+                    : checkoutItems.length === 0
+                      ? "Cart is Empty"
+                      : paymentMethod === "POD"
+                        ? `Place Order — ₹${totalAmount}`
+                        : paymentMethod === "QR"
+                          ? `Pay with QR — ₹${totalAmount}`
+                          : `Pay Now — ₹${totalAmount}`}
                 </button>
               </div>
             </form>
@@ -1107,30 +1391,55 @@ const CheckoutPage = () => {
                 <Package className="h-5 w-5" /> Order Summary
               </h2>
 
-              <ul className="divide-y divide-gray-100 mb-6 max-h-[400px] overflow-y-auto custom-scrollbar">
-                {checkoutItems.map((item) => (
-                  <li key={item._id} className="flex py-4">
-                    <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="h-full w-full object-cover object-center"
-                      />
-                    </div>
-                    <div className="ml-4 flex flex-1 flex-col justify-center">
-                      <div className="flex justify-between text-sm font-medium text-gray-900">
-                        <h3 className="line-clamp-1">{item.name}</h3>
-                        <p className="ml-4 font-bold">
-                          ₹{item.price * item.quantity}
+              {checkoutItems.length === 0 ? (
+                <div className="py-8 text-center text-gray-400 text-xs bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 mb-6">
+                  <p className="font-semibold text-gray-600">Your cart is empty</p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/products")}
+                    className="mt-2 text-xs font-bold uppercase tracking-wider text-[var(--theme-primary)] hover:underline cursor-pointer"
+                  >
+                    Start Shopping →
+                  </button>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100 mb-6 max-h-[400px] overflow-y-auto custom-scrollbar">
+                  {checkoutItems.map((item) => (
+                    <li key={item._id} className="flex py-4">
+                      <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="h-full w-full object-cover object-center"
+                        />
+                      </div>
+                      <div className="ml-4 flex flex-1 flex-col justify-center">
+                        <div className="flex justify-between text-sm font-medium text-gray-900">
+                          <h3 className="line-clamp-1">{item.name}</h3>
+                          <p className="ml-4 font-bold">
+                            ₹{item.price * item.quantity}
+                          </p>
+                        </div>
+                        {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                          <p
+                            className="mt-0.5 text-xs text-gray-500 font-medium line-clamp-2 break-words leading-relaxed cursor-help"
+                            title={Object.entries(item.selectedOptions)
+                              .map(([axis, value]) => `${axis}: ${value}`)
+                              .join(" · ")}
+                          >
+                            {Object.entries(item.selectedOptions)
+                              .map(([axis, value]) => `${axis}: ${value}`)
+                              .join(" · ")}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          Qty {item.quantity}
                         </p>
                       </div>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Qty {item.quantity}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <div className="space-y-3 pt-6 border-t border-gray-100 text-sm">
                 <div className="flex justify-between text-gray-500">
@@ -1144,10 +1453,17 @@ const CheckoutPage = () => {
                   <span className="font-medium text-gray-900">
                     {!isGpsLocked && !address.state.trim() && !address.pincode.trim() ? (
                       <span className="text-gray-400 italic">Enter address to calculate</span>
-                    ) : shippingCharge === 0 ? (
-                      <span className="text-green-600 font-medium">Free</span>
+                    ) : effectiveShippingCharge === 0 ? (
+                      <span className="text-green-600 font-medium flex items-center gap-1.5">
+                        <span>Free</span>
+                        {isShippingDisabledForPayment && (
+                          <span className="text-[10px] bg-green-100 text-green-800 font-semibold px-1.5 py-0.5 rounded-full">
+                            Free for {paymentMethod === "POD" ? "COD" : paymentMethod === "QR" ? "QR" : "Online"}
+                          </span>
+                        )}
+                      </span>
                     ) : (
-                      `₹${shippingCharge}`
+                      `₹${effectiveShippingCharge}`
                     )}
                   </span>
                 </div>
@@ -1302,16 +1618,18 @@ const CheckoutPage = () => {
           <button
             type="button"
             onClick={handlePlaceOrder}
-            disabled={loading}
-            className="w-full rounded-full bg-[var(--theme-primary)] px-4 py-4 text-sm font-bold uppercase tracking-widest text-[var(--theme-primary-ink)] shadow-md hover:bg-[var(--theme-primary-hover)] disabled:opacity-70"
+            disabled={loading || checkoutItems.length === 0}
+            className="w-full rounded-full bg-[var(--theme-primary)] px-4 py-4 text-sm font-bold uppercase tracking-widest text-[var(--theme-primary-ink)] shadow-md hover:bg-[var(--theme-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading
               ? "Processing..."
-              : paymentMethod === "POD"
-                ? "Place Order"
-                : paymentMethod === "QR"
-                  ? "Pay with QR"
-                  : "Pay Now"}
+              : checkoutItems.length === 0
+                ? "Cart is Empty"
+                : paymentMethod === "POD"
+                  ? "Place Order"
+                  : paymentMethod === "QR"
+                    ? "Pay with QR"
+                    : "Pay Now"}
           </button>
 
           <Popover className="mt-4 flex justify-center relative">
@@ -1350,6 +1668,18 @@ const CheckoutPage = () => {
                             <p className="text-sm font-bold text-gray-900 truncate">
                               {item.name}
                             </p>
+                            {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                              <p
+                                className="text-xs text-gray-500 font-medium line-clamp-2 break-words leading-relaxed cursor-help"
+                                title={Object.entries(item.selectedOptions)
+                                  .map(([axis, value]) => `${axis}: ${value}`)
+                                  .join(" · ")}
+                              >
+                                {Object.entries(item.selectedOptions)
+                                  .map(([axis, value]) => `${axis}: ${value}`)
+                                  .join(" · ")}
+                              </p>
+                            )}
                             <p className="text-xs text-gray-500">
                               Qty: {item.quantity}
                             </p>
@@ -1373,10 +1703,17 @@ const CheckoutPage = () => {
                         <span>
                           {!isGpsLocked && !address.state.trim() && !address.pincode.trim() ? (
                             <span className="text-gray-400 italic">Enter address to calculate</span>
-                          ) : shippingCharge === 0 ? (
-                            <span className="text-green-600 font-medium">Free</span>
+                          ) : effectiveShippingCharge === 0 ? (
+                            <span className="text-green-600 font-medium flex items-center gap-1.5">
+                              <span>Free</span>
+                              {isShippingDisabledForPayment && (
+                                <span className="text-[10px] bg-green-100 text-green-800 font-semibold px-1.5 py-0.5 rounded-full">
+                                  Free for {paymentMethod === "POD" ? "COD" : paymentMethod === "QR" ? "QR" : "Online"}
+                                </span>
+                              )}
+                            </span>
                           ) : (
-                            `₹${shippingCharge}`
+                            `₹${effectiveShippingCharge}`
                           )}
                         </span>
                       </div>
@@ -1730,8 +2067,8 @@ const CheckoutPage = () => {
                 </p>
 
                 <button
-                  onClick={() => navigate("/myorders")}
-                  className="w-full rounded-full bg-[var(--theme-primary)] px-6 py-4 text-sm font-bold uppercase tracking-widest text-[var(--theme-primary-ink)] hover:bg-[var(--theme-primary-hover)] transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                  onClick={() => navigate("/myorders", { replace: true })}
+                  className="w-full rounded-full bg-[var(--theme-primary)] px-6 py-4 text-sm font-bold uppercase tracking-widest text-[var(--theme-primary-ink)] hover:bg-[var(--theme-primary-hover)] transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 cursor-pointer"
                 >
                   Track Order
                 </button>
@@ -1741,6 +2078,45 @@ const CheckoutPage = () => {
         </AnimatePresence>,
         document.body
       )}
+
+      {/* Purchase Cancellation / Exit Intent Feedback Modal */}
+      <CancellationFeedbackModal
+        isOpen={feedbackModalOpen}
+        onClose={() => {
+          setFeedbackModalOpen(false);
+          if (
+            feedbackTriggerSource === "CHECKOUT_EXIT" ||
+            feedbackTriggerSource === "COD_CHECKOUT_EXIT"
+          ) {
+            navigate("/cart", { replace: true });
+          }
+        }}
+        customerName={userProfile?.username || (address.house ? address.house : "")}
+        customerEmail={userProfile?.email || ""}
+        customerPhone={userProfile?.phone || ""}
+        paymentMethod={paymentMethod.toUpperCase()}
+        triggerSource={feedbackTriggerSource}
+        orderId={feedbackOrderId}
+        items={checkoutItems.map((item) => ({
+          productId: item.productId,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+          variant: item.selectedOptions && Object.keys(item.selectedOptions).length > 0
+            ? Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(" / ")
+            : undefined,
+        }))}
+        totalAmount={checkoutSubtotal + shippingCharge}
+        onSubmitted={() => {
+          if (
+            feedbackTriggerSource === "CHECKOUT_EXIT" ||
+            feedbackTriggerSource === "COD_CHECKOUT_EXIT"
+          ) {
+            navigate("/cart", { replace: true });
+          }
+        }}
+      />
     </div>
   );
 };

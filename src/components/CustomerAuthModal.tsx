@@ -25,9 +25,39 @@ import { useAuth } from "../context/AuthContext";
 // ── Brand tokens ─────────────────────────────────────────────────────────────
 const DEEP_GREEN = "#34433d";
 
-// ── MSG91 Widget (client-side public keys — safe to expose in browser) ────────
-const MSG91_TOKEN_AUTH = "565277TFf8gnbXZ6a9a6afbP1";
-const MSG91_WIDGET_ID = "366964665932373435323438";
+// ── MSG91 Widget Configuration (Fetched dynamically from backend at runtime) ───
+let cachedMsg91Config: { widgetId: string; tokenAuth: string } | null = null;
+let pendingConfigPromise: Promise<{ widgetId: string; tokenAuth: string }> | null = null;
+
+const fetchMsg91Config = async (): Promise<{ widgetId: string; tokenAuth: string }> => {
+  if (cachedMsg91Config && cachedMsg91Config.widgetId && cachedMsg91Config.tokenAuth) {
+    return cachedMsg91Config;
+  }
+  if (pendingConfigPromise) {
+    return pendingConfigPromise;
+  }
+  pendingConfigPromise = api
+    .get("/auth/mobile/widget-config")
+    .then((res) => {
+      cachedMsg91Config = {
+        widgetId: res.data?.widgetId || (import.meta.env.VITE_MSG91_WIDGET_ID as string) || "",
+        tokenAuth: res.data?.tokenAuth || (import.meta.env.VITE_MSG91_TOKEN_AUTH as string) || "",
+      };
+      return cachedMsg91Config;
+    })
+    .catch((err) => {
+      console.warn("Could not fetch MSG91 config from backend, using env fallback", err);
+      return {
+        widgetId: (import.meta.env.VITE_MSG91_WIDGET_ID as string) || "",
+        tokenAuth: (import.meta.env.VITE_MSG91_TOKEN_AUTH as string) || "",
+      };
+    })
+    .finally(() => {
+      pendingConfigPromise = null;
+    });
+
+  return pendingConfigPromise;
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Mode = "sign-in" | "register";
@@ -71,6 +101,13 @@ export default function CustomerAuthModal({ open, onClose }: Props) {
   // Refs for Enter key focus navigation
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
+
+  // Pre-fetch MSG91 configuration from backend on modal open
+  useEffect(() => {
+    if (open) {
+      fetchMsg91Config();
+    }
+  }, [open]);
 
   // ── Timer countdown ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -132,10 +169,11 @@ export default function CustomerAuthModal({ open, onClose }: Props) {
 
   // ── MSG91 browser call ─────────────────────────────────────────────────────
   const callMsg91 = async (endpoint: string, body: Record<string, unknown>) => {
+    const config = await fetchMsg91Config();
     const r = await fetch(`https://control.msg91.com/api/v5/widget/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tokenAuth: MSG91_TOKEN_AUTH, widgetId: MSG91_WIDGET_ID, ...body }),
+      body: JSON.stringify({ tokenAuth: config.tokenAuth, widgetId: config.widgetId, ...body }),
     });
     const text = await r.text();
     try { return JSON.parse(text) as { type: string; message?: string; [k: string]: unknown }; }
@@ -194,7 +232,7 @@ export default function CustomerAuthModal({ open, onClose }: Props) {
       toast.success("OTP sent to your mobile!", { id: "otp-sent" });
       setOtp("");
       setStep("otp");
-      setTimer(300);
+      setTimer(120); // 2 minutes resend cooldown
     } catch {
       toast.error("Failed to send OTP. Check your connection.", { id: "otp-fail" });
     } finally {
@@ -277,7 +315,7 @@ export default function CustomerAuthModal({ open, onClose }: Props) {
       if (data.message) setReqId(data.message as string);
       toast.success("OTP resent!", { id: "otp-resent" });
       setOtp("");
-      setTimer(300);
+      setTimer(120); // 2 minutes resend cooldown
     } catch {
       toast.error("Failed to resend OTP.", { id: "resend-fail" });
     } finally {

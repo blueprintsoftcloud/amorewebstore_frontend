@@ -21,7 +21,7 @@ import FooterSection from "../components/FooterSection";
 import PageSeo from "../components/seo/PageSeo";
 import { BreadcrumbJsonLd } from "../components/seo/JsonLd";
 import api from "../utils/api";
-import { normalizeProduct } from "../utils/product";
+import { normalizeProduct, calculateDiscountedPrice } from "../utils/product";
 import AttributeFilterPanel, {
   type ActiveFilters as DynFilters,
   type AttributeFilterPanelHandle,
@@ -111,7 +111,7 @@ const ModernProductCard = React.memo(function ModernProductCard({ product }: { p
 
   const finalPrice =
     (product.discount ?? 0) > 0
-      ? product.price * (1 - (product.discount ?? 0) / 100)
+      ? calculateDiscountedPrice(product.price, product.discount!)
       : product.price;
 
   return (

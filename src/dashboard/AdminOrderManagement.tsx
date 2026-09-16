@@ -899,7 +899,7 @@
 
 
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import axios from "axios";
 import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
@@ -928,10 +928,27 @@ import {
   ShoppingBagIcon,
   PhotoIcon,
   QrCodeIcon,
+  ArrowUturnLeftIcon,
+  BuildingStorefrontIcon,
+  FunnelIcon,
+  UserCircleIcon,
+  ChevronDownIcon,
+  CheckIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
+import { Printer } from "lucide-react";
+import toast from "react-hot-toast";
+import BulkInvoiceModal from "./BulkInvoiceModal";
 
 // --- API Endpoints ---
 const ADMIN_ALL_ORDERS_ENDPOINT = '/order/all';
+
+interface AdminStaffUser {
+  id: string;
+  username: string;
+  email?: string | null;
+  role: string;
+}
 
 interface OrderItem {
   product: { id: string; name: string; image?: string } | null;
@@ -946,6 +963,8 @@ interface OrderItem {
 interface Order {
   id: string;
   user?: { username?: string; email?: string; phone?: string };
+  placedByAdminId?: string | null;
+  placedByAdmin?: AdminStaffUser | null;
   createdAt: string;
   totalAmount: number;
   discountAmount: number;
@@ -970,6 +989,8 @@ interface Order {
   trackingId?: string;
   trackingLink?: string;
   shippingNote?: string;
+  invoicePrinted?: boolean;
+  invoicePrintedAt?: string | null;
 }
 
 interface OrderStats {
@@ -984,6 +1005,8 @@ interface OrderStats {
   shipped: number;
   delivered: number;
   cancelled: number;
+  returned?: number;
+  unprintedInvoices?: number;
 }
 
 const ADMIN_ORDER_STATS_ENDPOINT = '/order/stats';
@@ -1001,6 +1024,8 @@ const getStatusIcon = (status: string) => {
       return <CheckCircleIcon className="size-3.5" aria-hidden="true" />;
     case "CANCELLED":
       return <XCircleIcon className="size-3.5" aria-hidden="true" />;
+    case "RETURNED":
+      return <ArrowUturnLeftIcon className="size-3.5" aria-hidden="true" />;
     default:
       return <ClockIcon className="size-3.5" aria-hidden="true" />;
   }
@@ -1038,6 +1063,13 @@ const getStatusClasses = (status: string) => {
         chipActive: "bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-600/20",
         chipInactive: "bg-white text-rose-700 border-rose-200 hover:bg-rose-50/50",
       };
+    case "RETURNED":
+      return {
+        container: "inline-flex items-center gap-1.5 rounded-md bg-purple-50/60 border border-purple-200/60 px-2.5 py-1 text-xs font-semibold text-purple-800 backdrop-blur-sm",
+        dot: "h-1.5 w-1.5 rounded-full bg-purple-500",
+        chipActive: "bg-purple-600 text-white border-purple-600 shadow-sm shadow-purple-600/20",
+        chipInactive: "bg-white text-purple-700 border-purple-200 hover:bg-purple-50/50",
+      };
     default:
       return {
         container: "inline-flex items-center gap-1.5 rounded-md bg-slate-50/60 border border-slate-200/60 px-2.5 py-1 text-xs font-semibold text-slate-800 backdrop-blur-sm",
@@ -1051,12 +1083,12 @@ const getStatusClasses = (status: string) => {
 const statusOptions = ["PROCESSING", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"];
 const statusLabel = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
-// DELIVERED is a terminal state, same as CANCELLED — once an order lands there, no
-// further status change is offered.
+// DELIVERED, CANCELLED, and RETURNED are terminal states — once an order lands there, no
+// further status change is offered. Also, the active status chip is disabled (cannot re-select itself).
 const isStatusChipDisabled = (currentStatus: string, targetStatus: string, canUpdateOrder: boolean): boolean => {
   if (!canUpdateOrder) return true;
-  if (currentStatus === targetStatus) return false; // the active chip stays clickable (no-op)
-  if (currentStatus === "CANCELLED" || currentStatus === "DELIVERED") return true;
+  if (currentStatus === targetStatus) return true;
+  if (currentStatus === "CANCELLED" || currentStatus === "DELIVERED" || currentStatus === "RETURNED") return true;
   return false;
 };
 
@@ -1082,6 +1114,408 @@ const formatDateTime = (value: string | undefined) => {
   });
 };
 
+interface StatusFilterDropdownProps {
+  value: string;
+  onChange: (newStatus: string) => void;
+}
+
+function StatusFilterDropdown({ value, onChange }: StatusFilterDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const getDotClass = (status: string) => {
+    switch (status) {
+      case "PROCESSING":
+      case "CONFIRMED":
+        return "bg-amber-500 animate-pulse";
+      case "SHIPPED":
+        return "bg-sky-500 animate-pulse";
+      case "DELIVERED":
+        return "bg-emerald-500";
+      case "CANCELLED":
+        return "bg-rose-500";
+      case "RETURNED":
+        return "bg-purple-500";
+      default:
+        return "bg-slate-400";
+    }
+  };
+
+  const currentLabel = value ? statusLabel(value) : "Status (All)";
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-500/20 ${
+          isOpen
+            ? "border-slate-400 bg-slate-100 text-slate-900 shadow-sm ring-2 ring-slate-400/15"
+            : value
+              ? "border-slate-400 bg-slate-100 text-slate-900"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+        }`}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span className={`inline-block size-2 rounded-full ${getDotClass(value)}`} />
+        <span>{currentLabel}</span>
+        <ChevronDownIcon
+          className={`size-3.5 text-slate-400 transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-slate-700" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute left-0 top-full mt-1.5 w-48 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-xl z-50 animate-in fade-in-0 zoom-in-95 duration-150"
+          role="listbox"
+        >
+          {/* Status (All) option */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              setIsOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition cursor-pointer ${
+              !value
+                ? "bg-slate-100 text-slate-900 font-bold"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+            role="option"
+            aria-selected={!value}
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="size-2 rounded-full bg-slate-400" />
+              <span>Status (All)</span>
+            </div>
+            {!value && <CheckIcon className="size-3.5 text-slate-800 stroke-[2.5]" />}
+          </button>
+
+          <div className="my-1 border-t border-slate-100" />
+
+          {/* Status Options */}
+          <div className="space-y-0.5">
+            {statusOptions.map((st) => {
+              const isSelected = value === st;
+              return (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => {
+                    onChange(st);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-100 text-slate-900 font-bold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                  role="option"
+                  aria-selected={isSelected}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`size-2 rounded-full ${getDotClass(st)}`} />
+                    <span>{statusLabel(st)}</span>
+                  </div>
+                  {isSelected && (
+                    <CheckIcon
+                      className={`size-3.5 stroke-[2.5] ${
+                        st === "RETURNED" ? "text-purple-600" : "text-slate-800"
+                      }`}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Cancel Order & Refund Prompt Modal ──────────────────────────────────────
+interface CancelOrderModalProps {
+  order: Order;
+  onConfirm: (refundPayment: boolean, note?: string) => Promise<void>;
+  onClose: () => void;
+  isSubmitting: boolean;
+}
+
+function CancelOrderModal({ order, onConfirm, onClose, isSubmitting }: CancelOrderModalProps) {
+  useBodyScrollLock(true);
+  const [note, setNote] = useState("");
+  const isPaid = order.paymentStatus === "PAID";
+  const isOnlineOrQr = order.paymentMethod === "ONLINE" || order.paymentMethod === "QR";
+  const shortId = `#${order.id.slice(-8)}`;
+  const total = (order.finalAmount ?? order.totalAmount)?.toFixed(2) ?? "0.00";
+
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in-0 duration-200">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 space-y-5">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 border border-rose-100">
+              <XCircleIcon className="size-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Cancel Order {shortId}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Customer: <span className="font-semibold text-slate-700">{order.user?.username || "N/A"}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+          >
+            <XMarkIcon className="size-5" />
+          </button>
+        </div>
+
+        {/* Order Info Summary */}
+        <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200/70 text-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Total Order Amount:</span>
+            <span className="font-bold text-slate-900 text-sm">₹{total}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Payment Method:</span>
+            <span className="font-semibold text-slate-800">
+              {order.paymentMethod === "QR"
+                ? "Pay with QR"
+                : order.paymentMethod === "ONLINE"
+                ? "Online (Razorpay / UPI)"
+                : order.paymentMethod === "CASH"
+                ? "Cash"
+                : "Cash on Delivery (COD)"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Current Payment Status:</span>
+            <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+              isPaid
+                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                : "bg-amber-100 text-amber-800 border border-amber-200"
+            }`}>
+              {order.paymentStatus || "PENDING"}
+            </span>
+          </div>
+          <div className="pt-1.5 border-t border-slate-200/60 text-[11px] text-slate-500 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+            <span>Stock for all ordered items will be automatically restored to inventory.</span>
+          </div>
+        </div>
+
+        {/* Question & Actions */}
+        {isPaid || isOnlineOrQr ? (
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 space-y-1.5">
+              <p className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <InformationCircleIcon className="size-4 text-amber-600 shrink-0" />
+                Has the payment of ₹{total} been refunded to the customer?
+              </p>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                If you have already processed the refund outside the system (via Razorpay or bank transfer), select <strong>Yes, Mark as Refunded</strong>. If not, select <strong>No, Refund Later</strong> — you can record the refund at any time later.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Optional Cancellation / Refund Note
+              </label>
+              <input
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Reason or reference (e.g., Customer requested refund via UPI)"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer order-3 sm:order-1"
+              >
+                Keep Order Active
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirm(false, note)}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300/80 rounded-xl transition cursor-pointer shadow-xs order-2"
+              >
+                {isSubmitting ? "Cancelling..." : "No, Cancel & Refund Later"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirm(true, note)}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition cursor-pointer shadow-sm order-1 sm:order-3"
+              >
+                {isSubmitting ? "Processing..." : "Yes, Mark as Refunded"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to cancel this order? Since this is a Pay on Delivery (COD) order with no payment collected, the order status will be updated to <strong>Cancelled</strong> and items returned to stock.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              >
+                Keep Order
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirm(false)}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition cursor-pointer shadow-sm"
+              >
+                {isSubmitting ? "Cancelling..." : "Confirm Cancellation"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Record Refund Confirmation Modal ──────────────────────────────────────
+interface RecordRefundModalProps {
+  order: Order;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+  isSubmitting: boolean;
+}
+
+function RecordRefundModal({ order, onConfirm, onClose, isSubmitting }: RecordRefundModalProps) {
+  useBodyScrollLock(true);
+  const shortId = `#${order.id.slice(-8)}`;
+  const total = (order.finalAmount ?? order.totalAmount)?.toFixed(2) ?? "0.00";
+
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in-0 duration-200">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 space-y-4">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-slate-100 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100 shrink-0">
+              <CurrencyRupeeIcon className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Confirm Refund
+              </h3>
+              <p className="text-xs text-slate-500">
+                Order {shortId} • {order.user?.username || "Customer"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+          >
+            <XMarkIcon className="size-5" />
+          </button>
+        </div>
+
+        {/* Content Box */}
+        <div className="rounded-xl bg-slate-50 p-4 border border-slate-200/70 space-y-2.5 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Refund Amount:</span>
+            <span className="font-extrabold text-slate-900 text-sm">₹{total}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Payment Method:</span>
+            <span className="font-semibold text-slate-800">
+              {order.paymentMethod === "QR"
+                ? "Pay with QR"
+                : order.paymentMethod === "ONLINE"
+                ? "Online (Razorpay / UPI)"
+                : order.paymentMethod === "CASH"
+                ? "Cash"
+                : "Cash on Delivery (COD)"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Current Status:</span>
+            <span className="font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200 text-[11px]">
+              Refund Pending
+            </span>
+          </div>
+        </div>
+
+        {/* Notice */}
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-[11.5px] text-amber-900 leading-relaxed flex items-start gap-2">
+          <InformationCircleIcon className="size-4 text-amber-600 shrink-0 mt-0.5" />
+          <span>
+            Have you transferred the refund of <strong>₹{total}</strong> to the customer outside the system (via UPI / Razorpay / bank transfer)? Confirming will update the payment status to <strong>Refunded</strong>.
+          </span>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+          >
+            Keep Pending
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition cursor-pointer shadow-sm disabled:opacity-50"
+          >
+            {isSubmitting ? "Recording..." : "Yes, Mark as Refunded"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function AdminOrderManagementPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1092,6 +1526,7 @@ export default function AdminOrderManagementPage() {
   const canUpdateOrder = !isStaff || hasPermission("ORDER_UPDATE");
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [adminStaffList, setAdminStaffList] = useState<AdminStaffUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
@@ -1103,21 +1538,60 @@ export default function AdminOrderManagementPage() {
   const [totalOrders, setTotalOrders] = useState(0);
   const ORDERS_PAGE_SIZE = 20;
 
+  // Filter & Search states
+  const [sourceFilter, setSourceFilter] = useState<"ALL" | "CUSTOMER" | "ADMIN">("ALL");
+  const [placedByFilter, setPlacedByFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [invoiceFilter, setInvoiceFilter] = useState<"ALL" | "UNPRINTED" | "PRINTED">("ALL");
+
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkModalParams, setBulkModalParams] = useState<{ orderIds?: string[]; unprintedOnly?: boolean }>({});
+
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [shipModalOrder, setShipModalOrder] = useState<Order | null>(null);
   const [shipSubmitting, setShipSubmitting] = useState(false);
+  const [cancelModalOrder, setCancelModalOrder] = useState<Order | null>(null);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [refundModalOrder, setRefundModalOrder] = useState<Order | null>(null);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
-  const fetchAllOrders = useCallback(async (targetPage: number) => {
+  const fetchAllOrders = useCallback(async (
+    targetPage: number,
+    filters?: {
+      source?: "ALL" | "CUSTOMER" | "ADMIN";
+      placedBy?: string;
+      status?: string;
+      invoiceFilter?: "ALL" | "UNPRINTED" | "PRINTED";
+    }
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get(ADMIN_ALL_ORDERS_ENDPOINT, {
-        params: { page: targetPage, limit: ORDERS_PAGE_SIZE },
-      });
+      const activeSource = filters?.source !== undefined ? filters.source : sourceFilter;
+      const activePlacedBy = filters?.placedBy !== undefined ? filters.placedBy : placedByFilter;
+      const activeStatus = filters?.status !== undefined ? filters.status : statusFilter;
+      const activeInvoice = filters?.invoiceFilter !== undefined ? filters.invoiceFilter : invoiceFilter;
+
+      const params: Record<string, any> = {
+        page: targetPage,
+        limit: ORDERS_PAGE_SIZE,
+      };
+
+      if (activeSource && activeSource !== "ALL") params.source = activeSource;
+      if (activePlacedBy) params.placedBy = activePlacedBy;
+      if (activeStatus) params.status = activeStatus;
+      if (activeInvoice === "UNPRINTED") params.invoicePrinted = "false";
+      if (activeInvoice === "PRINTED") params.invoicePrinted = "true";
+
+      const res = await api.get(ADMIN_ALL_ORDERS_ENDPOINT, { params });
       setOrders(res.data.order || []);
+      if (res.data.adminStaffList) {
+        setAdminStaffList(res.data.adminStaffList);
+      }
       setTotalPages(res.data.pagination?.totalPages ?? 1);
       setTotalOrders(res.data.pagination?.total ?? (res.data.order || []).length);
     } catch (err) {
@@ -1132,19 +1606,95 @@ export default function AdminOrderManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sourceFilter, placedByFilter, statusFilter, invoiceFilter]);
 
-  // Header metric cards are computed server-side over every order — getOrdersForAdmin
-  // above is paginated (and capped at 100 per page), so reducing over `orders` directly
-  // would silently undercount the moment there are more orders than one page.
-  const fetchOrderStats = useCallback(async () => {
+  const handleSourceChange = (newSource: "ALL" | "CUSTOMER" | "ADMIN") => {
+    setSourceFilter(newSource);
+    setPage(1);
+    fetchAllOrders(1, { source: newSource });
+    fetchOrderStats({ source: newSource });
+  };
+
+  const handleStatusFilterChange = (st: string) => {
+    setStatusFilter(st);
+    setPage(1);
+    fetchAllOrders(1, { status: st });
+    fetchOrderStats({ status: st });
+  };
+
+  const handleInvoiceFilterChange = (newInvFilter: "ALL" | "UNPRINTED" | "PRINTED") => {
+    setInvoiceFilter(newInvFilter);
+    setSelectedOrderIds([]);
+    setPage(1);
+    fetchAllOrders(1, { invoiceFilter: newInvFilter });
+    fetchOrderStats({ invoiceFilter: newInvFilter });
+  };
+
+  const handleClearFilters = () => {
+    setSourceFilter("ALL");
+    setStatusFilter("");
+    setInvoiceFilter("ALL");
+    setSelectedOrderIds([]);
+    setPage(1);
+    fetchAllOrders(1, { source: "ALL", status: "", invoiceFilter: "ALL" });
+    fetchOrderStats({ source: "ALL", status: "", invoiceFilter: "ALL" });
+  };
+
+  const toggleSelectOrder = (id: string) => {
+    setSelectedOrderIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllOnPage = () => {
+    if (orders.length === 0) return;
+    if (selectedOrderIds.length === orders.length) {
+      setSelectedOrderIds([]);
+    } else {
+      setSelectedOrderIds(orders.map((o) => o.id));
+    }
+  };
+
+  const handleBatchMarkPrinted = async (orderIds: string[], printed: boolean) => {
     try {
-      const res = await api.get(ADMIN_ORDER_STATS_ENDPOINT);
+      await api.post("/order/mark-invoices-printed", { orderIds, printed });
+      toast.success(`Marked ${orderIds.length} order(s) as ${printed ? "printed" : "unprinted"}`);
+      setSelectedOrderIds([]);
+      fetchAllOrders(page);
+      fetchOrderStats();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to update print status");
+    }
+  };
+
+  // Header metric cards are computed server-side and dynamically scoped to active filters
+  // (source, placedBy, status, invoicePrinted) so volumes, income, and fulfillment progress
+  // accurately reflect whatever segment of the pipeline is currently being viewed.
+  const fetchOrderStats = useCallback(async (filters?: {
+    source?: "ALL" | "CUSTOMER" | "ADMIN";
+    placedBy?: string;
+    status?: string;
+    invoiceFilter?: "ALL" | "UNPRINTED" | "PRINTED";
+  }) => {
+    try {
+      const activeSource = filters?.source !== undefined ? filters.source : sourceFilter;
+      const activePlacedBy = filters?.placedBy !== undefined ? filters.placedBy : placedByFilter;
+      const activeStatus = filters?.status !== undefined ? filters.status : statusFilter;
+      const activeInvoice = filters?.invoiceFilter !== undefined ? filters.invoiceFilter : invoiceFilter;
+
+      const params: Record<string, any> = {};
+      if (activeSource && activeSource !== "ALL") params.source = activeSource;
+      if (activePlacedBy) params.placedBy = activePlacedBy;
+      if (activeStatus) params.status = activeStatus;
+      if (activeInvoice === "UNPRINTED") params.invoicePrinted = "false";
+      if (activeInvoice === "PRINTED") params.invoicePrinted = "true";
+
+      const res = await api.get(ADMIN_ORDER_STATS_ENDPOINT, { params });
       setOrderStats(res.data);
     } catch (err) {
       console.error("Error fetching order stats:", err);
     }
-  }, []);
+  }, [sourceFilter, placedByFilter, statusFilter, invoiceFilter]);
 
   useEffect(() => {
     fetchAllOrders(page);
@@ -1177,32 +1727,104 @@ export default function AdminOrderManagementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Locks body scrolling while the order drawer or the ship-order modal is open —
-  // previously only covered drawerOpen, so opening "Ship Order" from within the drawer
-  // and then closing the drawer first (leaving the ship modal open) silently
-  // re-enabled background scroll underneath it.
-  useBodyScrollLock(drawerOpen || !!shipModalOrder || !!blockedMessage);
+  // Locks body scrolling while the order drawer, ship modal, cancel modal, or refund modal is open
+  useBodyScrollLock(drawerOpen || !!shipModalOrder || !!cancelModalOrder || !!refundModalOrder || !!blockedMessage);
+
+  const handleConfirmCancel = async (refundPayment: boolean, note?: string) => {
+    const orderId = cancelModalOrder?.id;
+    if (!orderId) return;
+
+    setCancelSubmitting(true);
+    try {
+      const { data } = await api.put(`${ADMIN_UPDATE_STATUS_ENDPOINT}/${orderId}`, {
+        orderStatus: "CANCELLED",
+        refundPayment,
+        refundNote: note,
+      });
+
+      const updatedOrder = data?.order;
+      const finalPaymentStatus = refundPayment ? "REFUNDED" : (updatedOrder?.paymentStatus ?? cancelModalOrder.paymentStatus);
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                orderStatus: "CANCELLED",
+                paymentStatus: finalPaymentStatus,
+              }
+            : o
+        )
+      );
+
+      setSelectedOrder((prev) =>
+        prev && prev.id === orderId
+          ? {
+              ...prev,
+              orderStatus: "CANCELLED",
+              paymentStatus: finalPaymentStatus,
+            }
+          : prev
+      );
+
+      toast.success(
+        refundPayment
+          ? `Order #${orderId.slice(-8)} cancelled and marked as refunded.`
+          : `Order #${orderId.slice(-8)} cancelled.`
+      );
+      setCancelModalOrder(null);
+      fetchOrderStats();
+    } catch (err: any) {
+      console.error("Failed to cancel order:", err);
+      toast.error(err?.response?.data?.message ?? `Failed to cancel order #${orderId.slice(-8)}.`);
+    } finally {
+      setCancelSubmitting(false);
+    }
+  };
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     const currentOrder = orders.find((o) => o.id === orderId);
     if (!currentOrder || currentOrder.orderStatus === newStatus) return;
 
+    const willBePaidOnDelivery = newStatus === "DELIVERED" && currentOrder.paymentStatus === "PENDING";
     const originalOrders = [...orders];
     setOrders((prev) =>
       prev.map((order) =>
-        order.id === orderId ? { ...order, orderStatus: newStatus } : order
+        order.id === orderId
+          ? {
+              ...order,
+              orderStatus: newStatus,
+              ...(willBePaidOnDelivery ? { paymentStatus: "PAID" } : {}),
+            }
+          : order
       )
     );
 
     setSelectedOrder((prev) =>
-      prev && prev.id === orderId ? { ...prev, orderStatus: newStatus } : prev
+      prev && prev.id === orderId
+        ? {
+            ...prev,
+            orderStatus: newStatus,
+            ...(willBePaidOnDelivery ? { paymentStatus: "PAID" } : {}),
+          }
+        : prev
     );
 
     try {
-      await api.put(
+      const { data } = await api.put(
         `${ADMIN_UPDATE_STATUS_ENDPOINT}/${orderId}`,
         { orderStatus: newStatus }
       );
+      if (data?.order) {
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.id === orderId ? { ...order, ...data.order } : order
+          )
+        );
+        setSelectedOrder((prev) =>
+          prev && prev.id === orderId ? { ...prev, ...data.order } : prev
+        );
+      }
       fetchOrderStats();
     } catch (err) {
       const _e = err as any;
@@ -1267,6 +1889,34 @@ export default function AdminOrderManagementPage() {
     }
   };
 
+  const handleConfirmRecordRefund = async () => {
+    const orderId = refundModalOrder?.id;
+    if (!orderId) return;
+
+    if (!canUpdateOrder) {
+      toast.error("You don't have permission to record refunds.");
+      return;
+    }
+
+    setRefundSubmitting(true);
+    try {
+      await api.patch(`/order/${orderId}/refund`);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: "REFUNDED" } : o))
+      );
+      setSelectedOrder((prev) =>
+        prev && prev.id === orderId ? { ...prev, paymentStatus: "REFUNDED" } : prev
+      );
+      toast.success(`Order #${orderId.slice(-8)} marked as refunded.`);
+      setRefundModalOrder(null);
+      fetchOrderStats();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Failed to record refund");
+    } finally {
+      setRefundSubmitting(false);
+    }
+  };
+
   const handleViewInvoice = (orderId: string) => {
     navigate(`/invoice/${orderId}`);
   };
@@ -1280,6 +1930,7 @@ export default function AdminOrderManagementPage() {
     const shipped = s?.shipped ?? 0;
     const delivered = s?.delivered ?? 0;
     const cancelled = s?.cancelled ?? 0;
+    const returned = s?.returned ?? 0;
     const totalOrders = s?.totalOrders ?? 0;
     return {
       totalOrders,
@@ -1290,15 +1941,16 @@ export default function AdminOrderManagementPage() {
       shipped,
       delivered,
       cancelled,
+      returned,
       processing: processing + confirmed,
       // "Dispatched & Done" is two states by its own name — shipped (dispatched) and
       // delivered (done) — not delivered alone.
       dispatchedAndDone: shipped + delivered,
-      // Orders that can still move through the pipeline. Cancelled orders are excluded
-      // from the funnel-progress percentages below so a high cancellation rate doesn't
-      // silently deflate every other bar — cancellation gets its own signal elsewhere
-      // (Reports & Analytics), this card is about active fulfillment progress.
-      activeOrders: totalOrders - cancelled,
+      // Orders that can still move through the pipeline. Cancelled and returned orders are excluded
+      // from the funnel-progress percentages below so they don't
+      // silently deflate every other bar — cancellation/return gets its own signal elsewhere.
+      activeOrders: totalOrders - cancelled - returned,
+      unprintedInvoices: s?.unprintedInvoices ?? 0,
     };
   }, [orderStats]);
 
@@ -1527,10 +2179,146 @@ export default function AdminOrderManagementPage() {
 
         {/* Master Table Area */}
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Active Pipeline</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Realtime checkout lists. Modify orders directly via structural interactive status action buttons.</p>
+          <div className="px-6 py-5 border-b border-slate-100 flex flex-col gap-4 bg-slate-50/50">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Active Pipeline</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Realtime checkout lists. Modify orders directly via structural interactive status action buttons.</p>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkModalParams({ unprintedOnly: true });
+                    setBulkModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+                  title="Print all invoices for unprinted orders at once"
+                >
+                  <Printer className="size-4" />
+                  Print Unprinted Invoices
+                  {(metrics.unprintedInvoices ?? 0) > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-800/90 text-indigo-100 text-[10px] font-black">
+                      {metrics.unprintedInvoices}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Bar Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/60">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mr-1">
+                  <FunnelIcon className="size-3.5 text-slate-400" /> Filter:
+                </span>
+
+                {/* Origin Pill Buttons */}
+                <div className="inline-flex rounded-xl bg-slate-200/70 p-1 text-xs font-semibold gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSourceChange("ALL")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      sourceFilter === "ALL"
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    }`}
+                  >
+                    All Orders
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSourceChange("CUSTOMER")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      sourceFilter === "CUSTOMER"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    }`}
+                  >
+                    <ShoppingBagIcon className="size-3.5" />
+                    Customers
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSourceChange("ADMIN")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      sourceFilter === "ADMIN"
+                        ? "bg-indigo-600 text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    }`}
+                  >
+                    <BuildingStorefrontIcon className="size-3.5" />
+                    By Admin / Staff
+                  </button>
+                </div>
+
+                {/* Invoice Printed Filter */}
+                <div className="inline-flex rounded-xl bg-slate-200/70 p-1 text-xs font-semibold gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleInvoiceFilterChange("ALL")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      invoiceFilter === "ALL"
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    }`}
+                  >
+                    All Invoices
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInvoiceFilterChange("UNPRINTED")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      invoiceFilter === "UNPRINTED"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    }`}
+                  >
+                    Unprinted
+                    {(metrics.unprintedInvoices ?? 0) > 0 && (
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        invoiceFilter === "UNPRINTED" ? "bg-amber-700 text-white" : "bg-amber-100 text-amber-800"
+                      }`}>
+                        {metrics.unprintedInvoices}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleInvoiceFilterChange("PRINTED")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      invoiceFilter === "PRINTED"
+                        ? "bg-slate-800 text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    }`}
+                  >
+                    Printed
+                  </button>
+                </div>
+
+                {/* Order Status Filter */}
+                <StatusFilterDropdown
+                  value={statusFilter}
+                  onChange={handleStatusFilterChange}
+                />
+              </div>
+
+              {/* Active Filter Indicators & Reset */}
+              {(sourceFilter !== "ALL" || statusFilter || invoiceFilter !== "ALL") && (
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 transition cursor-pointer"
+                >
+                  <XMarkIcon className="size-3.5" />
+                  Reset Filters
+                </button>
+              )}
             </div>
           </div>
 
@@ -1538,7 +2326,16 @@ export default function AdminOrderManagementPage() {
             <table className="w-full text-sm text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  <th className="px-6 py-4">Order ID</th>
+                  <th className="pl-6 pr-2 py-4 w-10">
+                    <input
+                      type="checkbox"
+                      checked={orders.length > 0 && selectedOrderIds.length === orders.length}
+                      onChange={toggleSelectAllOnPage}
+                      className="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      title="Select all on this page"
+                    />
+                  </th>
+                  <th className="px-4 py-4">Order ID</th>
                   <th className="px-6 py-4">Account Client</th>
                   <th className="px-6 py-4">Timestamp</th>
                   <th className="px-6 py-4">Gross Settlement</th>
@@ -1554,12 +2351,37 @@ export default function AdminOrderManagementPage() {
 
                   return (
                     <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
+                      {/* Checkbox Column */}
+                      <td className="pl-6 pr-2 py-4 w-10" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedOrderIds.includes(order.id)}
+                          onChange={() => toggleSelectOrder(order.id)}
+                          className="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </td>
 
                       {/* Token Reference */}
-                      <td className="px-6 py-4 font-mono text-xs cursor-pointer text-slate-600 group-hover:text-slate-900" onClick={() => openDrawer(order)}>
-                        <span className="font-bold tracking-tight bg-slate-100 px-2 py-1 rounded-md border border-slate-200/60">
-                          {shortId}
-                        </span>
+                      <td className="px-4 py-4 font-mono text-xs cursor-pointer text-slate-600 group-hover:text-slate-900" onClick={() => openDrawer(order)}>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="font-bold tracking-tight bg-slate-100 px-2 py-1 rounded-md border border-slate-200/60">
+                            {shortId}
+                          </span>
+                          {order.invoicePrinted ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200"
+                              title={order.invoicePrintedAt ? `Printed on ${new Date(order.invoicePrintedAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "Invoice already printed"}
+                            >
+                              <CheckCircleIcon className="size-2.5 text-emerald-600" />
+                              Printed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <ClockIcon className="size-2.5 text-amber-500" />
+                              Unprinted
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Account Customer Client info */}
@@ -1568,7 +2390,7 @@ export default function AdminOrderManagementPage() {
                           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 border border-slate-200/50">
                             <UserIcon className="size-4" />
                           </div>
-                          <div className="max-w-[1600px] truncate">
+                          <div className="max-w-[320px] truncate">
                             <p className="text-sm font-semibold text-slate-900 truncate">
                               {order.user?.username || "N/A"}
                             </p>
@@ -1580,6 +2402,30 @@ export default function AdminOrderManagementPage() {
                                 {order.user.phone}
                               </p>
                             )}
+
+                            {/* Order Origin / Placed By Tag */}
+                            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                              {order.placedByAdminId ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
+                                  title={`Placed internally by ${order.placedByAdmin?.username ? `${order.placedByAdmin.username} (${order.placedByAdmin.role})` : "Admin/Staff"}`}
+                                >
+                                  <BuildingStorefrontIcon className="size-3 text-indigo-600 shrink-0" />
+                                  <span>
+                                    Ordered by {order.placedByAdmin?.role === "STAFF" ? "Staff" : "Admin"}:{" "}
+                                    <strong className="font-black text-indigo-900">{order.placedByAdmin?.username ?? "Our Side"}</strong>
+                                  </span>
+                                </span>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-xs"
+                                  title="Customer placed directly via storefront online checkout"
+                                >
+                                  <ShoppingBagIcon className="size-3 text-emerald-600 shrink-0" />
+                                  <span>Customer Order</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1592,25 +2438,64 @@ export default function AdminOrderManagementPage() {
                       {/* Gross settlement item values & payment method */}
                       <td className="px-6 py-4 text-sm font-bold text-slate-900">
                         <div>
-                          <span>
+                          <span className={order.orderStatus === "CANCELLED" ? "line-through text-slate-400 font-medium" : "text-slate-900 font-bold"}>
                             ₹{(order.finalAmount ?? order.totalAmount)?.toFixed(2) ?? "0.00"}
                           </span>
-                          <div className="mt-1">
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                             {order.paymentMethod === "QR" ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">
-                                <QrCodeIcon className="size-3" /> Pay with QR
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                <QrCodeIcon className="size-3 text-purple-600" /> Pay with QR
                               </span>
                             ) : order.paymentMethod === "ONLINE" ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
                                 Online
                               </span>
                             ) : order.paymentMethod === "CASH" ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-100 text-teal-700 border border-teal-200">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200/80">
                                 Cash
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
                                 COD
+                              </span>
+                            )}
+
+                            {/* Small, clean Refund Pending status & Mark Refunded action */}
+                            {order.orderStatus === "CANCELLED" && order.paymentStatus === "PAID" && (
+                              <div className="inline-flex items-center gap-1">
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                                  title="Order cancelled but payment refund is pending"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  Refund Pending
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRefundModalOrder(order);
+                                  }}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+                                  title="Record refund for this order"
+                                >
+                                  Mark Refunded
+                                </button>
+                              </div>
+                            )}
+
+                            {order.paymentStatus === "REFUNDED" && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                Refunded
+                              </span>
+                            )}
+
+                            {/* Cancelled COD/unpaid order - No payment collected */}
+                            {order.orderStatus === "CANCELLED" && (!order.paymentStatus || order.paymentStatus === "PENDING") && (order.paymentMethod === "POD" || order.paymentMethod === "COD" || order.paymentMethod === "CASH") && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                No Payment Made
                               </span>
                             )}
                           </div>
@@ -1640,6 +2525,8 @@ export default function AdminOrderManagementPage() {
                                 type="button"
                                 disabled={chipDisabled}
                                 onClick={() => {
+                                  if (order.orderStatus === status) return;
+                                  if (order.orderStatus === "CANCELLED" || order.orderStatus === "DELIVERED" || order.orderStatus === "RETURNED") return;
                                   const blocked = blockedStatusMessage(order.orderStatus, status);
                                   if (blocked) {
                                     setBlockedMessage(blocked);
@@ -1647,15 +2534,17 @@ export default function AdminOrderManagementPage() {
                                   }
                                   if (status === "SHIPPED") {
                                     setShipModalOrder(order);
+                                  } else if (status === "CANCELLED") {
+                                    setCancelModalOrder(order);
                                   } else {
                                     handleUpdateStatus(order.id, status);
                                   }
                                 }}
                                 className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all duration-200 ${isCurrent
-                                  ? targetClasses.chipActive
+                                  ? `${targetClasses.chipActive} cursor-default opacity-100`
                                   : chipDisabled
                                     ? "bg-slate-50 text-slate-300 border-transparent cursor-not-allowed opacity-40"
-                                    : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300 shadow-xs"
+                                    : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300 shadow-xs cursor-pointer"
                                   }`}
                               >
                                 {statusLabel(status)}
@@ -1671,11 +2560,15 @@ export default function AdminOrderManagementPage() {
                           <button
                             type="button"
                             onClick={() => handleViewInvoice(order.id)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition-all"
-                            title="View Invoice"
+                            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-xs transition-all ${
+                              order.invoicePrinted
+                                ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                : "border-indigo-200 bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100"
+                            }`}
+                            title={order.invoicePrinted ? "Invoice already printed (Click to view/reprint)" : "View / Print Invoice"}
                           >
-                            <DocumentTextIcon className="size-3.5 text-slate-400" />
-                            Invoice
+                            <DocumentTextIcon className={`size-3.5 ${order.invoicePrinted ? "text-slate-400" : "text-indigo-500"}`} />
+                            {order.invoicePrinted ? "Invoice ✓" : "Invoice"}
                           </button>
                           <button
                             type="button"
@@ -1690,6 +2583,28 @@ export default function AdminOrderManagementPage() {
                     </tr>
                   );
                 })}
+                {orders.length === 0 && !loading && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-16 text-center">
+                      <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3">
+                        <ShoppingBagIcon className="size-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-800">No orders found</p>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        No orders match your active filter or search query.
+                      </p>
+                      {(sourceFilter !== "ALL" || placedByFilter || statusFilter || invoiceFilter !== "ALL") && (
+                        <button
+                          type="button"
+                          onClick={handleClearFilters}
+                          className="mt-3 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 rounded-lg border border-indigo-200 cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <XMarkIcon className="size-3.5" /> Clear Filters
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1699,8 +2614,13 @@ export default function AdminOrderManagementPage() {
           {totalOrders > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
               <p className="text-xs text-slate-500">
-                Showing <span className="font-semibold text-slate-700">{orders.length}</span> of{" "}
-                <span className="font-semibold text-slate-700">{totalOrders}</span> orders
+                Showing{" "}
+                <span className="font-semibold text-slate-700">
+                  {totalOrders === 0
+                    ? 0
+                    : `${(page - 1) * ORDERS_PAGE_SIZE + 1}–${Math.min(page * ORDERS_PAGE_SIZE, totalOrders)}`}
+                </span>{" "}
+                of <span className="font-semibold text-slate-700">{totalOrders}</span> orders
                 {totalPages > 1 && (
                   <span className="text-slate-400"> — page {page} of {totalPages}</span>
                 )}
@@ -1804,6 +2724,71 @@ export default function AdminOrderManagementPage() {
                     </div>
                   </section>
 
+                  {/* Order Source / Origin Card */}
+                  <section className={`rounded-2xl border p-4 text-xs ${
+                    selectedOrder.placedByAdminId
+                      ? "border-indigo-200 bg-indigo-50/40 text-indigo-950"
+                      : "border-emerald-200 bg-emerald-50/30 text-emerald-950"
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`flex size-9 shrink-0 items-center justify-center rounded-xl border ${
+                        selectedOrder.placedByAdminId
+                          ? "bg-indigo-600 text-white border-indigo-700 shadow-sm"
+                          : "bg-emerald-600 text-white border-emerald-700 shadow-sm"
+                      }`}>
+                        {selectedOrder.placedByAdminId ? (
+                          <BuildingStorefrontIcon className="size-5" />
+                        ) : (
+                          <ShoppingBagIcon className="size-5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <p className="font-bold text-xs uppercase tracking-wider">
+                            {selectedOrder.placedByAdminId
+                              ? "Internal Order (Our Side)"
+                              : "Direct Customer Order"}
+                          </p>
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                            selectedOrder.placedByAdminId
+                              ? "bg-indigo-100 text-indigo-800 border-indigo-300"
+                              : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                          }`}>
+                            {selectedOrder.placedByAdminId
+                              ? (selectedOrder.placedByAdmin?.role === "STAFF" ? "Staff Order" : "Admin Order")
+                              : "Online Storefront"}
+                          </span>
+                        </div>
+
+                        {selectedOrder.placedByAdminId ? (
+                          <div className="mt-2 pt-2 border-t border-indigo-200/60 space-y-1 text-slate-700">
+                            <p className="text-xs">
+                              <span className="font-semibold text-slate-500 mr-1.5">Created By:</span>
+                              <strong className="text-indigo-900 font-bold">
+                                {selectedOrder.placedByAdmin?.username ?? "Admin / Staff"}
+                              </strong>
+                              {selectedOrder.placedByAdmin?.role && (
+                                <span className="ml-1.5 text-[11px] text-slate-500 font-mono">
+                                  ({selectedOrder.placedByAdmin.role})
+                                </span>
+                              )}
+                            </p>
+                            {selectedOrder.placedByAdmin?.email && (
+                              <p className="text-[11px] text-slate-500">
+                                <span className="font-semibold mr-1.5">Email:</span>
+                                {selectedOrder.placedByAdmin.email}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-xs text-slate-600">
+                            This order was placed directly by the customer through the online store checkout.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
                   {/* Drawer Level Action Chips */}
                   <section className="space-y-3 rounded-2xl border border-slate-200/80 p-5 bg-white">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">State Routing Segment</p>
@@ -1820,6 +2805,8 @@ export default function AdminOrderManagementPage() {
                               type="button"
                               disabled={chipDisabled}
                               onClick={() => {
+                                if (selectedOrder.orderStatus === status) return;
+                                if (selectedOrder.orderStatus === "CANCELLED" || selectedOrder.orderStatus === "DELIVERED" || selectedOrder.orderStatus === "RETURNED") return;
                                 const blocked = blockedStatusMessage(selectedOrder.orderStatus, status);
                                 if (blocked) {
                                   setBlockedMessage(blocked);
@@ -1827,15 +2814,17 @@ export default function AdminOrderManagementPage() {
                                 }
                                 if (status === "SHIPPED") {
                                   setShipModalOrder(selectedOrder);
+                                } else if (status === "CANCELLED") {
+                                  setCancelModalOrder(selectedOrder);
                                 } else {
                                   handleUpdateStatus(selectedOrder.id, status);
                                 }
                               }}
                               className={`flex-1 text-center px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all duration-200 ${isCurrent
-                                ? targetClasses.chipActive
+                                ? `${targetClasses.chipActive} cursor-default opacity-100`
                                 : chipDisabled
                                   ? "bg-slate-50 text-slate-300 border-transparent cursor-not-allowed opacity-40"
-                                  : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300 shadow-xs"
+                                  : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300 shadow-xs cursor-pointer"
                                 }`}
                             >
                               {statusLabel(status)}
@@ -1874,7 +2863,9 @@ export default function AdminOrderManagementPage() {
                       <div>
                         <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Payment Status</p>
                         <p className="mt-1 font-semibold text-slate-800">
-                          {selectedOrder.paymentStatus || "PENDING"}
+                          {selectedOrder.orderStatus === "CANCELLED" && (!selectedOrder.paymentStatus || selectedOrder.paymentStatus === "PENDING") && (selectedOrder.paymentMethod === "POD" || selectedOrder.paymentMethod === "COD" || selectedOrder.paymentMethod === "CASH")
+                            ? "No Payment Made"
+                            : selectedOrder.paymentStatus || "PENDING"}
                         </p>
                       </div>
 
@@ -1887,6 +2878,31 @@ export default function AdminOrderManagementPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Direct refund action if payment was collected on a cancelled or returned order */}
+                    {selectedOrder.paymentStatus === "PAID" &&
+                      (selectedOrder.orderStatus === "CANCELLED" || selectedOrder.orderStatus === "RETURNED") && (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <InformationCircleIcon className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-bold text-amber-900">
+                              Payment collected on {selectedOrder.orderStatus.toLowerCase()} order
+                            </p>
+                            <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                              Once you have refunded ₹{(selectedOrder.finalAmount ?? selectedOrder.totalAmount).toFixed(2)} to the customer via Razorpay or bank transfer, record it here.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setRefundModalOrder(selectedOrder)}
+                          className="w-full mt-1.5 py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold uppercase tracking-wider transition shadow-sm cursor-pointer"
+                        >
+                          Record Refund
+                        </button>
+                      </div>
+                    )}
 
                     {selectedOrder.paymentScreenshot && (
                       <div className="pt-2 border-t border-slate-100">
@@ -2060,6 +3076,24 @@ export default function AdminOrderManagementPage() {
           onConfirm={handleShipOrder}
         />
 
+        {cancelModalOrder && (
+          <CancelOrderModal
+            order={cancelModalOrder}
+            onConfirm={handleConfirmCancel}
+            onClose={() => setCancelModalOrder(null)}
+            isSubmitting={cancelSubmitting}
+          />
+        )}
+
+        {refundModalOrder && (
+          <RecordRefundModal
+            order={refundModalOrder}
+            onConfirm={handleConfirmRecordRefund}
+            onClose={() => setRefundModalOrder(null)}
+            isSubmitting={refundSubmitting}
+          />
+        )}
+
         {blockedMessage && createPortal(
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4">
             <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
@@ -2136,6 +3170,63 @@ export default function AdminOrderManagementPage() {
             </div>
           </div>,
           document.body
+        )}
+
+        {/* Bulk Invoice Printing Modal */}
+        {bulkModalOpen && (
+          <BulkInvoiceModal
+            orderIds={bulkModalParams.orderIds}
+            unprintedOnly={bulkModalParams.unprintedOnly}
+            onClose={() => setBulkModalOpen(false)}
+            onSuccess={() => {
+              setSelectedOrderIds([]);
+              fetchAllOrders(page);
+              fetchOrderStats();
+            }}
+          />
+        )}
+
+        {/* Floating Bulk Action Bar */}
+        {selectedOrderIds.length > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-950/95 text-white shadow-2xl border border-slate-700/80 backdrop-blur-md animate-slideUp">
+            <span className="text-xs font-bold whitespace-nowrap">
+              {selectedOrderIds.length} {selectedOrderIds.length === 1 ? "order" : "orders"} selected
+            </span>
+            <div className="h-4 w-px bg-slate-700" />
+            <button
+              type="button"
+              onClick={() => {
+                setBulkModalParams({ orderIds: selectedOrderIds });
+                setBulkModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+            >
+              <Printer className="size-3.5" />
+              Print Invoices ({selectedOrderIds.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBatchMarkPrinted(selectedOrderIds, true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer whitespace-nowrap"
+            >
+              Mark Printed
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBatchMarkPrinted(selectedOrderIds, false)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer whitespace-nowrap"
+            >
+              Mark Unprinted
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedOrderIds([])}
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              title="Deselect all"
+            >
+              <XMarkIcon className="size-4" />
+            </button>
+          </div>
         )}
 
       </div>

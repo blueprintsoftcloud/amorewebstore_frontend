@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import {
   BarChart,
   Bar,
@@ -36,6 +37,11 @@ import {
   UserCheck,
   MapPin,
   Ticket,
+  ChevronRight,
+  Search,
+  X,
+  ExternalLink,
+  SlidersHorizontal,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import api from "../utils/api";
@@ -141,6 +147,7 @@ const STATUS_COLORS: Record<string, string> = {
   SHIPPED: "#3B82F6",
   DELIVERED: "#10B981",
   CANCELLED: "#EF4444",
+  RETURNED: "#8B5CF6",
 };
 
 const PAYMENT_COLORS = ["#6366F1", "#10B981"];
@@ -370,6 +377,24 @@ export default function ReportsAnalytics() {
   const [loading, setLoading] = useState(true);
   const [chartMode, setChartMode] = useState<"revenue" | "profit">("revenue");
 
+  // Modal inspection states
+  const [showTopProductsModal, setShowTopProductsModal] = useState(false);
+  const [topProductsSearch, setTopProductsSearch] = useState("");
+  const [topProductsSort, setTopProductsSort] = useState<"revenue" | "profit" | "margin" | "sold">("revenue");
+
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
+
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationSearch, setLocationSearch] = useState("");
+
+  const [showCouponModal, setShowCouponModal] = useState(false);
+
+  useBodyScrollLock(showTopProductsModal || showCustomerModal || showCategoryModal || showLocationModal || showCouponModal);
+
   const fetchAll = useCallback(async (f: string, t: string) => {
     setLoading(true);
     try {
@@ -378,7 +403,7 @@ export default function ReportsAnalytics() {
         api.get(`/analytics/profit?from=${f}&to=${t}`),
         api.get(`/analytics/profit-by-day?from=${f}&to=${t}`),
         api.get(`/analytics/order-status?from=${f}&to=${t}`),
-        api.get(`/analytics/top-products-profit?limit=8&from=${f}&to=${t}`),
+        api.get(`/analytics/top-products-profit?limit=50&from=${f}&to=${t}`),
         api.get(`/analytics/payment-methods?from=${f}&to=${t}`),
         api.get(`/analytics/top-categories?from=${f}&to=${t}`),
         api.get(`/analytics/customer-insights?from=${f}&to=${t}`),
@@ -1121,10 +1146,20 @@ export default function ReportsAnalytics() {
 
           {categories.length > 0 && (
             <div className="pt-4 border-t border-gray-100">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <Layers className="h-4 w-4 text-gray-400" />
-                Top Categories
-              </h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-gray-400" />
+                  Top Categories
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(true)}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-0.5 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
+                >
+                  View Details
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <div>
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={categories.slice(0, 6)} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
@@ -1144,7 +1179,22 @@ export default function ReportsAnalytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Customer Insights */}
-        <SectionCard title="Customer Insights" subtitle="New vs. returning buyers in the selected period">
+        <SectionCard
+          title="Customer Insights"
+          subtitle="New vs. returning buyers in the selected period"
+          action={
+            customerInsights && customerInsights.topCustomers.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowCustomerModal(true)}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
+              >
+                View Details
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            ) : null
+          }
+        >
           {!customerInsights || totalCustomersInsight === 0 ? (
             <div className="flex items-center justify-center h-32 text-gray-400 text-sm">No customer activity yet</div>
           ) : (
@@ -1194,7 +1244,22 @@ export default function ReportsAnalytics() {
         </SectionCard>
 
         {/* Sales by Location */}
-        <SectionCard title="Sales by Location" subtitle="Revenue by shipping state">
+        <SectionCard
+          title="Sales by Location"
+          subtitle="Revenue by shipping state"
+          action={
+            salesByLocation.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowLocationModal(true)}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
+              >
+                View Details
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            ) : null
+          }
+        >
           {salesByLocation.length === 0 ? (
             <div className="flex items-center justify-center h-48 text-gray-400 text-sm">No shipping data yet</div>
           ) : (
@@ -1213,7 +1278,19 @@ export default function ReportsAnalytics() {
       {/* ── Top Products Table ── */}
       <SectionCard
         title="Top Products by Revenue & Profit"
-        subtitle={`Top 8 products · ${topProducts.filter((p) => p.grossProfit != null).length} with cost data`}
+        subtitle={`Top ${Math.min(8, topProducts.length)} products · ${topProducts.filter((p) => p.grossProfit != null).length} with cost data`}
+        action={
+          topProducts.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowTopProductsModal(true)}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
+            >
+              View Details ({topProducts.length})
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          ) : null
+        }
       >
         {topProducts.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-gray-400 text-sm">No sales data yet</div>
@@ -1232,7 +1309,7 @@ export default function ReportsAnalytics() {
                 </tr>
               </thead>
               <tbody>
-                {topProducts.map((item, idx) => (
+                {topProducts.slice(0, 8).map((item, idx) => (
                   <tr key={item.product?.id ?? idx} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-3">
                       <span className={`text-xs font-bold ${idx < 3 ? "text-amber-500" : "text-gray-300"}`}>
@@ -1298,6 +1375,16 @@ export default function ReportsAnalytics() {
         <SectionCard
           title="Coupon Performance"
           subtitle={`${couponPerformance.totalRedemptions} redemption${couponPerformance.totalRedemptions === 1 ? "" : "s"} · ${INR(couponPerformance.totalDiscountGiven)} discounted in the selected period`}
+          action={
+            <button
+              type="button"
+              onClick={() => setShowCouponModal(true)}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
+            >
+              View Details
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          }
         >
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1356,6 +1443,568 @@ export default function ReportsAnalytics() {
           Set purchase prices in the product add/edit form for complete margin analysis.
         </p>
       </div>
+
+      {/* ── Top Products Detail Modal ── */}
+      {showTopProductsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-scaleUp">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100 uppercase tracking-wide">
+                  Product Profitability Registry
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1.5">Top Products by Revenue &amp; Profit</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTopProductsModal(false);
+                  setTopProductsSearch("");
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Filter & Sort Bar */}
+            <div className="px-6 py-3 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={topProductsSearch}
+                  onChange={(e) => setTopProductsSearch(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-full"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-slate-500 font-medium">Sort by:</span>
+                <select
+                  value={topProductsSort}
+                  onChange={(e) => setTopProductsSort(e.target.value as any)}
+                  className="px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none"
+                >
+                  <option value="revenue">Highest Revenue</option>
+                  <option value="profit">Highest Profit</option>
+                  <option value="margin">Highest Margin %</option>
+                  <option value="sold">Most Units Sold</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              {(() => {
+                let list = topProducts.filter((p) =>
+                  (p.product?.name ?? "").toLowerCase().includes(topProductsSearch.toLowerCase())
+                );
+                list.sort((a, b) => {
+                  if (topProductsSort === "revenue") return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+                  if (topProductsSort === "profit") return (b.grossProfit ?? -Infinity) - (a.grossProfit ?? -Infinity);
+                  if (topProductsSort === "margin") return (b.marginPct ?? -Infinity) - (a.marginPct ?? -Infinity);
+                  if (topProductsSort === "sold") return (b.totalQuantitySold || 0) - (a.totalQuantitySold || 0);
+                  return 0;
+                });
+
+                if (list.length === 0) {
+                  return <div className="py-12 text-center text-slate-400 text-xs italic">No matching products found.</div>;
+                }
+
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <th className="text-left pb-3 pr-2">#</th>
+                          <th className="text-left pb-3 px-2">Product</th>
+                          <th className="text-right pb-3 px-2">Sold</th>
+                          <th className="text-right pb-3 px-2">Revenue</th>
+                          <th className="text-right pb-3 px-2">Cost</th>
+                          <th className="text-right pb-3 px-2">Profit</th>
+                          <th className="text-right pb-3 pl-2">Margin</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {list.map((item, idx) => (
+                          <tr key={item.product?.id ?? idx} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3 pr-2 font-mono font-bold text-slate-400">
+                              #{idx + 1}
+                            </td>
+                            <td className="py-3 px-2">
+                              <div className="flex items-center gap-3">
+                                {item.product?.image ? (
+                                  <img
+                                    src={item.product.image}
+                                    alt=""
+                                    className="w-9 h-9 rounded-xl object-cover border border-slate-200 flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-400">
+                                    <Package className="h-4 w-4" />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900 truncate max-w-[200px]">
+                                    {item.product?.name ?? "—"}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">
+                                    {item.product?.purchasePrice ? `Unit Cost: ${INR(item.product.purchasePrice)}` : <span className="text-amber-500">No cost set</span>}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 text-right font-medium text-slate-700">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[11px] font-bold text-slate-800">
+                                {item.totalQuantitySold}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-right font-bold text-slate-900 font-mono">
+                              {INR(item.totalRevenue)}
+                            </td>
+                            <td className="py-3 px-2 text-right text-amber-600 font-mono">
+                              {item.totalCost != null ? INR(item.totalCost) : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="py-3 px-2 text-right font-black font-mono">
+                              {item.grossProfit != null ? (
+                                <span className={item.grossProfit >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                                  {INR(item.grossProfit)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 pl-2 text-right">
+                              {item.marginPct != null ? (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold font-mono ${
+                                  item.marginPct >= 20 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : item.marginPct >= 10 ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200"
+                                }`}>
+                                  {item.marginPct}%
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Displaying up to 50 top revenue generating products within active date range</span>
+              <button
+                type="button"
+                onClick={() => setShowTopProductsModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Customer Insights Detail Modal ── */}
+      {showCustomerModal && customerInsights && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-scaleUp">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100 uppercase tracking-wide">
+                  Audience Acquisition &amp; Retention
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1.5">Customer Insights &amp; Top Spenders</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCustomerModal(false);
+                  setCustomerSearch("");
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-slate-600">
+                {customerInsights.topCustomers.length} Top Spenders Recorded
+              </span>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-56"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              {(() => {
+                const filtered = customerInsights.topCustomers.filter((c) =>
+                  (c.username ?? "").toLowerCase().includes(customerSearch.toLowerCase()) ||
+                  (c.email ?? "").toLowerCase().includes(customerSearch.toLowerCase())
+                );
+                if (filtered.length === 0) {
+                  return <div className="py-12 text-center text-slate-400 text-xs italic">No matching customers found.</div>;
+                }
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <th className="text-left pb-3 pr-2">Rank</th>
+                          <th className="text-left pb-3 px-2">Customer</th>
+                          <th className="text-center pb-3 px-2">Profile</th>
+                          <th className="text-right pb-3 px-2">Orders</th>
+                          <th className="text-right pb-3 px-2">Avg / Order</th>
+                          <th className="text-right pb-3 pl-2">Total Spend</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filtered.map((c, idx) => {
+                          const avgOrder = c.orders > 0 ? c.totalSpent / c.orders : 0;
+                          return (
+                            <tr key={c.id ?? idx} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3 pr-2 font-mono font-bold text-slate-400">
+                                #{idx + 1}
+                              </td>
+                              <td className="py-3 px-2">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 font-bold flex items-center justify-center font-mono text-xs">
+                                    {(c.username || "C").charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-slate-900 truncate max-w-[180px]">{c.username}</p>
+                                    <p className="text-[10px] text-slate-400 truncate">{c.email || "No email"}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-2 text-center">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                  c.isReturning
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                }`}>
+                                  {c.isReturning ? "Returning Buyer" : "New Customer"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-2 text-right font-medium text-slate-700">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[11px] font-bold">
+                                  {c.orders}
+                                </span>
+                              </td>
+                              <td className="py-3 px-2 text-right font-mono text-slate-600">
+                                {INR(Math.round(avgOrder))}
+                              </td>
+                              <td className="py-3 pl-2 text-right font-black font-mono text-slate-900 text-sm">
+                                {INR(c.totalSpent)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Customer spend figures scoped to the current filtered period</span>
+              <button
+                type="button"
+                onClick={() => setShowCustomerModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Category Breakdown Detail Modal ── */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-scaleUp">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-100 uppercase tracking-wide">
+                  Taxonomy Performance
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1.5">All Categories Breakdown</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setCategorySearch("");
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-slate-600">
+                {categories.length} Categories Recorded
+              </span>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 w-52"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+              {(() => {
+                const totalCatRev = categories.reduce((sum, c) => sum + (c.revenue || 0), 0);
+                const filtered = categories.filter((c) =>
+                  c.name.toLowerCase().includes(categorySearch.toLowerCase())
+                );
+                if (filtered.length === 0) {
+                  return <div className="py-12 text-center text-slate-400 text-xs italic">No matching categories found.</div>;
+                }
+                return (
+                  <div className="space-y-2.5">
+                    {filtered.map((cat, idx) => {
+                      const pct = totalCatRev > 0 ? ((cat.revenue / totalCatRev) * 100).toFixed(1) : "0";
+                      return (
+                        <div key={cat.id || idx} className="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/50 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-slate-900">{cat.name}</span>
+                            <div className="text-right">
+                              <span className="font-mono font-bold text-slate-900">{INR(cat.revenue)}</span>
+                              <span className="ml-2 font-mono font-bold text-indigo-600">{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-200/70 h-2 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          {cat.unitsSold !== undefined && (
+                            <p className="text-[10px] text-slate-400">{cat.unitsSold} units fulfilled</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sales by Location Detail Modal ── */}
+      {showLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-scaleUp">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-100 uppercase tracking-wide">
+                  Geographical Distribution
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1.5">Sales by Shipping Location</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowLocationModal(false);
+                  setLocationSearch("");
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-slate-600">
+                {salesByLocation.length} Shipping Destinations
+              </span>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search state..."
+                  value={locationSearch}
+                  onChange={(e) => setLocationSearch(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-52"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              {(() => {
+                const totalLocRev = salesByLocation.reduce((sum, l) => sum + (l.revenue || 0), 0);
+                const filtered = salesByLocation.filter((l) =>
+                  (l.state ?? "").toLowerCase().includes(locationSearch.toLowerCase())
+                );
+                if (filtered.length === 0) {
+                  return <div className="py-12 text-center text-slate-400 text-xs italic">No shipping regions match your query.</div>;
+                }
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <th className="text-left pb-3 pr-2">#</th>
+                          <th className="text-left pb-3 px-2">State / Territory</th>
+                          <th className="text-right pb-3 px-2">Orders</th>
+                          <th className="text-right pb-3 px-2">Avg / Order</th>
+                          <th className="text-right pb-3 px-2">Revenue Share</th>
+                          <th className="text-right pb-3 pl-2">Total Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filtered.map((loc, idx) => {
+                          const avgOrder = loc.orders > 0 ? loc.revenue / loc.orders : 0;
+                          const pct = totalLocRev > 0 ? ((loc.revenue / totalLocRev) * 100).toFixed(1) : "0";
+                          return (
+                            <tr key={loc.state ?? idx} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3 pr-2 font-mono font-bold text-slate-400">#{idx + 1}</td>
+                              <td className="py-3 px-2">
+                                <div className="flex items-center gap-2 font-bold text-slate-900">
+                                  <MapPin className="h-3.5 w-3.5 text-teal-600 flex-shrink-0" />
+                                  <span>{loc.state || "Unknown State"}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-2 text-right font-medium text-slate-700">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[11px] font-bold">
+                                  {loc.orders}
+                                </span>
+                              </td>
+                              <td className="py-3 px-2 text-right font-mono text-slate-600">
+                                {INR(Math.round(avgOrder))}
+                              </td>
+                              <td className="py-3 px-2 text-right font-mono font-bold text-teal-600">
+                                {pct}%
+                              </td>
+                              <td className="py-3 pl-2 text-right font-black font-mono text-slate-900 text-sm">
+                                {INR(loc.revenue)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowLocationModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Coupon Performance Detail Modal ── */}
+      {showCouponModal && couponPerformance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-scaleUp">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100 uppercase tracking-wide">
+                  Promotion Analytics
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1.5">Coupon Performance Ledger</h3>
+              </div>
+              <button
+                onClick={() => setShowCouponModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-100">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Total Redemptions</p>
+                  <p className="text-2xl font-black font-mono text-amber-950 mt-1">{couponPerformance.totalRedemptions}</p>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Total Discount Given</p>
+                  <p className="text-2xl font-black font-mono text-emerald-950 mt-1">{INR(couponPerformance.totalDiscountGiven)}</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <th className="text-left pb-3">Coupon Code</th>
+                      <th className="text-right pb-3 px-3">Redemptions</th>
+                      <th className="text-right pb-3 px-3">Avg Savings</th>
+                      <th className="text-right pb-3 pl-3">Total Discount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {couponPerformance.topCoupons.map((c, i) => {
+                      const avgDisc = c.redemptions > 0 ? c.discountGiven / c.redemptions : 0;
+                      return (
+                        <tr key={`${c.code}-${i}`} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3 font-mono font-bold text-slate-900 flex items-center gap-1.5">
+                            <Ticket className="h-3.5 w-3.5 text-amber-500" />
+                            {c.code}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-medium text-slate-700">{c.redemptions}</td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-500">{INR(Math.round(avgDisc))}</td>
+                          <td className="py-3 pl-3 text-right font-black font-mono text-amber-600 text-sm">{INR(c.discountGiven)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCouponModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

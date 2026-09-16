@@ -19,6 +19,7 @@ import {
   Receipt,
   ShoppingBag,
   QrCode,
+  RotateCcw,
 } from "lucide-react";
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,24 @@ const PAYMENT_STATUS_CFG: Record<string, { cls: string; icon: React.ReactElement
   REFUNDED: { cls: "bg-violet-500 text-white border-violet-600", icon: <CreditCard className="w-3.5 h-3.5" /> },
 };
 
-const PaymentStatusBadge = ({ status }: { status: string }) => {
+const PaymentStatusBadge = ({
+  status,
+  orderStatus,
+  paymentMethod,
+}: {
+  status: string;
+  orderStatus?: string;
+  paymentMethod?: string;
+}) => {
+  const isCod = paymentMethod === "POD" || paymentMethod === "COD" || paymentMethod === "CASH";
+
+  if (orderStatus === "CANCELLED" && status === "PENDING" && isCod) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border shadow-sm bg-slate-100 text-slate-600 border-slate-200">
+        <XCircle className="w-3.5 h-3.5 text-slate-400" /> No Payment Made
+      </span>
+    );
+  }
   const { cls, icon } = PAYMENT_STATUS_CFG[status] ?? PAYMENT_STATUS_CFG.PENDING;
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border shadow-sm ${cls}`}>
@@ -75,6 +93,7 @@ const ORDER_STATUS_CFG: Record<string, { cls: string; icon: React.ReactElement; 
   SHIPPED: { cls: "bg-cyan-50 text-cyan-700 border-cyan-200", icon: <Truck className="w-3.5 h-3.5" />, label: "Shipped" },
   DELIVERED: { cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <Package className="w-3.5 h-3.5" />, label: "Delivered" },
   CANCELLED: { cls: "bg-red-50 text-red-700 border-red-200", icon: <XCircle className="w-3.5 h-3.5" />, label: "Cancelled" },
+  RETURNED: { cls: "bg-purple-50 text-purple-700 border-purple-200", icon: <RotateCcw className="w-3.5 h-3.5" />, label: "Returned" },
 };
 
 const OrderStatusBadge = ({ status }: { status: string }) => {
@@ -412,7 +431,7 @@ export default function TransactionHistory() {
                                 {fmt(tx.finalAmount)}
                               </td>
                               <td className="px-5 py-4"><OrderStatusBadge status={tx.orderStatus} /></td>
-                              <td className="px-5 py-4"><PaymentStatusBadge status={tx.paymentStatus} /></td>
+                              <td className="px-5 py-4"><PaymentStatusBadge status={tx.paymentStatus} orderStatus={tx.orderStatus} paymentMethod={tx.paymentMethod} /></td>
                               <td className="px-5 py-4"><PaymentMethodBadge method={tx.paymentMethod} /></td>
                               <td className="px-5 py-4 text-center">
                                 {isOpen ? (
@@ -466,7 +485,7 @@ export default function TransactionHistory() {
                         </div>
                         <div className="flex flex-wrap gap-1.5 mt-3">
                           <OrderStatusBadge status={tx.orderStatus} />
-                          <PaymentStatusBadge status={tx.paymentStatus} />
+                          <PaymentStatusBadge status={tx.paymentStatus} orderStatus={tx.orderStatus} paymentMethod={tx.paymentMethod} />
                           <PaymentMethodBadge method={tx.paymentMethod} />
                         </div>
                       </div>

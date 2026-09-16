@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { domainUrl } from "../utils/constant";
@@ -28,6 +29,8 @@ import {
   MoreVertical,
   Package,
   Eye,
+  Maximize2,
+  Camera,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useStaffPermissions } from "../context/StaffPermissionContext";
@@ -242,6 +245,7 @@ const ListCategory = () => {
     image: null,
   });
   const [imagePreview, setImagePreview] = useState("");
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -511,9 +515,14 @@ const ListCategory = () => {
 
     if (name === "image") {
       const file = files?.[0];
-      setFormData((prev) => ({ ...prev, image: file || null }));
-
       if (file) {
+        if (file.size > 1024 * 1024) {
+          toast.dismiss();
+          toast.error("Image size must be less than 1 MB.");
+          const input = document.getElementById("updateImage") as HTMLInputElement | null;
+          if (input) input.value = "";
+          return;
+        }
         // Revoke old URL to prevent memory leaks if switching images
         if (imagePreview && imagePreview.startsWith("blob:")) {
           URL.revokeObjectURL(imagePreview);
@@ -525,10 +534,21 @@ const ListCategory = () => {
       } else {
         // If file input is cleared but we had a file selected
         setImagePreview(selectedCategory?.image || "");
+        setFormData((prev) => ({ ...prev, image: null }));
       }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handleRevertImage = () => {
+    if (imagePreview && imagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setFormData((prev) => ({ ...prev, image: null }));
+    setImagePreview(selectedCategory?.image || "");
+    const input = document.getElementById("updateImage") as HTMLInputElement | null;
+    if (input) input.value = "";
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -637,6 +657,7 @@ const ListCategory = () => {
   // Helper to close and reset state for Edit Modal
   const closeEditModal = () => {
     setShowEditModal(false);
+    setLightboxImage(null);
     // Cleanup blob URL if one was created
     if (imagePreview && imagePreview.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
@@ -1151,6 +1172,7 @@ const ListCategory = () => {
           <Listproducts
             embedded
             lockedCategoryId={currentFolderId}
+            lockedCategoryName={currentFolderCategory?.name}
             onAddProduct={() => setShowAddProductModal(true)}
             key={`${currentFolderId}-${productsRefreshKey}`}
           />
@@ -1235,9 +1257,9 @@ const ListCategory = () => {
 
             <form onSubmit={handleUpdate} className="flex-1 min-h-0 flex flex-col">
               <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px]">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
                   {/* LEFT — form fields */}
-                  <div className="px-6 md:px-8 py-6 space-y-6 lg:border-r border-slate-100">
+                  <div className="min-w-0 px-6 md:px-8 py-6 space-y-6 lg:border-r border-slate-100">
                     {/* Code + Image only apply to root categories, which still get shown to
                         customers as their own browsable tile — a subcategory only exists to
                         narrow products down as a filter, so it has no use for either. */}
@@ -1305,10 +1327,10 @@ const ListCategory = () => {
                         </label>
                         <label
                           htmlFor="updateImage"
-                          className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/30 hover:bg-slate-50/50 cursor-pointer transition-all duration-200"
+                          className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-200 hover:border-slate-300 rounded-xl bg-slate-50/30 hover:bg-slate-50/60 cursor-pointer transition-all duration-200 min-w-0"
                         >
-                          <Upload className="h-8 w-8 text-slate-400 mb-3" />
-                          <span className="text-sm font-medium text-slate-700 text-center">
+                          <Upload className="h-8 w-8 text-slate-400 mb-2 shrink-0" />
+                          <span className="text-sm font-medium text-slate-700 text-center max-w-full truncate px-4 block">
                             {formData.image
                               ? formData.image.name
                               : "Click to upload new image"}
@@ -1317,6 +1339,21 @@ const ListCategory = () => {
                             PNG, JPG, WEBP up to 1MB
                           </span>
                         </label>
+                        {formData.image && (
+                          <div className="flex items-center justify-between mt-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs min-w-0">
+                            <span className="text-emerald-700 font-medium truncate mr-2" title={formData.image.name}>
+                              Selected: {formData.image.name} ({(formData.image.size / 1024 / 1024).toFixed(2)} MB)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleRevertImage}
+                              className="text-rose-600 hover:text-rose-700 font-bold shrink-0 cursor-pointer"
+                            >
+                              Revert
+                            </button>
+                          </div>
+                        )}
+
                         <input
                           type="file"
                           id="updateImage"
@@ -1330,7 +1367,7 @@ const ListCategory = () => {
                   </div>
 
                   {/* RIGHT — live preview, mirrors the real card markup from the grid above */}
-                  <div className={`px-6 md:px-8 py-6 ${selectedCategory?.parentId ? "bg-indigo-50/20" : "bg-slate-50/60"}`}>
+                  <div className={`w-full lg:w-[360px] shrink-0 px-6 md:px-8 py-6 ${selectedCategory?.parentId ? "bg-indigo-50/20" : "bg-slate-50/60"}`}>
                     <div className="lg:sticky lg:top-0 space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
                         <Eye className="h-3.5 w-3.5" />
@@ -1347,9 +1384,19 @@ const ListCategory = () => {
                             </div>
                           </div>
                         ) : (
-                          <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200">
+                          <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 group">
                             {imagePreview ? (
-                              <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                              <>
+                                <img src={imagePreview} alt="" className="w-full h-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => setLightboxImage(imagePreview)}
+                                  className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-black/60 hover:bg-black/85 text-white shadow-md backdrop-blur-sm transition-all cursor-pointer hover:scale-105"
+                                  title="Full View"
+                                >
+                                  <Maximize2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
                             ) : (
                               <div className="flex h-full w-full flex-col items-center justify-center gap-2">
                                 <div className="p-3 rounded-full bg-slate-200/50">
@@ -1639,6 +1686,43 @@ const ListCategory = () => {
         categoryName={attributesModalCategory?.name}
         categoryPath={attributesModalCategory?.path}
       />
+
+      {/* Lightbox Modal for Full View */}
+      {lightboxImage && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[90vh] bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/50">
+              <div className="flex items-center gap-2 text-white">
+                <ImageIcon className="h-4 w-4 text-indigo-400" />
+                <span className="text-sm font-bold truncate">Category Image — Full View</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-black/40 min-h-[300px]">
+              <img
+                src={lightboxImage}
+                alt="Category full view"
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl shadow-lg select-none"
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -25,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { compressImage } from "../utils/compressImage";
+import { calculateDiscountedPrice, calculateDiscountAmount } from "../utils/product";
 
 interface ValidationField {
   isValid: boolean;
@@ -1036,35 +1037,141 @@ export default function AddProductModal({
                           <ValidationIndicator isValid={validation.stock.isValid} message={validation.stock.message} />
                         </div>
 
-                        {/* Discount */}
+                        {/* Discount, Discount Amount & Final Offer Price */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-semibold text-slate-800">Discount %</label>
-                            <span className="text-xs font-medium text-slate-500">Optional — 0 to 100</span>
-                          </div>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              name="discount"
-                              value={formData.discount}
-                              onChange={handleChange}
-                              placeholder="Eg: 10"
-                              min={0}
-                              max={100}
-                              step="any"
-                              className="w-full pl-4 pr-10 py-3.5 rounded-xl border border-slate-200 bg-white/50 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent transition-all duration-200"
-                            />
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                              {validation.discount.isValid && formData.discount ? (
-                                <CheckCircle className="h-4 w-4 text-emerald-500" />
-                              ) : formData.discount ? (
-                                <AlertCircle className="h-4 w-4 text-amber-500" />
-                              ) : (
-                                <span className="text-xs text-slate-400 font-semibold">%</span>
-                              )}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {/* Discount % */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-semibold text-slate-800">Discount %</label>
+                                <span className="text-xs font-medium text-slate-500">0 to 100</span>
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  name="discount"
+                                  value={formData.discount}
+                                  onChange={handleChange}
+                                  placeholder="Eg: 23.85"
+                                  min={0}
+                                  max={100}
+                                  step="any"
+                                  className="w-full pl-4 pr-10 py-3.5 rounded-xl border border-slate-200 bg-white/50 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent transition-all duration-200"
+                                />
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                  {validation.discount.isValid && formData.discount ? (
+                                    <CheckCircle className="h-4 w-4 text-emerald-500" />
+                                  ) : formData.discount ? (
+                                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                                  ) : (
+                                    <span className="text-xs text-slate-400 font-semibold">%</span>
+                                  )}
+                                </div>
+                              </div>
+                              <ValidationIndicator isValid={validation.discount.isValid} message={validation.discount.message} />
+                            </div>
+
+                            {/* Discount Amount (₹ off) */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-semibold text-slate-800">Discount Amount</label>
+                                <span className="text-xs font-semibold text-amber-600">₹ off</span>
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min={0}
+                                  max={parseFloat(String(formData.price || 0)) || undefined}
+                                  placeholder="e.g. 119"
+                                  disabled={!formData.price || parseFloat(String(formData.price)) <= 0}
+                                  value={
+                                    formData.price && formData.discount !== "" && parseFloat(String(formData.discount)) > 0
+                                      ? calculateDiscountAmount(formData.price, formData.discount)
+                                      : ""
+                                  }
+                                  onChange={(e) => {
+                                    const discAmt = parseFloat(e.target.value);
+                                    const basePrice = parseFloat(String(formData.price || 0));
+                                    if (isNaN(discAmt) || e.target.value === "") {
+                                      setFormData((prev) => ({ ...prev, discount: "" }));
+                                    } else if (basePrice > 0) {
+                                      const boundedDiscAmt = Math.max(0, Math.min(basePrice, discAmt));
+                                      const calculatedDiscount = (boundedDiscAmt / basePrice) * 100;
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        discount: calculatedDiscount > 0 ? Number(calculatedDiscount.toFixed(2)).toString() : "0",
+                                      }));
+                                    }
+                                  }}
+                                  className="w-full pl-4 pr-10 py-3.5 rounded-xl border border-amber-200 bg-amber-50/30 text-amber-900 font-semibold focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-transparent transition-all duration-200 disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-600 font-semibold">
+                                  ₹
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Final Offer Price (₹) Calculator */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-semibold text-slate-800">Final Offer Price</label>
+                                <span className="text-xs font-semibold text-emerald-600">Selling ₹</span>
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min={0}
+                                  max={parseFloat(String(formData.price || 0)) || undefined}
+                                  placeholder={
+                                    formData.price && parseFloat(String(formData.price)) > 0
+                                      ? `e.g. ${Math.round(parseFloat(String(formData.price)) * 0.8)}`
+                                      : "Enter MRP first"
+                                  }
+                                  disabled={!formData.price || parseFloat(String(formData.price)) <= 0}
+                                  value={
+                                    formData.price && formData.discount !== "" && parseFloat(String(formData.discount)) >= 0
+                                      ? calculateDiscountedPrice(formData.price, formData.discount)
+                                      : ""
+                                  }
+                                  onChange={(e) => {
+                                    const offerVal = parseFloat(e.target.value);
+                                    const basePrice = parseFloat(String(formData.price || 0));
+                                    if (isNaN(offerVal) || e.target.value === "") {
+                                      setFormData((prev) => ({ ...prev, discount: "" }));
+                                    } else if (basePrice > 0) {
+                                      const boundedOffer = Math.max(0, Math.min(basePrice, offerVal));
+                                      const calculatedDiscount = ((basePrice - boundedOffer) / basePrice) * 100;
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        discount: calculatedDiscount > 0 ? Number(calculatedDiscount.toFixed(2)).toString() : "0",
+                                      }));
+                                    }
+                                  }}
+                                  className="w-full pl-4 pr-10 py-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 text-emerald-900 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-transparent transition-all duration-200 disabled:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-emerald-600 font-semibold">
+                                  ₹
+                                </span>
+                              </div>
                             </div>
                           </div>
-                          <ValidationIndicator isValid={validation.discount.isValid} message={validation.discount.message} />
+
+                          {/* Live discount amount readout */}
+                          {formData.price !== "" && parseFloat(String(formData.price)) > 0 && formData.discount !== "" && parseFloat(String(formData.discount)) > 0 && (
+                            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs px-3.5 py-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-slate-700">
+                              <span>
+                                MRP: <span className="line-through font-mono font-semibold">₹{formData.price}</span>
+                              </span>
+                              <span className="font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                Discount: ₹{calculateDiscountAmount(formData.price, formData.discount)} ({formData.discount}%)
+                              </span>
+                              <span className="font-bold text-emerald-950 font-mono">
+                                Customer pays: ₹{calculateDiscountedPrice(formData.price, formData.discount)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -1158,9 +1265,10 @@ export default function AddProductModal({
                               <button
                                 type="button"
                                 onClick={() => removeAdditionalImage(i)}
-                                className="absolute top-1 right-1 bg-black/60 hover:bg-rose-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all"
+                                className="absolute top-1.5 right-1.5 p-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white shadow-sm transition-all cursor-pointer opacity-90 sm:opacity-0 sm:group-hover:opacity-100 flex items-center justify-center"
+                                title="Remove image"
                               >
-                                <X className="h-2.5 w-2.5" />
+                                <Trash2 className="h-3 w-3" />
                               </button>
                               <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[8px] rounded px-1">{i + 1}</div>
                             </div>
@@ -1435,6 +1543,7 @@ export default function AddProductModal({
                                   type="number"
                                   min={0}
                                   max={100}
+                                  step="any"
                                   placeholder="0"
                                   value={draft.discountOverride ?? ""}
                                   onChange={(e) => setField("discountOverride", e.target.value)}

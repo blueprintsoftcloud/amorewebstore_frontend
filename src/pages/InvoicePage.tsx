@@ -77,6 +77,7 @@ const statusMeta: Record<string, { label: string; color: string; icon: typeof Cl
   SHIPPED:    { label: "Shipped",    color: "#0891b2", icon: Truck },
   DELIVERED:  { label: "Delivered",  color: "#16a34a", icon: Package },
   CANCELLED:  { label: "Cancelled",  color: "#dc2626", icon: XCircle },
+  RETURNED:   { label: "Returned",   color: "#7c3aed", icon: RotateCcw },
 };
 
 const paymentStatusMeta: Record<string, { label: string; color: string }> = {

@@ -12,7 +12,7 @@ export default function NotificationSlideOver({
   open,
   onClose,
 }: NotificationSlideOverProps) {
-  const { notifications, markAsRead, markAllRead } = useNotifications();
+  const { notifications, markAsRead, markAllRead, clearAllNotifications } = useNotifications();
 
   return (
     <Transition show={open} as={Fragment}>
@@ -50,15 +50,24 @@ export default function NotificationSlideOver({
                           Notifications
                         </Dialog.Title>
 
-                        {/* ✅ NEW: Mark All as Read Button */}
-                        {notifications.some((n) => !n.isRead) && (
-                          <button
-                            onClick={markAllRead}
-                            className="text-xs text-pink-600 hover:text-pink-800 font-medium mt-1 underline"
-                          >
-                            Mark all as read
-                          </button>
-                        )}
+                        <div className="flex items-center gap-3 mt-1">
+                          {notifications.some((n) => !n.isRead) && (
+                            <button
+                              onClick={markAllRead}
+                              className="text-xs text-pink-600 hover:text-pink-800 font-medium underline cursor-pointer"
+                            >
+                              Mark all as read
+                            </button>
+                          )}
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={clearAllNotifications}
+                              className="text-xs text-gray-400 hover:text-red-600 font-medium underline cursor-pointer"
+                            >
+                              Clear all
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <button

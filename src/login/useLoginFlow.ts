@@ -1,4 +1,4 @@
-﻿// src/login/useLoginFlow.ts
+// src/login/useLoginFlow.ts
 // Encapsulates all login/OTP/forgot-password state and async handlers.
 // The Login component is kept as a pure presentational shell.
 
@@ -80,7 +80,7 @@ export function useLoginFlow() {
   }, [timer]);
 
   // ── Helpers ───────────────────────────────────────────────────────
-  const startTimer = () => setTimer(300);
+  const startTimer = () => setTimer(120); // 2 minutes resend cooldown
   const clearOtp = () => setOtp("");
 
   /** Format seconds as MM:SS */

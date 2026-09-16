@@ -14,6 +14,7 @@ import {
   ClipboardDocumentListIcon,
   CreditCardIcon,
   MagnifyingGlassIcon,
+  TruckIcon,
 } from "@heroicons/react/24/outline";
 import {
   HeartIcon as HeartSolid,
@@ -27,6 +28,7 @@ import { useBranding } from "../context/BrandingContext";
 import { useUserNotifications } from "../context/UserNotificationContext";
 import { useNotifications } from "../context/NotificationContext";
 import CustomerAuthModal from "./CustomerAuthModal";
+import TrackShippingModal from "./TrackShippingModal";
 import CategoryMegaMenu from "./CategoryMegaMenu";
 import toast from "react-hot-toast";
 import api from "../utils/api";
@@ -68,6 +70,9 @@ const Navbar = ({
     notifications: userNotifications,
     unreadCount: userUnreadCount,
     markAsRead,
+    markAllRead: markAllUserRead,
+    deleteNotification: deleteUserNotification,
+    clearAllNotifications: clearAllUserNotifications,
   } = useUserNotifications();
   const { unreadCount: adminUnreadCount } = useNotifications();
 
@@ -82,6 +87,26 @@ const Navbar = ({
   const [scrolled, setScrolled] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [customerAuthOpen, setCustomerAuthOpen] = useState(false);
+  const [trackShippingOpen, setTrackShippingOpen] = useState(false);
+  const [trackingNavConfig, setTrackingNavConfig] = useState<{
+    enabled: boolean;
+    enabledPartners: string[];
+  }>(() => {
+    try {
+      const cached = localStorage.getItem("CACHED_TRACKING_CONFIG");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          enabled: parsed?.enabled !== false,
+          enabledPartners: Array.isArray(parsed?.enabledPartners) ? parsed.enabledPartners : [],
+        };
+      }
+    } catch {}
+    return {
+      enabled: true,
+      enabledPartners: [],
+    };
+  });
   const headerRef = useRef<HTMLElement>(null);
 
   // --- NAVBAR TEMPLATE CONFIG ---
@@ -103,6 +128,25 @@ const Navbar = ({
   });
 
   const activeTemplate = (navbarConfig?.activeTemplate || 1) as 1 | 2 | 3 | 4 | 5 | 6;
+
+  // Fetch active tracking partners configuration
+  useEffect(() => {
+    api
+      .get("/settings/tracking-partners")
+      .then(({ data }) => {
+        if (data) {
+          const config = {
+            enabled: data.enabled !== false,
+            enabledPartners: Array.isArray(data.enabledPartners) ? data.enabledPartners : [],
+          };
+          setTrackingNavConfig(config);
+          try {
+            localStorage.setItem("CACHED_TRACKING_CONFIG", JSON.stringify(data));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch active navbar template from backend
   useEffect(() => {
@@ -322,9 +366,33 @@ const Navbar = ({
     navigate(path);
   };
 
-  const navigation = [
+  interface NavItem {
+    name: string;
+    href: string;
+    protected: boolean;
+    icon: any;
+    isAction?: boolean;
+    onClick?: (e: React.MouseEvent) => void;
+  }
+
+  const navigation: NavItem[] = [
     { name: "Home", href: "/", protected: false, icon: HomeIcon },
     { name: "Products", href: "/products", protected: false, icon: CubeIcon },
+    ...(trackingNavConfig.enabled !== false
+      ? [
+          {
+            name: "Shipment Tracking",
+            href: "#track-shipping",
+            protected: false,
+            icon: TruckIcon,
+            isAction: true,
+            onClick: (e: React.MouseEvent) => {
+              e.preventDefault();
+              setTrackShippingOpen(true);
+            },
+          },
+        ]
+      : []),
     ...(isAuthenticated
       ? [
           {
@@ -410,23 +478,23 @@ const Navbar = ({
   const getSearchInputClass = () => {
     switch (activeTemplate) {
       case 1: // Dark Professional
-        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white/5 border border-white/10 rounded-xl text-xs xl:text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 focus:border-[var(--theme-primary)]/60 focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-300 ease-out";
+        return "w-36 lg:w-44 xl:w-56 focus:w-64 pl-9 pr-8 py-2 bg-white/5 border border-white/10 rounded-xl text-xs xl:text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 focus:border-[var(--theme-primary)]/60 focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-300 ease-out";
 
       case 2: // Light Editorial
-        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white border border-gray-300/80 rounded-lg text-xs xl:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/25 transition-all duration-200";
+        return "w-36 lg:w-44 xl:w-56 focus:w-64 pl-9 pr-8 py-2 bg-white border border-gray-300/80 rounded-lg text-xs xl:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[var(--theme-primary)] focus:ring-2 focus:ring-[var(--theme-primary)]/25 transition-all duration-200";
 
       case 3: // Gradient with Aurora Accent
-        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white/10 border border-white/20 rounded-full text-xs xl:text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)] focus:bg-white/15 transition-all duration-300 ease-out";
+        return "w-36 lg:w-44 xl:w-56 focus:w-64 pl-9 pr-8 py-2 bg-white/10 border border-white/20 rounded-full text-xs xl:text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)] focus:bg-white/15 transition-all duration-300 ease-out";
 
       case 4: // Minimal Centered
-        return "w-40 lg:w-48 xl:w-60 focus:w-68 pl-9 pr-8 py-2 lg:py-2.5 bg-gray-50/90 hover:bg-gray-100/80 border-0 rounded-full text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[var(--theme-primary)]/40 focus:bg-white transition-all duration-300";
+        return "w-32 lg:w-40 xl:w-52 focus:w-60 pl-8 pr-7 py-1.5 lg:py-2 bg-gray-50/90 hover:bg-gray-100/80 border-0 rounded-full text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[var(--theme-primary)]/40 focus:bg-white transition-all duration-300";
 
       case 5: // Festive Accent Band
-        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-white/20 border border-white/25 rounded-xl text-xs xl:text-sm text-[var(--theme-primary-ink)] placeholder-[var(--theme-primary-ink)]/60 focus:outline-none focus:bg-white focus:text-gray-900 focus:placeholder-gray-400 transition-all duration-300";
+        return "w-36 lg:w-44 xl:w-56 focus:w-64 pl-9 pr-8 py-2 bg-white/20 border border-white/25 rounded-xl text-xs xl:text-sm text-[var(--theme-primary-ink)] placeholder-[var(--theme-primary-ink)]/60 focus:outline-none focus:bg-white focus:text-gray-900 focus:placeholder-gray-400 transition-all duration-300";
 
       case 6: // Split Statement
       default:
-        return "w-44 lg:w-56 xl:w-68 focus:w-76 pl-10 pr-9 py-2.5 lg:py-3 bg-gray-100/90 hover:bg-gray-100 border-0 rounded-2xl text-xs xl:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:bg-white transition-all duration-300 shadow-xs";
+        return "w-36 lg:w-44 xl:w-56 focus:w-64 pl-9 pr-8 py-2 bg-gray-100/90 hover:bg-gray-100 border-0 rounded-2xl text-xs xl:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:bg-white transition-all duration-300 shadow-xs";
     }
   };
 
@@ -513,7 +581,17 @@ const Navbar = ({
   };
 
   const renderDesktopNavLink = (item: (typeof navigation)[number]) => {
-    const active = isActive(item.href);
+    const active = !item.isAction && isActive(item.href);
+
+    const handleClick = (e: React.MouseEvent) => {
+      if (item.isAction && item.onClick) {
+        item.onClick(e);
+        return;
+      }
+      if (item.protected && !isAuthenticated) {
+        handleGatedNavigation(e, item.href, true);
+      }
+    };
 
     switch (activeTemplate) {
       case 1: // Dark Professional (Floating pill with micro-lift)
@@ -521,15 +599,11 @@ const Navbar = ({
           <Link
             key={item.name}
             to={item.href}
-            onClick={(e) =>
-              item.protected && !isAuthenticated
-                ? handleGatedNavigation(e, item.href, true)
-                : null
-            }
-            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer ${
+            onClick={handleClick}
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer whitespace-nowrap shrink-0 ${
               active
-                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-lg shadow-[var(--theme-primary)]/25 px-4.5 py-2 lg:py-2.5 rounded-xl scale-100"
-                : "text-zinc-400 hover:text-[var(--theme-primary)] hover:bg-white/10 px-4 py-2 lg:py-2.5 rounded-xl font-semibold hover:-translate-y-0.5 active:scale-95"
+                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-lg shadow-[var(--theme-primary)]/25 px-3.5 xl:px-4 py-1.5 lg:py-2 rounded-xl scale-100"
+                : "text-zinc-400 hover:text-[var(--theme-primary)] hover:bg-white/10 px-3 xl:px-3.5 py-1.5 lg:py-2 rounded-xl font-semibold hover:-translate-y-0.5 active:scale-95"
             }`}
           >
             {item.name}
@@ -541,12 +615,8 @@ const Navbar = ({
           <Link
             key={item.name}
             to={item.href}
-            onClick={(e) =>
-              item.protected && !isAuthenticated
-                ? handleGatedNavigation(e, item.href, true)
-                : null
-            }
-            className={`relative flex flex-col items-center justify-center uppercase tracking-widest text-[11px] lg:text-xs px-4 py-2.5 lg:py-3 transition-all duration-300 ease-out cursor-pointer group ${
+            onClick={handleClick}
+            className={`relative flex flex-col items-center justify-center uppercase tracking-wider text-[10px] lg:text-[11px] xl:text-xs px-2.5 lg:px-3.5 py-2 transition-all duration-300 ease-out cursor-pointer group whitespace-nowrap shrink-0 ${
               active
                 ? "text-gray-950 font-bold"
                 : "text-gray-500 hover:text-[var(--theme-primary)] font-semibold"
@@ -566,15 +636,11 @@ const Navbar = ({
           <Link
             key={item.name}
             to={item.href}
-            onClick={(e) =>
-              item.protected && !isAuthenticated
-                ? handleGatedNavigation(e, item.href, true)
-                : null
-            }
-            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-300 ease-out cursor-pointer ${
+            onClick={handleClick}
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-300 ease-out cursor-pointer whitespace-nowrap shrink-0 ${
               active
-                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-bold px-5 py-2 lg:py-2.5 rounded-full shadow-lg shadow-[var(--theme-primary)]/30"
-                : "text-indigo-200/80 hover:text-white hover:bg-white/10 px-4.5 py-2 lg:py-2.5 rounded-full font-semibold hover:shadow-[0_0_12px_rgba(99,102,241,0.3)]"
+                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-bold px-3.5 xl:px-4.5 py-1.5 lg:py-2 rounded-full shadow-lg shadow-[var(--theme-primary)]/30"
+                : "text-indigo-200/80 hover:text-white hover:bg-white/10 px-3 xl:px-3.5 py-1.5 lg:py-2 rounded-full font-semibold hover:shadow-[0_0_12px_rgba(99,102,241,0.3)]"
             }`}
           >
             {item.name}
@@ -586,12 +652,8 @@ const Navbar = ({
           <Link
             key={item.name}
             to={item.href}
-            onClick={(e) =>
-              item.protected && !isAuthenticated
-                ? handleGatedNavigation(e, item.href, true)
-                : null
-            }
-            className={`relative flex items-center uppercase tracking-widest text-[11px] lg:text-xs px-3.5 py-2 lg:py-2.5 transition-all duration-300 ease-out cursor-pointer ${
+            onClick={handleClick}
+            className={`relative flex items-center uppercase tracking-wider text-[10px] lg:text-[11px] xl:text-xs px-2.5 lg:px-3.5 py-1.5 lg:py-2 transition-all duration-300 ease-out cursor-pointer whitespace-nowrap shrink-0 ${
               active
                 ? "text-black font-bold relative after:content-[''] after:absolute after:-bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-[var(--theme-primary)] after:rounded-full"
                 : "text-gray-400 hover:text-[var(--theme-primary)] font-medium"
@@ -606,15 +668,11 @@ const Navbar = ({
           <Link
             key={item.name}
             to={item.href}
-            onClick={(e) =>
-              item.protected && !isAuthenticated
-                ? handleGatedNavigation(e, item.href, true)
-                : null
-            }
-            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-200 cursor-pointer ${
+            onClick={handleClick}
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${
               active
-                ? "bg-white text-gray-900 font-black shadow-md rounded-xl px-4.5 py-2 lg:py-2.5 scale-100"
-                : "text-[var(--theme-primary-ink)]/75 hover:text-[var(--theme-primary-ink)] hover:bg-black/10 px-4 py-2 lg:py-2.5 rounded-xl font-bold"
+                ? "bg-white text-gray-900 font-black shadow-md rounded-xl px-3.5 xl:px-4 py-1.5 lg:py-2 scale-100"
+                : "text-[var(--theme-primary-ink)]/75 hover:text-[var(--theme-primary-ink)] hover:bg-black/10 px-3 xl:px-3.5 py-1.5 lg:py-2 rounded-xl font-bold"
             }`}
           >
             {item.name}
@@ -627,15 +685,11 @@ const Navbar = ({
           <Link
             key={item.name}
             to={item.href}
-            onClick={(e) =>
-              item.protected && !isAuthenticated
-                ? handleGatedNavigation(e, item.href, true)
-                : null
-            }
-            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-200 ease-out cursor-pointer ${
+            onClick={handleClick}
+            className={`relative flex items-center text-xs lg:text-sm tracking-tight transition-all duration-200 ease-out cursor-pointer whitespace-nowrap shrink-0 ${
               active
-                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-lg shadow-[var(--theme-primary)]/20 px-4.5 py-2 lg:py-2.5 rounded-2xl scale-100"
-                : "text-gray-600 hover:text-[var(--theme-primary)] hover:bg-gray-100/90 px-4 py-2 lg:py-2.5 rounded-2xl font-black hover:scale-105 active:scale-95"
+                ? "bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] font-black shadow-lg shadow-[var(--theme-primary)]/20 px-3.5 xl:px-4 py-1.5 lg:py-2 rounded-2xl scale-100"
+                : "text-gray-600 hover:text-[var(--theme-primary)] hover:bg-gray-100/90 px-3 xl:px-3.5 py-1.5 lg:py-2 rounded-2xl font-black hover:scale-105 active:scale-95"
             }`}
           >
             {item.name}
@@ -653,10 +707,10 @@ const Navbar = ({
         <nav
           className={`relative z-20 w-full transition-all duration-500 ${getNavContainerClass()}`}
         >
-          <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1720px] px-4 sm:px-6 lg:px-8 xl:px-12">
             <div className="flex items-center justify-between min-h-[46px] sm:min-h-[52px] lg:min-h-[58px]">
               {/* LEFT: Logo & Mobile Menu */}
-              <div className="flex items-center gap-2.5 sm:gap-4 lg:gap-8 flex-shrink-0 my-auto">
+              <div className="flex items-center gap-2.5 sm:gap-4 lg:gap-6 flex-shrink-0 my-auto lg:mr-8 xl:mr-12">
                 <button
                   type="button"
                   className={`lg:hidden p-2.5 rounded-xl transition-all duration-300 group my-auto cursor-pointer ${getHamburgerClass()}`}
@@ -676,9 +730,9 @@ const Navbar = ({
                     className="h-10 sm:h-11 md:h-13 lg:h-15 w-auto max-w-[160px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[280px] object-contain transition-all duration-300 filter brightness-110 my-auto group-hover:scale-102"
                   />
                   {(branding.showCompanyName || branding.showCompanyTagline) && (
-                    <div className="hidden sm:flex items-center pl-1">
+                    <div className="hidden sm:flex items-center pl-1.5">
                       <div
-                        className={`h-7 sm:h-8 lg:h-9 w-[1.5px] mx-3 sm:mx-3.5 transition-colors duration-300 shrink-0 ${
+                        className={`h-7 sm:h-8 lg:h-9 w-[1.5px] mx-2.5 sm:mx-3 transition-colors duration-300 shrink-0 ${
                           isDark
                             ? "bg-white/20"
                             : isThemeBand
@@ -708,7 +762,7 @@ const Navbar = ({
               </div>
 
               {/* CENTER: Desktop Navigation Links */}
-              <div className="hidden lg:flex items-center gap-1.5 xl:gap-2.5">
+              <div className="hidden lg:flex items-center gap-1.5 xl:gap-3">
                 {navigation.map((item) => renderDesktopNavLink(item))}
               </div>
 
@@ -1133,18 +1187,46 @@ const Navbar = ({
                                     : "border-gray-100"
                                 }`}
                               >
-                                <h3 className="font-semibold text-sm">
-                                  Notifications
-                                </h3>
-                                {unreadCount > 0 && (
-                                  <span className="text-xs bg-rose-500/10 text-rose-500 rounded-full px-2.5 py-0.5 font-semibold border border-rose-500/10">
-                                    {unreadCount} new
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-sm">
+                                    Notifications
+                                  </h3>
+                                  {unreadCount > 0 && (
+                                    <span className="text-xs bg-rose-500/10 text-rose-500 rounded-full px-2.5 py-0.5 font-semibold border border-rose-500/10">
+                                      {unreadCount} new
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2.5">
+                                  {unreadCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        markAllUserRead();
+                                      }}
+                                      className="text-xs font-semibold text-rose-500 hover:text-rose-600 hover:underline cursor-pointer transition-colors"
+                                    >
+                                      Mark all read
+                                    </button>
+                                  )}
+                                  {userNotifications.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        clearAllUserNotifications();
+                                      }}
+                                      className="text-xs text-gray-400 hover:text-rose-500 hover:underline cursor-pointer transition-colors"
+                                    >
+                                      Clear all
+                                    </button>
+                                  )}
+                                </div>
                               </div>
 
                               <div
-                                className={`max-h-72 overflow-y-auto divide-y ${
+                                className={`max-h-80 overflow-y-auto divide-y ${
                                   isDark
                                     ? "divide-zinc-800/80"
                                     : "divide-gray-100"
@@ -1155,14 +1237,12 @@ const Navbar = ({
                                     No notifications yet
                                   </p>
                                 ) : (
-                                  userNotifications
-                                    .slice(0, 8)
-                                    .map((n) => {
+                                  userNotifications.map((n) => {
                                       const id = n.id ?? n._id;
                                       return (
-                                        <button
+                                        <div
                                           key={id}
-                                          className={`w-full text-left px-4 py-3 transition-colors flex items-start gap-2.5 cursor-pointer ${
+                                          className={`w-full text-left px-4 py-3 transition-colors flex items-start justify-between gap-2 group cursor-pointer ${
                                             !n.isRead
                                               ? isDark
                                                 ? "bg-white/5 hover:bg-white/10"
@@ -1180,39 +1260,54 @@ const Navbar = ({
                                             );
                                           }}
                                         >
-                                          {!n.isRead && (
-                                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
-                                          )}
-                                          <div
-                                            className={
-                                              n.isRead ? "pl-4" : ""
-                                            }
-                                          >
-                                            <p
-                                              className={`text-sm leading-snug line-clamp-2 ${
-                                                !n.isRead
-                                                  ? "font-semibold"
-                                                  : isDark
-                                                  ? "text-zinc-400"
-                                                  : "text-gray-600"
-                                              }`}
-                                            >
-                                              {n.message}
-                                            </p>
-                                            {n.createdAt && (
-                                              <p className="text-xs text-gray-400 mt-0.5">
-                                                {new Date(
-                                                  n.createdAt
-                                                ).toLocaleString("en-IN", {
-                                                  day: "numeric",
-                                                  month: "short",
-                                                  hour: "2-digit",
-                                                  minute: "2-digit",
-                                                })}
-                                              </p>
+                                          <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                            {!n.isRead && (
+                                              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
                                             )}
+                                            <div
+                                              className={
+                                                n.isRead ? "pl-4" : ""
+                                              }
+                                            >
+                                              <p
+                                                className={`text-sm leading-snug line-clamp-2 ${
+                                                  !n.isRead
+                                                    ? "font-semibold"
+                                                    : isDark
+                                                    ? "text-zinc-400"
+                                                    : "text-gray-600"
+                                                }`}
+                                              >
+                                                {n.message}
+                                              </p>
+                                              {n.createdAt && (
+                                                <p className="text-xs text-gray-400 mt-0.5">
+                                                  {new Date(
+                                                    n.createdAt
+                                                  ).toLocaleString("en-IN", {
+                                                    day: "numeric",
+                                                    month: "short",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                  })}
+                                                </p>
+                                              )}
+                                            </div>
                                           </div>
-                                        </button>
+                                          {id && (
+                                            <button
+                                              type="button"
+                                              title="Delete notification"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteUserNotification(id);
+                                              }}
+                                              className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-rose-500 rounded transition-all shrink-0 cursor-pointer"
+                                            >
+                                              <XMarkIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                          )}
+                                        </div>
                                       );
                                     })
                                 )}
@@ -1593,13 +1688,15 @@ const Navbar = ({
                 <div className="space-y-1">
                   {navigation.map((item) => {
                     const Icon = item.icon;
-                    const active = isActive(item.href);
+                    const active = !item.isAction && isActive(item.href);
                     return (
                       <Link
                         key={item.name}
                         to={item.href}
                         onClick={(e) => {
-                          if (item.protected && !isAuthenticated) {
+                          if (item.isAction && item.onClick) {
+                            item.onClick(e);
+                          } else if (item.protected && !isAuthenticated) {
                             handleGatedNavigation(e, item.href, true);
                           }
                           setMobileMenuOpen(false);
@@ -1732,6 +1829,12 @@ const Navbar = ({
           </div>
         </Dialog>
       </header>
+
+      <TrackShippingModal
+        isOpen={trackShippingOpen}
+        onClose={() => setTrackShippingOpen(false)}
+        initialPartners={trackingNavConfig.enabledPartners}
+      />
 
       <CustomerAuthModal
         open={customerAuthOpen}

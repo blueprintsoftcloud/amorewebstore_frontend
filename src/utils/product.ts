@@ -56,3 +56,53 @@ export const normalizeProduct = <T extends Record<string, unknown>>(input: T) =>
       ) ?? "",
   };
 };
+
+/**
+ * Cleanly calculate discounted price and discount amount with smart rounding
+ * to eliminate 1-paisa floating point / percentage rounding artifacts
+ * (e.g. MRP ₹499 with 23.85% discount resolves to exact ₹119.00 discount and ₹380.00 customer price).
+ */
+export const calculateDiscountDetails = (price: number | string, discount: number | string) => {
+  const p = typeof price === "number" ? price : parseFloat(String(price || 0));
+  const d = typeof discount === "number" ? discount : parseFloat(String(discount || 0));
+
+  if (!p || isNaN(p) || p <= 0) {
+    return { finalPrice: 0, discountAmount: 0, discountPercent: 0 };
+  }
+  if (!d || isNaN(d) || d <= 0) {
+    return { finalPrice: p, discountAmount: 0, discountPercent: 0 };
+  }
+
+  const rawDiscountAmount = (p * d) / 100;
+  const rawFinalPrice = p - rawDiscountAmount;
+
+  // If base price is an integer, percentage rounding to 2 decimals can cause an error up to p * 0.00006.
+  // Snapping eliminates ugly .99 / .01 floating-point drift while preserving genuine paise.
+  const roundFinal = Math.round(rawFinalPrice);
+  const maxRoundingArtifact = Number.isInteger(p) ? Math.max(0.05, p * 0.00006) : 0.02;
+
+  let finalPrice: number;
+  let discountAmount: number;
+
+  if (Math.abs(rawFinalPrice - roundFinal) <= maxRoundingArtifact) {
+    finalPrice = roundFinal;
+    discountAmount = Number.isInteger(p) ? Math.round(p - finalPrice) : Math.round((p - finalPrice) * 100) / 100;
+  } else {
+    finalPrice = Math.round(rawFinalPrice * 100) / 100;
+    discountAmount = Math.round((p - finalPrice) * 100) / 100;
+  }
+
+  return {
+    finalPrice,
+    discountAmount,
+    discountPercent: d,
+  };
+};
+
+export const calculateDiscountedPrice = (price: number | string, discount: number | string): number => {
+  return calculateDiscountDetails(price, discount).finalPrice;
+};
+
+export const calculateDiscountAmount = (price: number | string, discount: number | string): number => {
+  return calculateDiscountDetails(price, discount).discountAmount;
+};

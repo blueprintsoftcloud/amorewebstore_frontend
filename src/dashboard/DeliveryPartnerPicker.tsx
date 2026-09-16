@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MagnifyingGlassIcon, PlusCircleIcon, TruckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import api from "../utils/api";
+import CourierLogo from "../components/CourierLogo";
 
 interface DeliveryPartner {
   id: string;
@@ -20,31 +21,8 @@ interface DeliveryPartnerPickerProps {
   onChange: (value: DeliveryPartnerValue | null) => void;
 }
 
-const AVATAR_PALETTE = [
-  "bg-indigo-100 text-indigo-700",
-  "bg-blue-100 text-blue-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-amber-100 text-amber-700",
-  "bg-rose-100 text-rose-700",
-  "bg-violet-100 text-violet-700",
-  "bg-cyan-100 text-cyan-700",
-  "bg-orange-100 text-orange-700",
-];
-
-const avatarClass = (name: string) => {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-};
-
 const PartnerAvatar = ({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) => (
-  <div
-    className={`shrink-0 rounded-full flex items-center justify-center font-bold ${avatarClass(name)} ${
-      size === "md" ? "w-9 h-9 text-sm" : "w-7 h-7 text-[11px]"
-    }`}
-  >
-    {name.trim().charAt(0).toUpperCase() || "?"}
-  </div>
+  <CourierLogo name={name} size={size === "md" ? "md" : "xs"} />
 );
 
 const HighlightMatch = ({ name, query }: { name: string; query: string }) => {
@@ -66,6 +44,8 @@ const MODE_TABS: { key: PickerMode; label: string; icon: typeof MagnifyingGlassI
   { key: "new", label: "Add New", icon: PlusCircleIcon },
   { key: "manual", label: "Manual", icon: TruckIcon },
 ];
+
+const POPULAR_PARTNERS = ["Delhivery", "Blue Dart", "DTDC", "Shadowfax", "FedEx", "India Post (Speed Post)"];
 
 export default function DeliveryPartnerPicker({ value, onChange }: DeliveryPartnerPickerProps) {
   const [mode, setMode] = useState<PickerMode>("existing");
@@ -91,21 +71,25 @@ export default function DeliveryPartnerPicker({ value, onChange }: DeliveryPartn
         setLoading(false);
         setHasSearched(true);
       }
-    }, val.trim() ? 300 : 0);
+    }, val.trim() ? 250 : 0);
   };
+
+  useEffect(() => {
+    runSearch("");
+  }, []);
 
   const handleSearch = (val: string) => {
     setSearch(val);
     setHighlighted(0);
+    setOpen(true);
     if (value?.mode === "existing") onChange(null);
     runSearch(val);
   };
 
-  // Browse the full list on focus, before the admin types anything — richer than
-  // forcing a search keystroke before showing any options at all.
+  // Browse the full list on focus, before the admin types anything
   const handleFocus = () => {
     setOpen(true);
-    if (!hasSearched) runSearch(search);
+    if (results.length === 0) runSearch(search);
   };
 
   useEffect(() => {
@@ -125,9 +109,12 @@ export default function DeliveryPartnerPicker({ value, onChange }: DeliveryPartn
   const switchMode = (next: PickerMode) => {
     setMode(next);
     setSearch("");
-    setResults([]);
-    setHasSearched(false);
-    setOpen(false);
+    if (next === "existing") {
+      runSearch("");
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
     onChange(next === "manual" ? { mode: "manual" } : null);
   };
 
@@ -221,6 +208,30 @@ export default function DeliveryPartnerPicker({ value, onChange }: DeliveryPartn
                 ) : null}
               </div>
 
+              {/* Popular quick-pick chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">Quick pick:</span>
+                {POPULAR_PARTNERS.map((name) => {
+                  const partner = results.find((r) => r.name.toLowerCase() === name.toLowerCase());
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        if (partner) {
+                          selectExisting(partner);
+                        } else {
+                          handleSearch(name);
+                        }
+                      }}
+                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 transition active:scale-95 border border-transparent hover:border-indigo-200"
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+
               {open && (
                 <div className="absolute z-20 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-900/10 overflow-hidden animate-fadeIn">
                   {results.length > 0 ? (
@@ -267,25 +278,47 @@ export default function DeliveryPartnerPicker({ value, onChange }: DeliveryPartn
         </div>
       )}
 
-      {mode === "new" && (
-        <div>
-          <div className="relative">
-            <PlusCircleIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              autoFocus
-              placeholder="New delivery partner name…"
-              value={value?.mode === "new" ? value.name : ""}
-              onChange={(e) => {
-                const name = e.target.value;
-                onChange(name.trim() ? { mode: "new", name } : null);
-              }}
-              className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
-            />
+      {mode === "new" && (() => {
+        const typedName = value?.mode === "new" ? value.name.trim().toLowerCase() : "";
+        const match = results.find((p) => typedName && p.name.toLowerCase() === typedName);
+        return (
+          <div>
+            <div className="relative">
+              <PlusCircleIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="New delivery partner name…"
+                value={value?.mode === "new" ? value.name : ""}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  onChange(name.trim() ? { mode: "new", name } : null);
+                }}
+                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+              />
+            </div>
+            {match ? (
+              <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 animate-fadeIn">
+                <p className="text-xs text-emerald-900 font-medium">
+                  <strong>{match.name}</strong> is already installed!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("existing");
+                    selectExisting(match);
+                  }}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs shrink-0"
+                >
+                  Select "{match.name}"
+                </button>
+              </div>
+            ) : (
+              <p className="mt-1.5 text-[11px] text-gray-400 pl-1">Saved to your delivery partner list for future orders.</p>
+            )}
           </div>
-          <p className="mt-1.5 text-[11px] text-gray-400 pl-1">Saved to your delivery partner list for future orders.</p>
-        </div>
-      )}
+        );
+      })()}
 
       {mode === "manual" && (
         <div className="flex items-start gap-2.5 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 animate-fadeIn">

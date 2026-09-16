@@ -68,6 +68,8 @@ api.interceptors.response.use(
     const AUTH_NO_RETRY_URLS = [
       "/auth/refresh",
       "/auth/login",
+      "/auth/mobile/login",
+      "/auth/mobile/register",
       "/auth/forgot-password",
       "/auth/verify-reset-otp",
       "/auth/reset-password",

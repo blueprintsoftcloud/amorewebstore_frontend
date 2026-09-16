@@ -8,6 +8,7 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  selectedOptions?: Record<string, string>;
 }
 
 interface OrderSummaryProps {
@@ -56,10 +57,24 @@ const OrderSummary = ({
 
       <ul className="space-y-2 text-sm">
         {cartItems.map((item) => (
-          <li key={item._id} className="flex justify-between">
-            <span>
-              {item.name} × {item.quantity}
-            </span>
+          <li key={item._id} className="flex justify-between items-start">
+            <div>
+              <span>
+                {item.name} × {item.quantity}
+              </span>
+              {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                <p
+                  className="text-xs text-gray-500 font-medium line-clamp-2 break-words leading-relaxed cursor-help"
+                  title={Object.entries(item.selectedOptions)
+                    .map(([axis, value]) => `${axis}: ${value}`)
+                    .join(" · ")}
+                >
+                  {Object.entries(item.selectedOptions)
+                    .map(([axis, value]) => `${axis}: ${value}`)
+                    .join(" · ")}
+                </p>
+              )}
+            </div>
             <span>₹{item.price * item.quantity}</span>
           </li>
         ))}

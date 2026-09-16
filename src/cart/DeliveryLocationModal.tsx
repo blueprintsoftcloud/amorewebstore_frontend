@@ -681,6 +681,11 @@ const customIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+const INDIA_BOUNDS: [[number, number], [number, number]] = [
+  [6.5, 68.0],
+  [37.5, 97.5],
+];
+
 /** Invisible component that listens for map clicks — lets the preview-phase map
  * re-point the pin instead of only being a static confirmation image. */
 function MapClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
@@ -787,6 +792,10 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
       .catch(() => setSavedAddress(null));
   }, [isOpen]);
 
+const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
+  return lat >= 6.0 && lat <= 38.0 && lng >= 68.0 && lng <= 98.0;
+};
+
   // ── Location handlers ──────────────────────────────────────────────────────
 
   const handleSelectGPS = () => {
@@ -802,6 +811,14 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
         const { latitude, longitude } = data;
         if (latitude === undefined || longitude === undefined) throw new Error("Invalid coordinates");
         
+        if (!isWithinIndiaBoundingBox(latitude, longitude)) {
+          toast.dismiss(toastId);
+          toast.error("Detected location is outside India. Delivery is only available in India.");
+          setLocMode(null);
+          setGpsLoading(false);
+          return;
+        }
+
         setGpsCoords([latitude, longitude]);
         const res = await api.post("/address/preview-shipping", { latitude, longitude });
         setPreview({ ...res.data, lat: latitude, lng: longitude });
@@ -809,9 +826,10 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
         setPhase("preview");
         toast.dismiss(toastId);
         toast.success("Location estimated via IP successfully!");
-      } catch (e) {
+      } catch (e: any) {
         toast.dismiss(toastId);
-        toast.error("Could not estimate location. Please enter manually.");
+        const msg = e.response?.data?.message || "Could not estimate location. Please enter manually.";
+        toast.error(msg);
         setLocMode(null);
       } finally {
         setGpsLoading(false);
@@ -826,14 +844,21 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         const { latitude, longitude } = coords;
+        if (!isWithinIndiaBoundingBox(latitude, longitude)) {
+          toast.error("Detected location is outside India. Delivery is only available in India.");
+          setLocMode(null);
+          setGpsLoading(false);
+          return;
+        }
         setGpsCoords([latitude, longitude]);
         try {
           const res = await api.post("/address/preview-shipping", { latitude, longitude });
           setPreview({ ...res.data, lat: latitude, lng: longitude });
           setPosition([latitude, longitude]);
           setPhase("preview");
-        } catch {
-          toast.error("Failed to calculate shipping for your location");
+        } catch (err: any) {
+          const msg = err.response?.data?.message || "Failed to calculate shipping for your location";
+          toast.error(msg);
           setLocMode(null);
         }
         setGpsLoading(false);
@@ -928,14 +953,19 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
   // starting the whole flow over — recalculates shipping (district-aware) for wherever
   // they clicked, same as a fresh GPS detection would.
   const handleRepositionPin = async (lat: number, lng: number) => {
+    if (!isWithinIndiaBoundingBox(lat, lng)) {
+      toast.error("Please select a delivery location inside India.");
+      return;
+    }
     setRepositioning(true);
     try {
       const res = await api.post("/address/preview-shipping", { latitude: lat, longitude: lng });
       setPreview({ ...res.data, lat, lng });
       setPosition([lat, lng]);
       setLocMode("gps");
-    } catch {
-      toast.error("Failed to recalculate shipping for that spot");
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Failed to recalculate shipping for that spot";
+      toast.error(msg);
     } finally {
       setRepositioning(false);
     }
@@ -974,6 +1004,7 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
           : locMode === "saved"
             ? (savedAddress?.fullAddress || `${savedAddress?.city}, ${savedAddress?.state}`)
             : (manualForm.fullAddress || `${manualForm.city}, ${manualForm.state}`),
+        detectedArea: locMode === "gps" ? (preview.address || "") : "",
         city: locMode === "saved"
           ? (savedAddress?.city || "")
           : locMode === "gps"
@@ -996,7 +1027,12 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
 
       onClose();
       navigate("/checkout", {
-        state: { addressPrefill, shippingCharge: preview.shippingCharge, buyNowProductId: product?.id },
+        state: {
+          addressPrefill,
+          shippingCharge: preview.shippingCharge,
+          buyNowProductId: product?.id,
+          buyNowVariantId: product?.variantId,
+        },
       });
     } catch (err: any) {
       if (err?.message !== "Not authenticated") {
@@ -1275,6 +1311,9 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
                         <MapContainer
                           center={position}
                           zoom={15}
+                          minZoom={4}
+                          maxBounds={INDIA_BOUNDS}
+                          maxBoundsViscosity={1.0}
                           style={{ height: "100%", width: "100%", cursor: repositioning ? "wait" : "pointer" }}
                           zoomControl={!repositioning}
                           dragging={!repositioning}
@@ -1284,7 +1323,11 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
                           boxZoom={false}
                           keyboard={false}
                         >
-                          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                          <TileLayer
+                            attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+                            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                          />
                           <Marker position={position} icon={customIcon} />
                           <MapRecenter center={position} />
                           {!repositioning && <MapClickHandler onPick={handleRepositionPin} />}
