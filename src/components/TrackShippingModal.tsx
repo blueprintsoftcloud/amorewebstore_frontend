@@ -324,7 +324,7 @@ export default function TrackShippingModal({
     };
   }, [isOpen]);
 
-  const handleTrack = async (e?: React.FormEvent) => {
+  const handleTrack = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
     const cleanNumber = trackingNumber.trim();
@@ -340,12 +340,10 @@ export default function TrackShippingModal({
       return;
     }
 
-    // Auto-copy tracking number to clipboard
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(cleanNumber);
-      }
-    } catch {}
+    // Auto-copy tracking number to clipboard in background without awaiting (preserves user gesture)
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(cleanNumber).catch(() => {});
+    }
 
     const customTemplate = partnerDetails.find(
       (p) => p.name.toLowerCase() === partnerToUse.toLowerCase()
@@ -353,10 +351,14 @@ export default function TrackShippingModal({
 
     const { url: targetUrl } = resolveCourierUrl(partnerToUse, cleanNumber, customTemplate);
 
-    const newWindow = window.open(targetUrl, "_blank", "noopener,noreferrer");
-    if (!newWindow || newWindow.closed || typeof newWindow.closed === "undefined") {
-      window.location.href = targetUrl;
-    }
+    // Open courier tracking in a new tab without redirecting or replacing current site
+    const link = document.createElement("a");
+    link.href = targetUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
     onClose();
   };

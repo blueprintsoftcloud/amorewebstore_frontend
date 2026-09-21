@@ -25,19 +25,32 @@ export function OrganizationJsonLd() {
   if (typeof window === "undefined" || !branding.companyName) return null;
 
   const origin = window.location.origin;
-  const data: Record<string, unknown> = {
+  const orgData: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": seo.orgType || "Organization",
     name: branding.companyName,
     url: origin,
   };
-  if (branding.companyLogo) data.logo = branding.companyLogo;
-  if (seo.orgAddress) data.address = seo.orgAddress;
-  if (seo.orgPhone) data.telephone = seo.orgPhone;
-  if (seo.orgEmail) data.email = seo.orgEmail;
-  if (seo.socialLinks.length) data.sameAs = seo.socialLinks;
+  if (branding.companyLogo) orgData.logo = branding.companyLogo;
+  if (seo.orgAddress) orgData.address = seo.orgAddress;
+  if (seo.orgPhone) orgData.telephone = seo.orgPhone;
+  if (seo.orgEmail) orgData.email = seo.orgEmail;
+  if (seo.socialLinks.length) orgData.sameAs = seo.socialLinks;
 
-  return jsonLdScript(data);
+  const websiteData: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: branding.companyName,
+    alternateName: ["Amore", "amorewebstore.com", branding.companyName],
+    url: origin,
+  };
+
+  return (
+    <>
+      {jsonLdScript(orgData)}
+      {jsonLdScript(websiteData)}
+    </>
+  );
 }
 
 interface ProductJsonLdProps {

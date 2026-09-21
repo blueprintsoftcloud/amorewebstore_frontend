@@ -28,22 +28,29 @@ export default function PageSeo({ title, description, image, path, noIndex }: Pa
   const { branding } = useBranding();
 
   const siteName = branding.companyName || "";
-  const resolvedTitle = seo.titleTemplate
-    ? seo.titleTemplate.includes("%s")
+  let resolvedTitle = title;
+  if (seo.titleTemplate) {
+    resolvedTitle = seo.titleTemplate.includes("%s")
       ? seo.titleTemplate.replace("%s", title)
-      : `${title} | ${seo.titleTemplate}`
-    : siteName
-      ? `${title} | ${siteName}`
-      : title;
+      : `${title} | ${seo.titleTemplate}`;
+  } else if (siteName) {
+    if (title === siteName || title === "Home" || path === "/") {
+      resolvedTitle = seo.homeTitle?.trim() || siteName;
+    } else {
+      resolvedTitle = `${title} | ${siteName}`;
+    }
+  }
 
   const resolvedDescription = description?.trim() || seo.defaultDescription || undefined;
   const resolvedImage = image || seo.defaultOgImage || undefined;
   const canonicalPath = path ?? (typeof window !== "undefined" ? window.location.pathname : "/");
   const canonicalUrl = typeof window !== "undefined" ? `${window.location.origin}${canonicalPath}` : undefined;
+  const faviconHref = branding.companyFavicon || "/vite.svg";
 
   return (
     <Helmet>
       <title>{resolvedTitle}</title>
+      {faviconHref && <link rel="icon" href={faviconHref} />}
       {resolvedDescription && <meta name="description" content={resolvedDescription} />}
       {seo.keywords && <meta name="keywords" content={seo.keywords} />}
       {noIndex && <meta name="robots" content="noindex, nofollow" />}

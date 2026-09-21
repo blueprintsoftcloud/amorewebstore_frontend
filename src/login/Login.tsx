@@ -20,6 +20,7 @@ import {
   type LoginFlowState,
 } from "./useLoginFlow";
 import { useBranding } from "../context/BrandingContext";
+import PageSeo from "../components/seo/PageSeo";
 
 // ── Theme tokens (CSS custom properties set globally by ThemeProvider) ────────
 const PRIMARY = "var(--theme-primary)";
@@ -569,9 +570,9 @@ function LeftPanel({
   companyTagline: string;
   logoSrc: string;
 }) {
-  const name = companyName || "Storra";
+  const name = companyName || "Store";
   const tagline =
-    companyTagline || "Your ultimate sustainable fashion destination";
+    companyTagline || "Welcome to our store";
 
   return (
     <div
@@ -705,6 +706,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen bg-[#f4f6f3] overflow-hidden">
+      <PageSeo title="Admin Login" path="/login" noIndex />
       {/* ── Left decorative panel ── */}
       <LeftPanel
         companyName={branding.companyName}
@@ -809,7 +811,7 @@ export default function Login() {
 
         <p className="mt-6 text-xs text-gray-400 z-10">
           © {new Date().getFullYear()}{" "}
-          {branding.companyName || "Storra"}. All rights reserved.
+          {branding.companyName || "Store"}. All rights reserved.
         </p>
       </main>
     </div>

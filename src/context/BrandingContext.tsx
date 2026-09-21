@@ -90,23 +90,23 @@ export const BrandingProvider = ({ children }: { children: ReactNode }) => {
 
   // Sync browser tab title and favicon whenever branding changes
   useEffect(() => {
-    if (branding.companyName) {
+    if (branding.companyName && !document.title) {
       document.title = branding.companyName;
     }
     if (branding.companyFavicon) {
-      let link = document.getElementById("app-favicon") as HTMLLinkElement | null;
-      if (!link) {
-        link = document.querySelector<HTMLLinkElement>("link[rel='icon'], link[rel='shortcut icon']");
-      }
-      if (!link) {
-        link = document.createElement("link");
+      try {
+        const existingIcons = document.querySelectorAll<HTMLLinkElement>(
+          "link[rel*='icon'], link#app-favicon"
+        );
+        existingIcons.forEach((el) => el.remove());
+
+        const link = document.createElement("link");
         link.id = "app-favicon";
         link.rel = "icon";
-        document.head.appendChild(link);
-      }
-      const absoluteFaviconUrl = new URL(branding.companyFavicon, window.location.origin).href;
-      if (link.href !== absoluteFaviconUrl) {
         link.href = branding.companyFavicon;
+        document.head.appendChild(link);
+      } catch {
+        // Fallback for non-standard environments
       }
     }
   }, [branding.companyName, branding.companyFavicon]);

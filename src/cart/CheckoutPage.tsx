@@ -53,6 +53,7 @@ const validateTransactionId = (val: string) => {
 };
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
+import { useBranding } from "../context/BrandingContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../utils/api";
 import CancellationFeedbackModal, { SurveyItemSnapshot } from "../components/CancellationFeedbackModal";
@@ -140,6 +141,7 @@ function MapClickHandler({
 
 const CheckoutPage = () => {
   const { user } = useAuth();
+  const { branding } = useBranding();
   const { cartItems, cartTotal, clearCart, fetchCart } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -554,7 +556,7 @@ const CheckoutPage = () => {
         key: razorpayKey,
         amount: res.data.rzpOrder.amount,
         currency: "INR",
-        name: "Amore Webstore",
+        name: branding.companyName || "Store",
         description: "Order payment",
         order_id: res.data.rzpOrder.id,
         method: {
@@ -562,7 +564,7 @@ const CheckoutPage = () => {
           netbanking: true,
           wallet: true,
           paylater: true,
-          upi: false,
+          upi: true,
         },
         retry: {
           enabled: false,

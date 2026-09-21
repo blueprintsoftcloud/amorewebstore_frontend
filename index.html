@@ -2,38 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link id="app-favicon" rel="icon" type="image/svg+xml" href="/vite.svg" />
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <!-- Best-effort baseline for crawlers that don't execute JS at all — every page
-         overrides these via react-helmet-async (see PageSeo.tsx) once React mounts. -->
-    <meta name="description" content="Shop online — quality products, fast delivery." />
-    <meta property="og:type" content="website" />
-    <link href="/src/style.css" rel="stylesheet" />
-    <title>Online Store</title>
     <script>
       (function() {
         try {
           var cache = localStorage.getItem("crm_branding_cache");
           if (cache) {
             var data = JSON.parse(cache);
-            if (data.companyName) {
+            if (data && data.companyName) {
               document.title = data.companyName;
             }
-            if (data.companyFavicon) {
-              var link = document.getElementById("app-favicon") || document.querySelector("link[rel='icon']") || document.querySelector("link[rel='shortcut icon']");
-              if (link) {
-                var absoluteFaviconUrl = new URL(data.companyFavicon, window.location.origin).href;
-                if (link.href !== absoluteFaviconUrl) {
-                  link.href = data.companyFavicon;
-                }
+            if (data && data.companyFavicon) {
+              var existingIcons = document.querySelectorAll("link[rel*='icon']");
+              for (var i = 0; i < existingIcons.length; i++) {
+                existingIcons[i].parentNode.removeChild(existingIcons[i]);
               }
+              var link = document.createElement("link");
+              link.id = "app-favicon";
+              link.rel = "icon";
+              link.href = data.companyFavicon;
+              document.head.appendChild(link);
             }
           }
         } catch (e) {}
       })();
     </script>
+    <link id="app-favicon" rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="description" content="Crafted by leading air freshener manufacturers, Amor brings high-quality, refreshing scents to your space. Order yours today!" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Amore Webstore" />
+    <link href="/src/style.css" rel="stylesheet" />
+    <title>Amore Webstore</title>
   </head>
   <body>
     <div id="root"></div>

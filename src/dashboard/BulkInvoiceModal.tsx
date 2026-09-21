@@ -130,7 +130,7 @@ export default function BulkInvoiceModal({
   }, [orderIds, unprintedOnly]);
 
   const totalValue = orders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
-  const companyName = company.COMPANY_NAME || "Storra Store";
+  const companyName = company.COMPANY_NAME || "Store";
   const companyTagline = company.COMPANY_TAGLINE || "Official Invoice";
 
   const fmtCurrency = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
