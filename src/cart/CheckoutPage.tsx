@@ -903,11 +903,6 @@ const CheckoutPage = () => {
       return;
     }
 
-    if (!cleanTxId && !qrScreenshotFile) {
-      toast.error("Please enter a valid 12-digit UTR or upload a payment screenshot.");
-      return;
-    }
-
     setQrSubmitting(true);
     const toastId = toast.loading("Submitting your order...");
 
@@ -1785,12 +1780,12 @@ const CheckoutPage = () => {
                     )}
                     <div>
                       <h3 className="text-base font-black text-gray-900 tracking-tight">
-                        {qrModalStep === "SCAN" ? "Scan QR to Pay" : "Verify Payment"}
+                        {qrModalStep === "SCAN" ? "Scan QR to Pay" : "Verify Payment (Optional)"}
                       </h3>
                       <p className="text-[11px] text-gray-500 font-medium">
                         {qrModalStep === "SCAN"
                           ? "Step 1: Scan with any UPI app"
-                          : "Step 2: Enter transaction proof"}
+                          : "Step 2: Enter transaction proof (Optional)"}
                       </p>
                     </div>
                   </div>
@@ -1888,18 +1883,19 @@ const CheckoutPage = () => {
                 {qrModalStep === "SUBMIT" && (() => {
                   const txStatus = validateTransactionId(qrTransactionId);
                   const isTxIdProvided = qrTransactionId.trim().length > 0;
-                  const canSubmitQr = (isTxIdProvided && txStatus.isValid) || (!isTxIdProvided && !!qrScreenshotFile) || (isTxIdProvided && txStatus.isValid && !!qrScreenshotFile);
+                  const canSubmitQr = !isTxIdProvided || txStatus.isValid;
 
                   return (
                     <div className="mt-4 space-y-4">
                       <p className="text-xs text-gray-500 font-medium">
-                        Enter your UPI Transaction ID (UTR) or attach the payment screenshot:
+                        Enter your UPI Transaction ID (UTR) or attach the payment screenshot <span className="text-purple-600 font-semibold">(optional)</span>:
                       </p>
 
                       {/* Transaction ID input */}
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-700 block">
-                          Transaction ID / UTR Number
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center justify-between">
+                          <span>Transaction ID / UTR Number</span>
+                          <span className="text-[10px] text-gray-400 font-semibold normal-case">Optional</span>
                         </label>
 
                         <div className="relative">
@@ -1909,7 +1905,7 @@ const CheckoutPage = () => {
                             maxLength={12}
                             value={qrTransactionId}
                             onChange={(e) => setQrTransactionId(e.target.value.slice(0, 12))}
-                            placeholder="e.g. 12-digit UTR (4239XXXXXXXX)"
+                            placeholder="e.g. 12-digit UTR (4239XXXXXXXX) — Optional"
                             className={`w-full px-4 py-2.5 pr-10 rounded-xl border text-xs font-mono outline-none transition-all ${
                               !isTxIdProvided
                                 ? "border-gray-200 focus:border-purple-600 focus:ring-2 focus:ring-purple-600/10"
@@ -1941,7 +1937,7 @@ const CheckoutPage = () => {
                           </p>
                         ) : (
                           <p className="text-[10px] text-gray-400">
-                            Standard UPI UTR is 12 digits (found on GPay, PhonePe, Paytm, or bank receipt).
+                            Optional. Standard UPI UTR is 12 digits (found on GPay, PhonePe, Paytm, or bank receipt).
                           </p>
                         )}
                       </div>
@@ -1954,8 +1950,9 @@ const CheckoutPage = () => {
 
                       {/* Screenshot upload */}
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase tracking-wider text-gray-700 block">
-                          Payment Screenshot
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center justify-between">
+                          <span>Payment Screenshot</span>
+                          <span className="text-[10px] text-gray-400 font-semibold normal-case">Optional</span>
                         </label>
                         {qrScreenshotPreview ? (
                           <div className="relative rounded-2xl border border-gray-200 bg-gray-50 p-3 flex items-center gap-3">
