@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import { createPortal } from "react-dom";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { PulseLoader } from "react-spinners";
 import { FaUserCircle } from "react-icons/fa";
 import logo123 from "../assets/logo.png";
 import api from "../utils/api";
@@ -29,6 +28,7 @@ import {
   HomeIcon,
   XMarkIcon,
   TagIcon,
+  CubeIcon,
   ShoppingBagIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -62,6 +62,26 @@ function buildNav(permissions: StaffPermission[]): NavItem[] {
     { name: "Dashboard", href: "/staff-dashboard", icon: HomeIcon },
   ];
 
+  if (has("ORDER_VIEW", "ORDER_UPDATE")) {
+    items.push({
+      name: "Order Management",
+      href: "/staff-dashboard/order-management",
+      icon: ShoppingBagIcon,
+    });
+  }
+
+  if (
+    has(
+      "PRODUCT_VIEW", "PRODUCT_ADD", "PRODUCT_EDIT", "PRODUCT_DELETE",
+    )
+  ) {
+    items.push({
+      name: "Products & Stock",
+      href: "/staff-dashboard/products",
+      icon: CubeIcon,
+    });
+  }
+
   // Category Management + Product Management merged into one Catalog Management
   // browser (see categories/Listcategory.tsx) — shown for either permission group,
   // since which contextual actions (add subcategory vs add product) actually appear
@@ -73,14 +93,6 @@ function buildNav(permissions: StaffPermission[]): NavItem[] {
     )
   ) {
     items.push({ name: "Catalog Management", href: "/staff-dashboard/manage-catalog", icon: TagIcon });
-  }
-
-  if (has("ORDER_VIEW", "ORDER_UPDATE")) {
-    items.push({
-      name: "Order Management",
-      href: "/staff-dashboard/order-management",
-      icon: ShoppingBagIcon,
-    });
   }
 
   if (has("COUPON_VIEW", "COUPON_ADD", "COUPON_EDIT", "COUPON_DELETE")) {
@@ -524,14 +536,9 @@ export default function StaffDashboard() {
   if (loading) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 font-sans">
-        <div className="flex flex-col items-center justify-center gap-6 text-center">
-          <div className="relative flex items-center justify-center w-0 h-0 pl-1.5">
-            <PulseLoader color="#000000" />
-          </div>
-          <p className="text-xs uppercase font-bold tracking-widest text-slate-400 font-mono mt-12 w-full text-center select-none">
-            Loading...
-          </p>
-        </div>
+        <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono text-center select-none">
+          Loading...
+        </p>
       </div>
     );
   }
@@ -686,7 +693,20 @@ export default function StaffDashboard() {
           {/* Main Content */}
           <main>
             <div>
-              <Outlet />
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center py-20 min-h-[350px]">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                      <p className="text-xs font-semibold tracking-wider uppercase text-slate-400 font-mono select-none">
+                        Loading...
+                      </p>
+                    </div>
+                  </div>
+                }
+              >
+                <Outlet />
+              </Suspense>
             </div>
           </main>
         </div>

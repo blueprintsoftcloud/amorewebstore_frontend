@@ -40,8 +40,8 @@ export function OrganizationJsonLd() {
   const websiteData: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: branding.companyName,
-    alternateName: ["Amore", "amorewebstore.com", branding.companyName],
+    name: branding.companyName || "Storra",
+    alternateName: [branding.companyName || "Storra"],
     url: origin,
   };
 

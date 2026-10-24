@@ -34,10 +34,13 @@ export const useAuth = (): AuthContextValue => {
 
 // ── Provider ───────────────────────────────────────────────────────────────────
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const cachedLoggedIn = typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
+  const cachedRole = typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
+
   const [user, setUser] = useState<AuthUser>({
-    role: null,
-    isAuthenticated: false,
-    isInitialLoad: true,
+    role: cachedRole,
+    isAuthenticated: cachedLoggedIn,
+    isInitialLoad: !cachedLoggedIn,
   });
 
   const checkAuthStatus = async (isInitial: boolean = false) => {
@@ -51,14 +54,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (res.data.isLoggedIn) {
         localStorage.setItem("isLoggedIn", "true");
+        if (res.data.role) {
+          localStorage.setItem("userRole", res.data.role);
+        }
         setUser({
-          role: res.data.role ?? null,
+          role: res.data.role ?? localStorage.getItem("userRole") ?? null,
           isAuthenticated: true,
           isInitialLoad: isInitial ? true : false,
         });
       } else {
         localStorage.removeItem("isLoggedIn");
-        setUser({ role: null, isAuthenticated: false, isInitialLoad: isInitial ? true : false });
+        localStorage.removeItem("userRole");
+        setUser({ role: null, isAuthenticated: false, isInitialLoad: false });
       }
     } catch (err: unknown) {
       const status = (err as any)?.response?.status;
@@ -67,10 +74,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // session state so a brief backend hiccup doesn't kick the user to the login page.
       if (status === 401 || status === 403) {
         localStorage.removeItem("isLoggedIn");
-        setUser({ role: null, isAuthenticated: false, isInitialLoad: isInitial ? true : false });
+        localStorage.removeItem("userRole");
+        setUser({ role: null, isAuthenticated: false, isInitialLoad: false });
       } else {
-        // Transient error: keep existing auth state, just clear isInitialLoad
-        setUser((prev) => ({ ...prev, isInitialLoad: isInitial ? true : false }));
+        // Transient error (slow network): keep existing cached auth state, just clear isInitialLoad
+        setUser((prev) => ({ ...prev, isInitialLoad: false }));
       }
     }
   };
@@ -83,8 +91,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // and the call would always fail, producing a noisy network error.
     const isLoginPage = window.location.pathname === "/login";
     const init = async () => {
-      const startTime = Date.now();
-
       let refreshedRole: string | null = null;
       let refreshSucceeded = false;
 
@@ -94,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.debug("[AuthContext] initial /auth/refresh (page load)");
           const res = await refreshAccessToken();
           if (res.data.isLoggedIn) {
-            refreshedRole = res.data.role ?? null;
+            refreshedRole = res.data.role ?? localStorage.getItem("userRole") ?? null;
             refreshSucceeded = true;
           }
         } catch {
@@ -106,22 +112,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Trust the refresh response directly — avoids a /auth/status call that
         // could race with cookie propagation on mobile browsers.
         localStorage.setItem("isLoggedIn", "true");
+        if (refreshedRole) {
+          localStorage.setItem("userRole", refreshedRole);
+        }
         setUser({
-          role: refreshedRole,
+          role: refreshedRole ?? localStorage.getItem("userRole") ?? null,
           isAuthenticated: true,
-          isInitialLoad: true,  // Will be set to false after the min-duration below
+          isInitialLoad: false,
         });
       } else {
         // No refresh was attempted or it failed — fall back to checking status.
-        await checkAuthStatus(true);
-      }
-
-      // Enforce a minimum 800ms loader playtime to guarantee the PropagateLoader
-      // animates fully and gracefully, preventing "flickering" or "stuck" frames.
-      const elapsed = Date.now() - startTime;
-      const minDuration = 800;
-      if (elapsed < minDuration) {
-        await new Promise((resolve) => setTimeout(resolve, minDuration - elapsed));
+        await checkAuthStatus(false);
       }
 
       // Finish loading state to mount the app
@@ -146,9 +147,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (socket.connected) socket.disconnect();
 
+    // Preserve public site branding, templates, themes, SEO, and tracking caches across logouts
+    const preservedKeys = [
+      "crm_navbar_cache",
+      "crm_branding_cache",
+      "crm_seo_cache",
+      "crm_theme_cache",
+      "crm_hero_cache",
+      "CACHED_TRACKING_CONFIG",
+      "storra_theme_tokens",
+    ];
+    const preservedData: Record<string, string> = {};
+    preservedKeys.forEach((key) => {
+      const val = localStorage.getItem(key);
+      if (val !== null) preservedData[key] = val;
+    });
+
     // Clear all client-side storage
     localStorage.clear();
     sessionStorage.clear();
+
+    // Restore preserved store layout & template configs immediately
+    Object.entries(preservedData).forEach(([key, val]) => {
+      localStorage.setItem(key, val);
+    });
 
     setUser({ role: null, isAuthenticated: false, isInitialLoad: false });
     window.location.href = destination;
@@ -198,8 +220,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // refresh-token-mismatch cascade → force-logout.
         if (res.data.isLoggedIn) {
           localStorage.setItem("isLoggedIn", "true");
+          if (res.data.role) {
+            localStorage.setItem("userRole", res.data.role);
+          }
           setUser({
-            role: res.data.role ?? null,
+            role: res.data.role ?? localStorage.getItem("userRole") ?? null,
             isAuthenticated: true,
             isInitialLoad: false,
           });

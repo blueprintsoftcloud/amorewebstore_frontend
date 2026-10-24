@@ -8,10 +8,12 @@
           var cache = localStorage.getItem("crm_branding_cache");
           if (cache) {
             var data = JSON.parse(cache);
-            if (data && data.companyName) {
-              document.title = data.companyName;
+            if (data && data.companyName && data.companyName.trim()) {
+              document.title = data.companyName.trim();
+            } else {
+              document.title = "Storra";
             }
-            if (data && data.companyFavicon) {
+            if (data && data.companyFavicon && data.companyFavicon.trim()) {
               var existingIcons = document.querySelectorAll("link[rel*='icon']");
               for (var i = 0; i < existingIcons.length; i++) {
                 existingIcons[i].parentNode.removeChild(existingIcons[i]);
@@ -19,24 +21,26 @@
               var link = document.createElement("link");
               link.id = "app-favicon";
               link.rel = "icon";
-              link.href = data.companyFavicon;
+              link.href = data.companyFavicon.trim();
               document.head.appendChild(link);
             }
           }
         } catch (e) {}
       })();
     </script>
-    <link id="app-favicon" rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
-    <link rel="shortcut icon" href="/favicon.ico" />
+    <link id="app-favicon" rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="apple-touch-icon" href="/vite.svg" />
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <meta name="description" content="Crafted by leading air freshener manufacturers, Amor brings high-quality, refreshing scents to your space. Order yours today!" />
+    <meta name="description" content="Storra - Your premium online store." />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Amore Webstore" />
+    <meta property="og:site_name" content="Storra" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cinzel+Decorative:wght@700;900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Rozha+One&display=swap" rel="stylesheet">
     <link href="/src/style.css" rel="stylesheet" />
-    <title>Amore Webstore</title>
+    <title>Storra</title>
   </head>
   <body>
     <div id="root"></div>

@@ -10,6 +10,7 @@ import {
   TrashIcon,
   ArrowsUpDownIcon,
   PhotoIcon,
+  CheckIcon,
   CheckCircleIcon,
   XCircleIcon,
   StarIcon,
@@ -30,24 +31,194 @@ import {
 import StorefrontPreviewFrame from "./components/StorefrontPreviewFrame";
 import { THEMES, DEFAULT_THEME_ID } from "../utils/themes";
 import { OCCASION_PRESETS, type OccasionPreset } from "../utils/occasionPresets";
+import { FESTIVE_ANNOUNCEMENTS } from "../components/AnnouncementBar";
 
-// Editable copy shown in the Occasions tab's confirm dialog — seeded from the preset's
-// own defaults (openPresetConfirm in HomepageManager) but freely editable before Apply.
-interface PresetCustomization {
-  heroTitle: string;
-  heroSubtitle: string;
-  heroCtaText: string;
-  heroAccentText: string;
-  heroBadgeText: string;
-  announcementText: string;
-  footerTagline: string;
-}
 import { StarIcon as StarSolidIcon } from "@heroicons/react/24/solid";
+import { formatDiscountBadge } from "../utils/product";
+import {
+  PreFooterConfig,
+  PreFooterBannerItem,
+  DEFAULT_PRE_FOOTER_CONFIG,
+} from "../components/PreFooterBannerSlider";
+import {
+  FeaturedCategorySlot,
+  FeaturedCategoriesConfig,
+  DEFAULT_FEATURED_CATEGORIES_CONFIG,
+} from "../components/AlternatingShowcase";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Custom UI Dropdown Select Component ───────────────────────────────────────
+interface CustomDropdownOption<T extends string | number> {
+  value: T;
+  label: string;
+  badge?: string;
+}
+
+interface CustomDropdownSelectProps<T extends string | number> {
+  value: T;
+  onChange: (value: T) => void;
+  options: CustomDropdownOption<T>[];
+  placeholder?: string;
+  searchable?: boolean;
+  className?: string;
+}
+
+function CustomDropdownSelect<T extends string | number>({
+  value,
+  onChange,
+  options,
+  placeholder = "Select...",
+  searchable = false,
+  className = "",
+}: CustomDropdownSelectProps<T>) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      if (searchable) {
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+    } else {
+      setSearch("");
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen, searchable]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  const selectedOption = options.find((opt) => String(opt.value) === String(value));
+
+  const filteredOptions = searchable && search.trim()
+    ? options.filter((opt) => opt.label.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  return (
+    <div ref={containerRef} className={`relative w-full ${isOpen ? "z-40" : "z-10"} ${className}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border rounded-xl text-xs sm:text-sm font-medium transition-all text-left cursor-pointer ${
+          isOpen
+            ? "bg-white border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
+            : "border-gray-200 hover:bg-white hover:border-gray-300 text-gray-900"
+        }`}
+      >
+        <span
+          className={`truncate ${
+            selectedOption && selectedOption.value !== ""
+              ? "text-gray-900 font-medium"
+              : "text-gray-400 font-normal"
+          }`}
+        >
+          {selectedOption && selectedOption.value !== "" ? selectedOption.label : placeholder}
+        </span>
+        <div className="flex items-center gap-1.5 ml-2 shrink-0">
+          {selectedOption?.badge && (
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+              {selectedOption.badge}
+            </span>
+          )}
+          <ChevronDownIcon
+            className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+              isOpen ? "rotate-180 text-indigo-600" : ""
+            }`}
+          />
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 max-h-64 overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100">
+          {searchable && options.length > 5 && (
+            <div className="p-2 border-b border-gray-100 bg-white shrink-0">
+              <div className="relative">
+                <MagnifyingGlassIcon className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search categories..."
+                  className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-y-auto max-h-52 p-1 space-y-0.5 scrollbar-thin">
+            {filteredOptions.length === 0 ? (
+              <div className="py-3 px-3 text-center text-xs text-gray-400 font-light">
+                No matching options found
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = String(opt.value) === String(value);
+                return (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs sm:text-sm rounded-lg transition-colors text-left cursor-pointer ${
+                      isSelected
+                        ? "bg-indigo-50 text-indigo-700 font-semibold"
+                        : "text-gray-700 hover:bg-slate-50 hover:text-gray-900 font-medium"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="truncate">{opt.label}</span>
+                      {opt.badge && (
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-700 shrink-0">
+                          {opt.badge}
+                        </span>
+                      )}
+                    </div>
+                    {isSelected && <CheckIcon className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type BannerType = "DISCOUNT_PANEL" | "CAROUSEL_ITEM" | "PROMO_BANNER";
-type Tab = BannerType | "FEATURED" | "ANNOUNCEMENT" | "HERO" | "HEADER" | "FOOTER" | "NAVIGATION" | "THEME" | "OCCASIONS";
+type Tab =
+  | BannerType
+  | "FEATURED"
+  | "ANNOUNCEMENT"
+  | "HERO"
+  | "HEADER"
+  | "FOOTER"
+  | "NAVIGATION"
+  | "THEME"
+  | "PRE_FOOTER"
+  | "OCCASIONS";
 
 interface NavbarConfig {
   activeTemplate: 1 | 2 | 3 | 4 | 5 | 6;
@@ -79,8 +250,8 @@ const NAVBAR_TEMPLATE_LABELS: Record<string, { name: string; desc: string; tag: 
     tag: "Pairs with Footer 4",
   },
   "5": {
-    name: "Festive Accent Band",
-    desc: "Full theme-primary brand header with high-contrast white active tabs and festive energetic energy.",
+    name: "Sleek Boutique Slim",
+    desc: "Ultra-slim luxury boutique single-row header with uppercase typography and minimalist action icons.",
     tag: "Pairs with Footer 5",
   },
   "6": {
@@ -133,12 +304,15 @@ interface HeroTemplateData {
   bgImage?: string;
   accentText?: string;
   images?: string[];
+  imageTitles?: string[];
+  imageLinks?: string[];
+  imageSubtitles?: string[];
   highlightText?: string;
   badgeText?: string;
 }
 
 interface HeroConfig {
-  activeTemplate: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  activeTemplate: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   templates: Record<string, HeroTemplateData>;
 }
 
@@ -154,6 +328,7 @@ interface FooterLinkColumn {
 
 interface FooterTemplateData {
   tagline: string;
+  showCompanyName?: boolean;
   newsletterTitle?: string;
   instagramLink?: string;
   facebookLink?: string;
@@ -189,10 +364,11 @@ const DEFAULT_HERO: HeroConfig = {
     },
     "2": {
       title: "New Arrivals Just Dropped",
-      subtitle: "Discover our latest curated pieces.",
-      ctaText: "Explore Now",
+      subtitle: "Discover our latest curated pieces made for the modern era.",
+      ctaText: "Explore Collection",
       ctaLink: "/products",
-      bgImage: "",
+      accentText: "SS26 Collection",
+      bgImage: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=85&w=2000",
     },
     "3": {
       title: "Elegance Redefined",
@@ -219,24 +395,41 @@ const DEFAULT_HERO: HeroConfig = {
       ctaLink: "/products",
       accentText: "New Season / Avant-Garde Collection",
       images: [
-        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1519457431-44ccd64a579b?auto=format&fit=crop&q=80&w=400",
-        "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=400",
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=800",
       ],
     },
     "6": {
-      title: "Big Style. Bigger Savings.",
-      subtitle: "Our biggest collection drop of the season, at prices you'll love.",
-      ctaText: "Shop The Sale",
+      title: "The SS26 Campaign",
+      subtitle: "Discover our latest curated edits and signature pieces.",
+      ctaText: "Explore All",
       ctaLink: "/products",
-      accentText: "Limited Time",
-      highlightText: "",
-      badgeText: "50%\nOFF SELECTED",
-      bgImage: "",
+      accentText: "New Campaign",
+      images: [
+        "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&q=80&w=1000",
+        "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=1000",
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=1000",
+      ],
+      imageTitles: [
+        "Shop Chains",
+        "Shop Rings",
+        "SS26 Campaign: Out Now",
+      ],
+      imageLinks: [
+        "/products",
+        "/products",
+        "/products",
+      ],
+      imageSubtitles: [
+        "",
+        "",
+        "SOURCE MATERIAL",
+      ],
     },
     "7": {
       title: "Simplicity Is The Ultimate Sophistication",
@@ -246,20 +439,42 @@ const DEFAULT_HERO: HeroConfig = {
       accentText: "The Collection",
     },
     "8": {
-      title: "Everything Must Go",
-      subtitle: "Our biggest markdowns of the year — while stock lasts.",
-      ctaText: "Shop The Sale",
+      title: "Curious What Else We've Created?",
+      subtitle:
+        "Explore our latest collection of handcrafted fashion, signature jewelry, and artisanal creations made for the modern aesthetic.",
+      ctaText: "Explore Projects",
       ctaLink: "/products",
-      accentText: "Sale Ends Soon",
-      badgeText: "70%\nOFF",
+      accentText: "Behind the Designs",
+      images: [
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=800",
+      ],
     },
     "9": {
-      title: "The New Season Edit",
-      subtitle: "Fresh arrivals, curated for right now.",
-      ctaText: "Shop Now",
+      title: "",
+      subtitle: "",
+      ctaText: "",
+      ctaLink: "",
+      images: [
+        "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=85&w=1920",
+      ],
+    },
+    "10": {
+      title: "Festive",
+      highlightText: "Sale",
+      subtitle: "Flat 50% OFF +\nExtra Rs.1000/- OFF",
+      ctaText: "Explore More",
       ctaLink: "/products",
-      accentText: "New In",
-      bgImage: "",
+      bgImage: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=85&w=2400",
     },
   },
 };
@@ -350,23 +565,27 @@ const HERO_TEMPLATE_LABELS: Record<string, { name: string; desc: string }> = {
   },
   "5": {
     name: "Fashion Collage Gallery",
-    desc: "Centered headline with a multi-colored 5-column image collage layout below",
+    desc: "Centered headline with an elegant 5-column editorial image collage layout below",
   },
   "6": {
-    name: "Diagonal Split",
-    desc: "Bold two-tone panel with a diagonal photo seam and a floating badge — great for sales & festive pushes",
+    name: "Editorial Triptych",
+    desc: "3-image high-fashion split banner with custom editable headline and link for each image",
   },
   "7": {
     name: "Minimal Statement",
     desc: "Oversized type-only hero, no photography needed — safest choice if you don't have hero imagery ready",
   },
   "8": {
-    name: "Sale Spotlight",
-    desc: "Giant discount numeral as the visual anchor — built for sale-event pushes",
+    name: "3D Curved Gallery Arc",
+    desc: "Panoramic 3D curved arc ribbon of 7 images with centered headline & subtitle",
   },
   "9": {
-    name: "Full-bleed Frosted Bar",
-    desc: "Full-width photo with a frosted glass info bar anchored to the bottom edge",
+    name: "5-Banner Auto Carousel",
+    desc: "Full-screen carousel with 5 rotating banner images (cycles every 5 seconds) & optional CTA overlay",
+  },
+  "10": {
+    name: "Festive Editorial Banner",
+    desc: "Luxury banner with high-contrast serif headline, cursive script accent, discount offer text, and outline CTA button",
   },
 };
 
@@ -410,7 +629,7 @@ const CAROUSEL_TEMPLATE_LABELS: Record<string, { name: string; desc: string }> =
   "1": { name: "Auto-scroll Row", desc: "Images glide horizontally, pauses on hover" },
   "2": { name: "Static Grid", desc: "Calm responsive grid with title/discount text overlays" },
   "3": { name: "Full-bleed Slider", desc: "One large banner at a time, auto-advancing with dots and arrows" },
-  "4": { name: "Split Showcase", desc: "Two large side-by-side cards — editorial feel for just a couple of promotions" },
+  "4": { name: "Split Showcase", desc: "Large side-by-side promo cards with an editorial feel" },
 };
 const DISCOUNT_TEMPLATE_LABELS: Record<string, { name: string; desc: string }> = {
   "1": { name: "Split Grid", desc: "Two large left panels, stacked panels on the right" },
@@ -551,6 +770,18 @@ export default function HomepageManager() {
     DEFAULT_FOOTER.templates["1"],
   );
 
+  // Pre-footer config state
+  const [preFooterConfig, setPreFooterConfig] =
+    useState<PreFooterConfig>(DEFAULT_PRE_FOOTER_CONFIG);
+  const [savingPreFooter, setSavingPreFooter] = useState(false);
+  const [uploadingPreFooterSlot, setUploadingPreFooterSlot] = useState<number | null>(null);
+
+  // Additional category showcases state (Featured Sections 2-5)
+  const [featuredCatConfig, setFeaturedCatConfig] =
+    useState<FeaturedCategoriesConfig>(DEFAULT_FEATURED_CATEGORIES_CONFIG);
+  const [savingFeaturedCategories, setSavingFeaturedCategories] = useState(false);
+  const [allCategoriesList, setAllCategoriesList] = useState<{ id: string; name: string }[]>([]);
+
   // Storefront theme state — themeId is the saved/live value; draftThemeId is what's
   // currently selected in the picker but not yet saved (drives the instant preview via
   // StorefrontPreviewFrame's previewThemeId prop, independent of what's actually live).
@@ -567,6 +798,11 @@ export default function HomepageManager() {
   const [discountTemplate, setDiscountTemplate] = useState(1);
   const [featuredTemplate, setFeaturedTemplate] = useState(1);
   const [savingTheme, setSavingTheme] = useState(false);
+
+  // Occasion presets state
+  const [activeOccasionId, setActiveOccasionId] = useState<string | null>(null);
+  const [applyingPreset, setApplyingPreset] = useState(false);
+  const [disablingOccasion, setDisablingOccasion] = useState(false);
 
   // Bumped after every successful save that changes real storefront content — the
   // single shared preview's src is otherwise fixed for its whole mounted lifetime (see
@@ -614,17 +850,10 @@ export default function HomepageManager() {
   const [sectionForm, setSectionForm] = useState({ title: "", subtitle: "" });
   const [savingSection, setSavingSection] = useState(false);
 
-  // Occasion presets (see utils/occasionPresets.ts / applyOccasionPreset below) —
-  // declared up here since useBodyScrollLock right below reads confirmingPreset.
-  const [confirmingPreset, setConfirmingPreset] = useState<OccasionPreset | null>(null);
-  const [presetCustomization, setPresetCustomization] = useState<PresetCustomization | null>(null);
-  const [applyingPreset, setApplyingPreset] = useState(false);
-  const [disablingOccasion, setDisablingOccasion] = useState(false);
-
   // Banner modal
   const [showModal, setShowModal] = useState(false);
   const [bannerToDelete, setBannerToDelete] = useState<HomeBanner | null>(null);
-  useBodyScrollLock(showModal || !!confirmingPreset || desktopPreviewOpen || !!bannerToDelete);
+  useBodyScrollLock(showModal || desktopPreviewOpen || !!bannerToDelete);
   const [editBanner, setEditBanner] = useState<HomeBanner | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -705,6 +934,23 @@ export default function HomepageManager() {
           ),
         });
       }
+      if (configResp.data?.preFooterConfig) {
+        const fetchedPreFooter = configResp.data.preFooterConfig;
+        setPreFooterConfig({
+          enabled: fetchedPreFooter.enabled ?? DEFAULT_PRE_FOOTER_CONFIG.enabled,
+          autoplaySpeed: fetchedPreFooter.autoplaySpeed ?? DEFAULT_PRE_FOOTER_CONFIG.autoplaySpeed,
+          banners: Array.isArray(fetchedPreFooter.banners) ? fetchedPreFooter.banners : [],
+        });
+      }
+      if (configResp.data?.featuredCategoriesConfig) {
+        const fetchedCatConfig = configResp.data.featuredCategoriesConfig;
+        setFeaturedCatConfig({
+          slots:
+            Array.isArray(fetchedCatConfig.slots) && fetchedCatConfig.slots.length > 0
+              ? fetchedCatConfig.slots
+              : DEFAULT_FEATURED_CATEGORIES_CONFIG.slots,
+        });
+      }
       const fetchedThemeId: string | undefined = configResp.data?.themeConfig?.themeId;
       if (fetchedThemeId) {
         setThemeId(fetchedThemeId);
@@ -718,6 +964,8 @@ export default function HomepageManager() {
         setDiscountTemplate(configResp.data.discountTemplate);
       if (typeof configResp.data?.featuredTemplate === "number")
         setFeaturedTemplate(configResp.data.featuredTemplate);
+      if (typeof configResp.data?.activeOccasionId !== "undefined")
+        setActiveOccasionId(configResp.data.activeOccasionId || null);
     } catch {
       // silently keep defaults
     } finally {
@@ -776,7 +1024,8 @@ export default function HomepageManager() {
     setNavLoading(true);
     try {
       const { data } = await api.get("/category/list");
-      const topLevel: NavCategory[] = (data.list || [])
+      const rawList = data.list || [];
+      const topLevel: NavCategory[] = rawList
         .filter((c: any) => !c.parentId)
         .map((c: any) => ({
           id: c._id ?? c.id,
@@ -786,6 +1035,17 @@ export default function HomepageManager() {
         }))
         .sort((a: NavCategory, b: NavCategory) => a.navOrder - b.navOrder || a.name.localeCompare(b.name));
       setNavCategories(topLevel);
+
+      const allCats = rawList
+        .filter((c: any) => c.status !== "inactive")
+        .map((c: any) => ({
+          id: c._id ?? c.id,
+          name: c.parentId ? `— ${c.name}` : c.name,
+        }))
+        .sort((a: any, b: any) =>
+          a.name.replace(/^—\s*/, "").localeCompare(b.name.replace(/^—\s*/, ""))
+        );
+      setAllCategoriesList(allCats);
       setNavDirty(false);
     } catch {
       toast.error("Failed to load categories");
@@ -795,7 +1055,7 @@ export default function HomepageManager() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "NAVIGATION") fetchNavCategories();
+    if (activeTab === "NAVIGATION" || activeTab === "FEATURED") fetchNavCategories();
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleNavVisibility = (id: string) => {
@@ -941,122 +1201,34 @@ export default function HomepageManager() {
   const handleFeaturedTemplateSelect = (n: number) =>
     saveSectionTemplate("/admin/homepage-config/featured-template", n, featuredTemplate, setFeaturedTemplate);
 
-  // â”€â”€ Occasion presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Every text field a preset sets is editable before it saves — the preset only fixes
-  // the theme/template *choices*, not the exact wording, so the same "Diwali" preset
-  // works for any store's own voice instead of forcing one canned copy on everyone.
-  const buildCustomizationFromPreset = (preset: OccasionPreset): PresetCustomization => {
-    const heroDefaults = DEFAULT_HERO.templates[String(preset.heroTemplate)] ?? DEFAULT_HERO.templates["1"];
-    return {
-      heroTitle: preset.heroContentOverride?.title ?? heroDefaults.title,
-      heroSubtitle: preset.heroContentOverride?.subtitle ?? heroDefaults.subtitle,
-      heroCtaText: preset.heroContentOverride?.ctaText ?? heroDefaults.ctaText,
-      heroAccentText: preset.heroContentOverride?.accentText ?? heroDefaults.accentText ?? "",
-      heroBadgeText: preset.heroContentOverride?.badgeText ?? heroDefaults.badgeText ?? "",
-      announcementText: preset.announcementTextOverride ?? "",
-      footerTagline: preset.footerTaglineOverride ?? "",
-    };
-  };
-
-  const openPresetConfirm = (preset: OccasionPreset) => {
-    setConfirmingPreset(preset);
-    setPresetCustomization(buildCustomizationFromPreset(preset));
-  };
-
-  // A preset counts as "currently applied" when every structural choice it sets
-  // (theme + each section's template) matches the live config — not the copy, since
-  // that's freely editable after applying and shouldn't make an otherwise-matching
-  // preset look unapplied just because an admin tweaked a sentence.
-  const isPresetApplied = (preset: OccasionPreset) =>
-    themeId === preset.themeId &&
-    heroConfig.activeTemplate === preset.heroTemplate &&
-    footerConfig.activeTemplate === preset.footerTemplate &&
-    announcementTemplate === preset.announcementTemplate &&
-    carouselTemplate === preset.carouselTemplate &&
-    discountTemplate === preset.discountTemplate &&
-    featuredTemplate === preset.featuredTemplate;
-
-  const activeOccasion = OCCASION_PRESETS.find((preset) => isPresetApplied(preset));
+  // ─── Occasion presets ─────────────────────────────────────────────────────────
+  // A preset counts as "currently applied" when activeOccasionId matches the preset id.
+  const isPresetApplied = (preset: OccasionPreset) => activeOccasionId === preset.id;
+  const activeOccasion = OCCASION_PRESETS.find((preset) => preset.id === activeOccasionId) || null;
   const isOccasionActive = Boolean(activeOccasion);
 
-  const applyOccasionPreset = async (preset: OccasionPreset, customization: PresetCustomization) => {
+  const applyOccasionPreset = async (preset: OccasionPreset) => {
     if (!canBannerEdit) {
       toast.error(NO_PERMISSION_MSG);
-      setConfirmingPreset(null);
       return;
     }
     setApplyingPreset(true);
+    try {
+      await api.put("/admin/homepage-config/occasion", { occasionId: preset.id });
+      setActiveOccasionId(preset.id);
 
-    // Snapshot pre-occasion store layout to allow clean restoration when toggled off
-    if (!isOccasionActive) {
-      try {
-        const snapshot = {
-          themeId,
-          heroActiveTemplate: heroConfig.activeTemplate,
-          footerActiveTemplate: footerConfig.activeTemplate,
-          announcementTemplate,
-          carouselTemplate,
-          discountTemplate,
-          featuredTemplate,
-          announcementText,
-        };
-        localStorage.setItem("storra_pre_occasion_snapshot", JSON.stringify(snapshot));
-      } catch (err) {
-        console.warn("Failed to cache pre-occasion snapshot", err);
+      // Pre-fill announcementText with this festival's marquee copy so it is immediately editable
+      const festivePreset = FESTIVE_ANNOUNCEMENTS[preset.id];
+      if (festivePreset?.items?.length) {
+        setAnnouncementText(festivePreset.items.join(" | "));
       }
-    }
 
-    const heroDefaults = DEFAULT_HERO.templates[String(preset.heroTemplate)] ?? DEFAULT_HERO.templates["1"];
-    const footerKey = String(preset.footerTemplate);
-    // Every one of these is the exact same PUT an admin's individual picker already
-    // sends — allSettled (not all) so one endpoint being unreachable doesn't stop the
-    // rest from applying, and so a STAFF member without company-settings access (see
-    // saveAnnouncement's admin-only gate) still gets everything else the preset sets.
-    const results = await Promise.allSettled([
-      api.put("/admin/homepage-config/theme", { themeId: preset.themeId }),
-      api.put("/admin/homepage-config/hero", {
-        activeTemplate: preset.heroTemplate,
-        templates: {
-          ...heroConfig.templates,
-          [String(preset.heroTemplate)]: {
-            ...heroDefaults,
-            title: customization.heroTitle,
-            subtitle: customization.heroSubtitle,
-            ctaText: customization.heroCtaText,
-            accentText: customization.heroAccentText || undefined,
-            badgeText: customization.heroBadgeText || undefined,
-          },
-        },
-      }),
-      api.put("/admin/homepage-config/footer", {
-        ...footerConfig,
-        activeTemplate: preset.footerTemplate,
-        templates: customization.footerTagline
-          ? { ...footerConfig.templates, [footerKey]: { ...footerConfig.templates[footerKey], tagline: customization.footerTagline } }
-          : footerConfig.templates,
-      }),
-      api.put("/admin/homepage-config/announcement-template", { activeTemplate: preset.announcementTemplate }),
-      api.put("/admin/homepage-config/carousel-template", { activeTemplate: preset.carouselTemplate }),
-      api.put("/admin/homepage-config/discount-template", { activeTemplate: preset.discountTemplate }),
-      api.put("/admin/homepage-config/featured-template", { activeTemplate: preset.featuredTemplate }),
-      ...(customization.announcementText
-        ? [api.put("/admin/company-settings", { announcementBar: customization.announcementText })]
-        : []),
-    ]);
-    const failures = results.filter((r) => r.status === "rejected").length;
-
-    setThemeId(preset.themeId);
-    setDraftThemeId(preset.themeId);
-    await fetchHomepageConfig(); // resync every local field from what actually saved
-    refreshPreview();
-    setApplyingPreset(false);
-    setConfirmingPreset(null);
-    setPresetCustomization(null);
-
-    if (failures === 0) {
-      toast.success(`${preset.name} applied`);
-    } else {
-      toast.error(`${preset.name} applied with ${failures} field${failures > 1 ? "s" : ""} that didn't save — check your permissions and try again`);
+      toast.success(`${preset.name} ambient animation activated! 🎉`);
+      refreshPreview();
+    } catch {
+      toast.error("Failed to activate festive occasion");
+    } finally {
+      setApplyingPreset(false);
     }
   };
 
@@ -1066,94 +1238,15 @@ export default function HomepageManager() {
       return;
     }
     setDisablingOccasion(true);
-
-    let targetThemeId = DEFAULT_THEME_ID;
-    let targetHeroTemplate = 1;
-    let targetFooterTemplate = 1;
-    let targetAnnouncementTemplate = 1;
-    let targetCarouselTemplate = 1;
-    let targetDiscountTemplate = 1;
-    let targetFeaturedTemplate = 1;
-    let targetAnnouncementText = DEFAULT_ANNOUNCEMENT_TEXT;
-
     try {
-      const savedRaw = localStorage.getItem("storra_pre_occasion_snapshot");
-      if (savedRaw) {
-        const saved = JSON.parse(savedRaw);
-        // Ensure saved snapshot doesn't match an occasion preset
-        const matchesAnyPreset = OCCASION_PRESETS.some(
-          (p) =>
-            p.themeId === saved.themeId &&
-            p.heroTemplate === saved.heroActiveTemplate &&
-            p.footerTemplate === saved.footerActiveTemplate
-        );
-        if (!matchesAnyPreset) {
-          if (saved.themeId) targetThemeId = saved.themeId;
-          if (typeof saved.heroActiveTemplate === "number") targetHeroTemplate = saved.heroActiveTemplate;
-          if (typeof saved.footerActiveTemplate === "number") targetFooterTemplate = saved.footerActiveTemplate;
-          if (typeof saved.announcementTemplate === "number") targetAnnouncementTemplate = saved.announcementTemplate;
-          if (typeof saved.carouselTemplate === "number") targetCarouselTemplate = saved.carouselTemplate;
-          if (typeof saved.discountTemplate === "number") targetDiscountTemplate = saved.discountTemplate;
-          if (typeof saved.featuredTemplate === "number") targetFeaturedTemplate = saved.featuredTemplate;
-          if (saved.announcementText) targetAnnouncementText = saved.announcementText;
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to read pre-occasion snapshot", err);
-    }
-
-    const heroKey = String(targetHeroTemplate);
-    const heroDefaults = DEFAULT_HERO.templates[heroKey] ?? DEFAULT_HERO.templates["1"];
-    const footerKey = String(targetFooterTemplate);
-    const footerDefaults = DEFAULT_FOOTER.templates[footerKey] ?? DEFAULT_FOOTER.templates["1"];
-
-    const results = await Promise.allSettled([
-      api.put("/admin/homepage-config/theme", { themeId: targetThemeId }),
-      api.put("/admin/homepage-config/hero", {
-        activeTemplate: targetHeroTemplate,
-        templates: {
-          ...heroConfig.templates,
-          [heroKey]: {
-            ...DEFAULT_HERO.templates[heroKey],
-            ...heroDefaults,
-          },
-        },
-      }),
-      api.put("/admin/homepage-config/footer", {
-        ...footerConfig,
-        activeTemplate: targetFooterTemplate,
-        templates: {
-          ...footerConfig.templates,
-          [footerKey]: {
-            ...DEFAULT_FOOTER.templates[footerKey],
-            ...footerDefaults,
-          },
-        },
-      }),
-      api.put("/admin/homepage-config/announcement-template", { activeTemplate: targetAnnouncementTemplate }),
-      api.put("/admin/homepage-config/carousel-template", { activeTemplate: targetCarouselTemplate }),
-      api.put("/admin/homepage-config/discount-template", { activeTemplate: targetDiscountTemplate }),
-      api.put("/admin/homepage-config/featured-template", { activeTemplate: targetFeaturedTemplate }),
-      ...(!isStaff && targetAnnouncementText
-        ? [api.put("/admin/company-settings", { announcementBar: targetAnnouncementText })]
-        : []),
-    ]);
-
-    try {
-      localStorage.removeItem("storra_pre_occasion_snapshot");
-    } catch {}
-
-    setThemeId(targetThemeId);
-    setDraftThemeId(targetThemeId);
-    await fetchHomepageConfig();
-    refreshPreview();
-    setDisablingOccasion(false);
-
-    const failures = results.filter((r) => r.status === "rejected").length;
-    if (failures === 0) {
-      toast.success("Occasion turned off — default store layout restored");
-    } else {
-      toast.error(`Occasion turned off with ${failures} unsaved field${failures > 1 ? "s" : ""}`);
+      await api.put("/admin/homepage-config/occasion", { occasionId: null });
+      setActiveOccasionId(null);
+      toast.success("Festive occasion deactivated");
+      refreshPreview();
+    } catch {
+      toast.error("Failed to deactivate festive occasion");
+    } finally {
+      setDisablingOccasion(false);
     }
   };
 
@@ -1165,7 +1258,7 @@ export default function HomepageManager() {
     if (isOccasionActive) {
       disableActiveOccasion();
     } else {
-      toast("Select any festive occasion below and click Apply to turn it on.", {
+      toast("Select any festive occasion below and click Activate to turn it on.", {
         icon: "✨",
         id: "occasion-toggle-hint",
       });
@@ -1173,7 +1266,8 @@ export default function HomepageManager() {
     }
   };
 
-  // â”€â”€ Hero Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  // ─── Hero Config ────────────────────────────────────────────────────────────
 
   const handleHeroTemplateSelect = async (templateNum: number) => {
     if (!canBannerEdit) {
@@ -1182,7 +1276,7 @@ export default function HomepageManager() {
     }
     const updated = {
       ...heroConfig,
-      activeTemplate: templateNum as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9,
+      activeTemplate: templateNum as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
     };
     setHeroConfig(updated);
     try {
@@ -1203,14 +1297,20 @@ export default function HomepageManager() {
       DEFAULT_HERO.templates[templateKey] ??
       DEFAULT_HERO.templates["1"];
     const cleaned = { ...rawData };
-    // Prevent cross-template field leakage between collage templates and background image templates
-    if (["1", "3", "5"].includes(templateKey)) {
+    // Prevent cross-template field leakage between collage/carousel templates and background image templates
+    if (["1", "3", "5", "6", "8", "9"].includes(templateKey)) {
       delete cleaned.bgImage;
-    } else if (["2", "4", "6", "9"].includes(templateKey)) {
+    } else if (["2", "4", "10"].includes(templateKey)) {
       delete cleaned.images;
-    } else if (["7", "8"].includes(templateKey)) {
+      delete cleaned.imageTitles;
+      delete cleaned.imageLinks;
+      delete cleaned.imageSubtitles;
+    } else if (["7"].includes(templateKey)) {
       delete cleaned.bgImage;
       delete cleaned.images;
+      delete cleaned.imageTitles;
+      delete cleaned.imageLinks;
+      delete cleaned.imageSubtitles;
     }
     setHeroForm(cleaned);
     setEditingHeroTemplate(templateKey);
@@ -1226,13 +1326,19 @@ export default function HomepageManager() {
 
     // Sanitize template data to prevent cross-pollution between bgImage and images
     const sanitizedForm: HeroTemplateData = { ...heroForm };
-    if (["1", "3", "5"].includes(editingHeroTemplate)) {
+    if (["1", "3", "5", "6", "8", "9"].includes(editingHeroTemplate)) {
       delete sanitizedForm.bgImage;
-    } else if (["2", "4", "6", "9"].includes(editingHeroTemplate)) {
+    } else if (["2", "4", "10"].includes(editingHeroTemplate)) {
       delete sanitizedForm.images;
-    } else if (["7", "8"].includes(editingHeroTemplate)) {
+      delete sanitizedForm.imageTitles;
+      delete sanitizedForm.imageLinks;
+      delete sanitizedForm.imageSubtitles;
+    } else if (["7"].includes(editingHeroTemplate)) {
       delete sanitizedForm.bgImage;
       delete sanitizedForm.images;
+      delete sanitizedForm.imageTitles;
+      delete sanitizedForm.imageLinks;
+      delete sanitizedForm.imageSubtitles;
     }
 
     const updated: HeroConfig = {
@@ -1397,8 +1503,10 @@ export default function HomepageManager() {
 
   const openFooterEdit = (templateKey: string) => {
     // Same "fall back to this template's own defaults" fix as openHeroEdit above.
+    const existing = footerConfig.templates[templateKey] ?? DEFAULT_FOOTER.templates[templateKey] ?? DEFAULT_FOOTER.templates["1"];
     setFooterForm({
-      ...(footerConfig.templates[templateKey] ?? DEFAULT_FOOTER.templates[templateKey] ?? DEFAULT_FOOTER.templates["1"]),
+      showCompanyName: existing?.showCompanyName !== undefined ? existing.showCompanyName : true,
+      ...existing,
     });
     setEditingFooterTemplate(templateKey);
   };
@@ -1446,6 +1554,190 @@ export default function HomepageManager() {
       toast.error("Failed to save footer template", { id: "footer-template-save-error" });
     } finally {
       setSavingFooter(false);
+    }
+  };
+
+  // ── Pre-Footer Banners ───────────────────────────────────────────────────────
+
+  const updatePreFooterSlot = (index: number, updates: Partial<PreFooterBannerItem>) => {
+    setPreFooterConfig((prev) => {
+      const banners = [...(prev.banners || [])];
+      while (banners.length <= index) {
+        banners.push({
+          id: `pf-${Date.now()}-${banners.length}`,
+          image: "",
+          link: "",
+          title: "",
+          isActive: true,
+        });
+      }
+      banners[index] = {
+        ...banners[index],
+        ...updates,
+        id: banners[index].id || `pf-${Date.now()}-${index}`,
+      };
+      return { ...prev, banners };
+    });
+  };
+
+  const uploadPreFooterSlotImage = async (file: File, index: number) => {
+    if (!canBannerEdit) {
+      toast.error(NO_PERMISSION_MSG, { id: "prefooter-upload-perm-error" });
+      return;
+    }
+    if (file.size >= MAX_IMAGE_SIZE) {
+      toast.error("Please add image below 1 MB", { id: "prefooter-img-size-error" });
+      return;
+    }
+    const currentSlot = preFooterConfig.banners?.[index];
+    const previousUrl = currentSlot?.image;
+    try {
+      setUploadingPreFooterSlot(index);
+      const fd = new FormData();
+      fd.append("image", file);
+      fd.append("folder", "pre-footer");
+      if (previousUrl && previousUrl.includes("cloudinary.com")) {
+        fd.append("previousUrl", previousUrl);
+      }
+      const { data } = await api.post("/admin/upload-image", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      updatePreFooterSlot(index, { image: data.url, isActive: true });
+      toast.success(`Banner ${index + 1} uploaded successfully`, { id: "prefooter-img-uploaded" });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Image upload failed";
+      toast.error(msg, { id: "prefooter-img-upload-error" });
+    } finally {
+      setUploadingPreFooterSlot(null);
+    }
+  };
+
+  const removePreFooterSlotImage = async (index: number) => {
+    if (!canBannerEdit) {
+      toast.error(NO_PERMISSION_MSG, { id: "prefooter-delete-perm-error" });
+      return;
+    }
+    const currentSlot = preFooterConfig.banners?.[index];
+    const oldUrl = currentSlot?.image;
+    updatePreFooterSlot(index, { image: "", link: "", title: "" });
+    if (oldUrl && oldUrl.includes("cloudinary.com")) {
+      try {
+        await api.post("/admin/delete-image", { url: oldUrl });
+        toast.success(`Banner ${index + 1} image removed`, { id: "prefooter-img-removed" });
+      } catch {
+        // Silently handled
+      }
+    }
+  };
+
+  const savePreFooterConfig = async () => {
+    if (!canBannerEdit) {
+      toast.error(NO_PERMISSION_MSG, { id: "prefooter-perm-error" });
+      return;
+    }
+    if (savingPreFooter) return;
+
+    const cleanBanners = (preFooterConfig.banners || [])
+      .filter((b) => b && typeof b.image === "string" && b.image.trim() !== "")
+      .slice(0, 3)
+      .map((b, idx) => ({
+        id: b.id || `pf-${Date.now()}-${idx}`,
+        image: b.image.trim(),
+        link: (b.link || "").trim(),
+        title: (b.title || "").trim(),
+        isActive: b.isActive !== false,
+      }));
+
+    const payload: PreFooterConfig = {
+      enabled: preFooterConfig.enabled !== false,
+      banners: cleanBanners,
+    };
+
+    try {
+      setSavingPreFooter(true);
+      await api.put("/admin/homepage-config/pre-footer", payload);
+      setPreFooterConfig(payload);
+      toast.success("Pre-footer banners saved successfully", { id: "prefooter-saved" });
+      refreshPreview();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Failed to save pre-footer banners";
+      toast.error(msg, { id: "prefooter-save-error" });
+    } finally {
+      setSavingPreFooter(false);
+    }
+  };
+
+  // ── Category Showcases (Sections 2 to 3) ───────────────────────────────────
+
+  const updateFeaturedCategorySlot = (
+    index: number,
+    patch: Partial<FeaturedCategorySlot>
+  ) => {
+    setFeaturedCatConfig((prev) => {
+      const currentSlots =
+        Array.isArray(prev.slots) && prev.slots.length > 0
+          ? [...prev.slots]
+          : [...DEFAULT_FEATURED_CATEGORIES_CONFIG.slots];
+      while (currentSlots.length <= index) {
+        currentSlots.push({
+          id: `slot-${currentSlots.length + 1}`,
+          categoryId: "",
+          customTitle: "",
+          customSubtitle: "",
+          limit: 8,
+          isActive: true,
+        });
+      }
+      currentSlots[index] = { ...currentSlots[index], ...patch };
+      return { ...prev, slots: currentSlots };
+    });
+  };
+
+  const saveFeaturedCategoriesConfig = async () => {
+    if (!canBannerEdit) {
+      toast.error(NO_PERMISSION_MSG, { id: "featured-cat-perm-error" });
+      return;
+    }
+    if (savingFeaturedCategories) return;
+
+    const cleanSlots: FeaturedCategorySlot[] = (
+      featuredCatConfig.slots || DEFAULT_FEATURED_CATEGORIES_CONFIG.slots
+    )
+      .slice(0, 2)
+      .map((s, idx) => ({
+        id: s.id || `slot-${idx + 1}`,
+        categoryId: (s.categoryId || "").trim(),
+        customTitle: (s.customTitle || "").trim(),
+        customSubtitle: (s.customSubtitle || "").trim(),
+        limit: Number(s.limit) || 8,
+        isActive: s.isActive !== false,
+      }));
+
+    const payload: FeaturedCategoriesConfig = {
+      slots: cleanSlots,
+    };
+
+    try {
+      setSavingFeaturedCategories(true);
+      const { data } = await api.put(
+        "/admin/homepage-config/featured-categories",
+        payload
+      );
+      if (data?.featuredCategoriesConfig) {
+        setFeaturedCatConfig(data.featuredCategoriesConfig);
+      } else {
+        setFeaturedCatConfig(payload);
+      }
+      toast.success("Category showcase sections saved successfully", {
+        id: "featured-cat-saved",
+      });
+      refreshPreview();
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message || "Failed to save category showcases";
+      toast.error(msg, { id: "featured-cat-save-error" });
+    } finally {
+      setSavingFeaturedCategories(false);
     }
   };
 
@@ -1787,13 +2079,13 @@ export default function HomepageManager() {
     }
   };
 
-  // â”€â”€ Tab definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Tab definitions ────────────────────────────────────────────────────────
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     {
       key: "OCCASIONS",
       label: "Occasions",
-      icon: <SparklesIcon className="w-4 h-4" />,
+      icon: <SparklesIcon className="w-4 h-4 text-amber-500" />,
     },
     {
       key: "ANNOUNCEMENT",
@@ -1819,6 +2111,11 @@ export default function HomepageManager() {
     { key: "CAROUSEL_ITEM", label: "Curated Carousel", icon: null },
     { key: "FEATURED", label: "Featured Collections", icon: null },
     {
+      key: "PRE_FOOTER",
+      label: "Pre-Footer Banners",
+      icon: <RectangleStackIcon className="w-4 h-4" />,
+    },
+    {
       key: "FOOTER",
       label: "Footer Section",
       icon: <Squares2X2Icon className="w-4 h-4" />,
@@ -1835,29 +2132,33 @@ export default function HomepageManager() {
     },
   ];
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   // The single shared preview's anchor — which section of the real storefront it
   // scrolls to — derived from whichever tab is active. Undefined (top of page) for
   // tabs with no one specific section to jump to (Navigation, Theme).
   const previewAnchor: string | undefined =
-    activeTab === "ANNOUNCEMENT"
-      ? "announcement"
-      : activeTab === "HEADER"
-        ? "header"
-        : activeTab === "HERO"
-          ? "hero"
-        : activeTab === "FOOTER"
-          ? "footer"
-          : activeTab === "DISCOUNT_PANEL"
-            ? "discount"
-            : activeTab === "CAROUSEL_ITEM"
-              ? "carousel"
-              : activeTab === "PROMO_BANNER"
-                ? "banner"
-                : activeTab === "FEATURED"
-                  ? "featured"
-                  : undefined;
+    activeTab === "OCCASIONS"
+      ? "hero"
+      : activeTab === "ANNOUNCEMENT"
+        ? "announcement"
+        : activeTab === "HEADER"
+          ? "header"
+          : activeTab === "HERO"
+            ? "hero"
+          : activeTab === "PRE_FOOTER"
+            ? "pre-footer"
+          : activeTab === "FOOTER"
+            ? "footer"
+            : activeTab === "DISCOUNT_PANEL"
+              ? "discount"
+              : activeTab === "CAROUSEL_ITEM"
+                ? "carousel"
+                : activeTab === "PROMO_BANNER"
+                  ? "banner"
+                  : activeTab === "FEATURED"
+                    ? "featured"
+                    : undefined;
 
   return (
     <div className="px-8 py-8 w-full bg-slate-50/50 min-h-screen">
@@ -1892,9 +2193,7 @@ export default function HomepageManager() {
             {label}
             {key === "OCCASIONS" && isOccasionActive && (
               <span
-                className={`w-2 h-2 rounded-full ${
-                  activeTab === key ? "bg-emerald-300" : "bg-emerald-500"
-                } animate-pulse`}
+                className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-0.5"
                 title={`Active Occasion: ${activeOccasion?.name}`}
               />
             )}
@@ -2042,11 +2341,124 @@ export default function HomepageManager() {
             </div>
           </div>
 
+          {/* Active Festive Announcement Banner Editor */}
+          {isOccasionActive && activeOccasion && (
+            <div className="bg-white border-2 border-amber-300/80 rounded-2xl p-6 shadow-md space-y-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-100/40 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">{activeOccasion.emoji}</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <span>{activeOccasion.name} Announcement Banner</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                        Live Festive Banner
+                      </span>
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Edit the announcement message scrolling at the top of your storefront during {activeOccasion.name}. Separate multiple messages using <code className="bg-gray-100 text-gray-700 px-1 py-0.5 rounded font-mono font-bold">|</code>.
+                    </p>
+                  </div>
+                </div>
+
+                {FESTIVE_ANNOUNCEMENTS[activeOccasion.id] && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaults = FESTIVE_ANNOUNCEMENTS[activeOccasion.id]?.items.join(" | ");
+                      if (defaults) {
+                        setAnnouncementText(defaults);
+                        toast.success(`Reset to ${activeOccasion.name} default messages! Click 'Save Festive Banner' to publish.`);
+                      }
+                    }}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors shrink-0 self-start sm:self-center flex items-center gap-1.5"
+                  >
+                    <span>↻</span>
+                    <span>Reset to {activeOccasion.name} Defaults</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Live Festive Banner Preview */}
+              {FESTIVE_ANNOUNCEMENTS[activeOccasion.id] && (
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                    Live Banner Preview
+                  </span>
+                  <div
+                    className="w-full py-2.5 px-4 rounded-xl border flex items-center justify-center gap-3 overflow-hidden text-xs sm:text-sm font-medium shadow-inner"
+                    style={{
+                      background: FESTIVE_ANNOUNCEMENTS[activeOccasion.id].gradient,
+                      borderColor: FESTIVE_ANNOUNCEMENTS[activeOccasion.id].borderColor,
+                      color: FESTIVE_ANNOUNCEMENTS[activeOccasion.id].textColor,
+                      fontFamily: FESTIVE_ANNOUNCEMENTS[activeOccasion.id].fontFamily,
+                    }}
+                  >
+                    <span className="text-base animate-bounce">
+                      {FESTIVE_ANNOUNCEMENTS[activeOccasion.id].icons[0] || "✨"}
+                    </span>
+                    <span className="truncate max-w-xl text-center">
+                      {(announcementText || FESTIVE_ANNOUNCEMENTS[activeOccasion.id].items.join(" | "))
+                        .split("|")[0]
+                        ?.trim() || `Happy ${activeOccasion.name}!`}
+                    </span>
+                    <span className="text-base animate-bounce">
+                      {FESTIVE_ANNOUNCEMENTS[activeOccasion.id].icons[1] ||
+                        FESTIVE_ANNOUNCEMENTS[activeOccasion.id].icons[0] ||
+                        "✨"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Textarea */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  Banner Text / Announcement Pipeline
+                </label>
+                <textarea
+                  rows={4}
+                  value={announcementText}
+                  onChange={(e) => setAnnouncementText(e.target.value)}
+                  placeholder={`e.g. Happy ${activeOccasion.name}! | Special Festive Offers Inside | Limited Time Deals`}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-none shadow-inner leading-relaxed"
+                />
+              </div>
+
+              {/* Save Button */}
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-[11px] text-gray-400">
+                  Tip: Changes are instantly pushed live to the storefront marquee once saved.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => saveAnnouncement()}
+                  disabled={savingAnnouncement}
+                  className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold tracking-wide uppercase shadow-md shadow-amber-600/20 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {savingAnnouncement ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Saving Festive Banner...
+                    </>
+                  ) : (
+                    <>
+                      <span>💾</span>
+                      <span>Save Festive Banner</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-            <p className="text-sm text-indigo-700 font-medium">
-              One click sets the theme, hero, footer, and every section's layout at once —
-              exactly what picking each individually would set. Everything stays editable
-              afterward from its own tab.
+            <p className="text-sm text-indigo-800 font-medium leading-relaxed">
+              Activate any festive occasion below to run its celebratory ambient animation (e.g. falling flower petals for Onam, sparkles for Diwali, gentle snow for Christmas/New Year, gulal for Holi, confetti for Sales) across your storefront. Your custom Hero Section template and theme remain completely untouched and intact.
             </p>
           </div>
 
@@ -2081,30 +2493,22 @@ export default function HomepageManager() {
                   <div className="p-4 bg-white">
                     <p className="text-xs text-gray-500 mb-4 leading-snug">{preset.description}</p>
                     {applied ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={disableActiveOccasion}
-                          disabled={disablingOccasion || applyingPreset || !canBannerEdit}
-                          className="flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wide bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
-                        >
-                          <XCircleIcon className="w-3.5 h-3.5 text-rose-600" />
-                          {disablingOccasion ? "Disabling…" : "Turn Off"}
-                        </button>
-                        <button
-                          onClick={() => openPresetConfirm(preset)}
-                          disabled={disablingOccasion || applyingPreset || !canBannerEdit}
-                          className="flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                        >
-                          ✓ Reapply
-                        </button>
-                      </div>
+                      <button
+                        onClick={disableActiveOccasion}
+                        disabled={disablingOccasion || applyingPreset || !canBannerEdit}
+                        className="w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <XCircleIcon className="w-4 h-4 text-rose-600" />
+                        {disablingOccasion ? "Turning Off…" : "Turn Off Animation"}
+                      </button>
                     ) : (
                       <button
-                        onClick={() => openPresetConfirm(preset)}
+                        onClick={() => applyOccasionPreset(preset)}
                         disabled={disablingOccasion || applyingPreset || !canBannerEdit}
-                        className="w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wide bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1.5"
                       >
-                        Apply {preset.name}
+                        <SparklesIcon className="w-4 h-4" />
+                        Activate {preset.name}
                       </button>
                     )}
                   </div>
@@ -2113,113 +2517,39 @@ export default function HomepageManager() {
             })}
           </div>
 
-          {confirmingPreset && presetCustomization && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
-                <div className="p-6 pb-4 border-b border-gray-100">
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    {confirmingPreset.emoji} {confirmingPreset.name}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    Edit the wording below if you'd like — everything here (theme, hero,
-                    footer, and every section's layout) updates on the live storefront
-                    when you apply, and stays editable afterward from its own tab.
-                  </p>
-                </div>
 
-                <div className="p-6 space-y-4 overflow-y-auto">
-                  <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Hero Title</label>
-                    <input
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      value={presetCustomization.heroTitle}
-                      onChange={(e) => setPresetCustomization((p) => (p ? { ...p, heroTitle: e.target.value } : p))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Hero Subtitle</label>
-                    <input
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      value={presetCustomization.heroSubtitle}
-                      onChange={(e) => setPresetCustomization((p) => (p ? { ...p, heroSubtitle: e.target.value } : p))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Hero CTA Text</label>
-                      <input
-                        className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                        value={presetCustomization.heroCtaText}
-                        onChange={(e) => setPresetCustomization((p) => (p ? { ...p, heroCtaText: e.target.value } : p))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Hero Eyebrow Text</label>
-                      <input
-                        className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                        value={presetCustomization.heroAccentText}
-                        onChange={(e) => setPresetCustomization((p) => (p ? { ...p, heroAccentText: e.target.value } : p))}
-                      />
-                    </div>
-                  </div>
-                  {presetCustomization.heroBadgeText && (
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                        Hero Badge (discount / label, two lines)
-                      </label>
-                      <textarea
-                        rows={2}
-                        className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                        value={presetCustomization.heroBadgeText}
-                        onChange={(e) => setPresetCustomization((p) => (p ? { ...p, heroBadgeText: e.target.value } : p))}
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Announcement Bar Text <span className="font-normal normal-case text-gray-400">(pipe-separated · admin only)</span>
-                    </label>
-                    <input
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      value={presetCustomization.announcementText}
-                      onChange={(e) => setPresetCustomization((p) => (p ? { ...p, announcementText: e.target.value } : p))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Footer Tagline</label>
-                    <input
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      value={presetCustomization.footerTagline}
-                      onChange={(e) => setPresetCustomization((p) => (p ? { ...p, footerTagline: e.target.value } : p))}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 p-6 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={() => { setConfirmingPreset(null); setPresetCustomization(null); }}
-                    disabled={applyingPreset}
-                    className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => applyOccasionPreset(confirmingPreset, presetCustomization)}
-                    disabled={applyingPreset}
-                    className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                  >
-                    {applyingPreset ? "Applying…" : "Apply"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
       {/* ── ANNOUNCEMENT TAB ─────────────────────────────────────────────────── */}
       {activeTab === "ANNOUNCEMENT" && (
         <div className="space-y-6 animate-fadeIn">
+          {isOccasionActive && activeOccasion && (
+            <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50/50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{activeOccasion.emoji}</span>
+                <div>
+                  <h4 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                    <span>{activeOccasion.name} Occasion is Active</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-200 text-amber-900 border border-amber-300">
+                      Live Festive Marquee
+                    </span>
+                  </h4>
+                  <p className="text-xs text-amber-800 mt-0.5 max-w-xl">
+                    Your storefront is currently rendering the celebratory {activeOccasion.name} festive banner style. You can edit the festive messages directly below!
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("OCCASIONS")}
+                className="text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 px-3.5 py-2 rounded-xl border border-amber-300/80 transition-colors shrink-0 self-start sm:self-center flex items-center gap-1.5 shadow-sm"
+              >
+                <span>{activeOccasion.emoji}</span>
+                <span>Open Festive Manager</span>
+              </button>
+            </div>
+          )}
 
           <div>
             <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Layout</h3>
@@ -2328,11 +2658,11 @@ export default function HomepageManager() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((key) => {
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map((key) => {
               const label = HERO_TEMPLATE_LABELS[key];
               const isActive = String(heroConfig.activeTemplate) === key;
               const isEditing = editingHeroTemplate === key;
-              const isDarkStrip = key === "2" || key === "3" || key === "5" || key === "6" || key === "8" || key === "9";
+              const isDarkStrip = key === "2" || key === "3" || key === "5" || key === "6" || key === "8" || key === "9" || key === "10";
               return (
                 <div
                   key={key}
@@ -2358,8 +2688,10 @@ export default function HomepageManager() {
                                 : key === "7"
                                   ? "bg-gradient-to-r from-white to-gray-50 text-gray-700 border-b border-gray-100"
                                   : key === "8"
-                                    ? "bg-gradient-to-r from-neutral-950 to-neutral-800"
-                                    : "bg-gradient-to-r from-neutral-800 to-neutral-600"
+                                    ? "bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white"
+                                    : key === "9"
+                                      ? "bg-gradient-to-r from-neutral-800 to-neutral-600"
+                                      : "bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white"
                       }`}
                   >
                     <div className="text-center px-3">
@@ -2407,75 +2739,81 @@ export default function HomepageManager() {
                   {/* Inline edit form */}
                   {isEditing && (
                     <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
-                      <div>
-                        <label className="text-xs font-semibold text-gray-600">
-                          Headline
-                        </label>
-                        <input
-                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                          value={heroForm.title}
-                          onChange={(e) =>
-                            setHeroForm((p) => ({
-                              ...p,
-                              title: e.target.value,
-                            }))
-                          }
-                          placeholder="Hero headline"
-                        />
-                      </div>
-                      {key !== "5" && (
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600">
-                            Subtitle / Description
-                          </label>
-                          <textarea
-                            rows={2}
-                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                            value={heroForm.subtitle}
-                            onChange={(e) =>
-                              setHeroForm((p) => ({
-                                ...p,
-                                subtitle: e.target.value,
-                              }))
-                            }
-                            placeholder="Supporting text below the headline"
-                          />
-                        </div>
+                      {key !== "6" && key !== "9" && key !== "10" && (
+                        <>
+                          <div>
+                            <label className="text-xs font-semibold text-gray-600">
+                              Headline
+                            </label>
+                            <input
+                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                              value={heroForm.title}
+                              onChange={(e) =>
+                                setHeroForm((p) => ({
+                                  ...p,
+                                  title: e.target.value,
+                                }))
+                              }
+                              placeholder="Hero headline"
+                            />
+                          </div>
+                          {key !== "5" && (
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600">
+                                Subtitle / Description
+                              </label>
+                              <textarea
+                                rows={2}
+                                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                                value={heroForm.subtitle}
+                                onChange={(e) =>
+                                  setHeroForm((p) => ({
+                                    ...p,
+                                    subtitle: e.target.value,
+                                  }))
+                                }
+                                placeholder="Supporting text below the headline"
+                              />
+                            </div>
+                          )}
+                          {key !== "8" && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs font-semibold text-gray-600">
+                                  CTA Button Text
+                                </label>
+                                <input
+                                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                  value={heroForm.ctaText}
+                                  onChange={(e) =>
+                                    setHeroForm((p) => ({
+                                      ...p,
+                                      ctaText: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Shop Now"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-gray-600">
+                                  CTA Link
+                                </label>
+                                <input
+                                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                  value={heroForm.ctaLink}
+                                  onChange={(e) =>
+                                    setHeroForm((p) => ({
+                                      ...p,
+                                      ctaLink: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="/products"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600">
-                            CTA Button Text
-                          </label>
-                          <input
-                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                            value={heroForm.ctaText}
-                            onChange={(e) =>
-                              setHeroForm((p) => ({
-                                ...p,
-                                ctaText: e.target.value,
-                              }))
-                            }
-                            placeholder="Shop Now"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600">
-                            CTA Link
-                          </label>
-                          <input
-                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                            value={heroForm.ctaLink}
-                            onChange={(e) =>
-                              setHeroForm((p) => ({
-                                ...p,
-                                ctaLink: e.target.value,
-                              }))
-                            }
-                            placeholder="/products"
-                          />
-                        </div>
-                      </div>
                       {key === "1" && (
                         <div>
                           <label className="text-xs font-semibold text-gray-600">
@@ -2554,13 +2892,33 @@ export default function HomepageManager() {
                         </div>
                       )}
                       {key === "2" && (
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600">
-                            Background Image{" "}
-                            <span className="font-normal text-gray-400">
-                              (leave blank for default)
-                            </span>
-                          </label>
+                        <>
+                          <div>
+                            <label className="text-xs font-semibold text-gray-600">
+                              Accent Label{" "}
+                              <span className="font-normal text-gray-400">
+                                (small pill badge above headline)
+                              </span>
+                            </label>
+                            <input
+                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                              value={heroForm.accentText ?? ""}
+                              onChange={(e) =>
+                                setHeroForm((p) => ({
+                                  ...p,
+                                  accentText: e.target.value,
+                                }))
+                              }
+                              placeholder="SS26 Collection"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-gray-600">
+                              Full-Width Background Photo{" "}
+                              <span className="font-normal text-gray-400">
+                                (leave blank for default)
+                              </span>
+                            </label>
                           <div className="mt-1 flex gap-2">
                             <input
                               className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
@@ -2614,7 +2972,7 @@ export default function HomepageManager() {
                                   removeHeroBgImage();
                                 }}
                                 className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
-                                title="Remove image from Cloudinary"
+                                title="Remove image"
                               >
                                 <TrashIcon className="w-3 h-3" />
                                 Remove
@@ -2622,7 +2980,8 @@ export default function HomepageManager() {
                             </div>
                           )}
                         </div>
-                      )}
+                      </>
+                    )}
                       {key === "3" && (
                         <>
                           <div>
@@ -2830,7 +3189,7 @@ export default function HomepageManager() {
                                     removeHeroBgImage();
                                   }}
                                   className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
-                                  title="Remove image from Cloudinary"
+                                  title="Remove image"
                                 >
                                   <TrashIcon className="w-3 h-3" />
                                   Remove
@@ -2973,102 +3332,180 @@ export default function HomepageManager() {
                         </div>
                       )}
                       {key === "6" && (
-                        <>
+                        <div className="space-y-4">
                           <div>
-                            <label className="text-xs font-semibold text-gray-600">
-                              Accent Label{" "}
-                              <span className="font-normal text-gray-400">
-                                (small text above headline)
-                              </span>
-                            </label>
-                            <input
-                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                              value={heroForm.accentText ?? ""}
-                              onChange={(e) => setHeroForm((p) => ({ ...p, accentText: e.target.value }))}
-                              placeholder="Limited Time"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-600">
-                              Diagonal Photo{" "}
-                              <span className="font-normal text-gray-400">(leave blank for default)</span>
-                            </label>
-                            <div className="mt-1 flex gap-2">
-                              <input
-                                className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                                value={heroForm.bgImage ?? ""}
-                                onChange={(e) => setHeroForm((p) => ({ ...p, bgImage: e.target.value }))}
-                                placeholder="https://..."
-                              />
-                              <label className="flex-none cursor-pointer flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 text-xs text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors bg-white whitespace-nowrap">
-                                {uploadingBgImage ? (
-                                  <>
-                                    <svg className="animate-spin h-3.5 w-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                    </svg>
-                                    <span>Uploading...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <PhotoIcon className="w-3.5 h-3.5" />
-                                    <span>Upload</span>
-                                  </>
-                                )}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="sr-only"
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f) uploadHeroBgImage(f);
-                                    e.target.value = "";
-                                  }}
-                                />
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-bold text-gray-700">
+                                3 Editorial Columns &amp; Labels
                               </label>
+                              <span className="text-[10px] text-gray-400">
+                                3 Split Banners
+                              </span>
                             </div>
-                            {heroForm.bgImage && (
-                              <div className="mt-2 min-h-[160px] max-h-72 w-full rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 relative group flex items-center justify-center p-2.5 shadow-inner">
-                                <img src={heroForm.bgImage} alt="" className="max-h-64 w-auto h-auto object-contain rounded-lg shadow-md" />
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    removeHeroBgImage();
-                                  }}
-                                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
-                                  title="Remove image from Cloudinary"
-                                >
-                                  <TrashIcon className="w-3 h-3" />
-                                  Remove
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-600">
-                              Floating Badge Text <span className="font-normal text-gray-400">(optional)</span>
-                            </label>
-                            <textarea
-                              rows={2}
-                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none font-mono"
-                              value={heroForm.badgeText ?? ""}
-                              onChange={(e) => setHeroForm((p) => ({ ...p, badgeText: e.target.value }))}
-                              placeholder={"50%\nOFF SELECTED"}
-                            />
-                            <p className="text-[11px] text-gray-400 mt-0.5">
-                              First line = big text, second line = subtitle. Leave blank to hide the badge.
+                            <p className="text-[11px] text-gray-400 mb-3">
+                              Configure photo, title text link, destination URL, and bottom tag for each column.
                             </p>
+
+                            <div className="space-y-3.5">
+                              {[0, 1, 2].map((idx) => {
+                                const imgUrl = heroForm.images?.[idx] ?? "";
+                                const uploading = uploadingHeroImage === idx;
+                                const colTitle = idx === 0 ? "Column 1 (Left)" : idx === 1 ? "Column 2 (Center)" : "Column 3 (Right)";
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="p-3.5 bg-white rounded-xl border border-gray-200 shadow-xs space-y-3 transition-all hover:border-gray-300"
+                                  >
+                                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 font-bold text-[11px] flex items-center justify-center border border-indigo-100">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="text-xs font-bold text-gray-800">
+                                          {colTitle}
+                                        </span>
+                                      </div>
+                                      {imgUrl ? (
+                                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                          Photo Loaded
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-gray-400 font-normal">
+                                          Default Photo
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row gap-3.5 items-start">
+                                      {/* Image Upload Box */}
+                                      <div className="w-full sm:w-28 flex-shrink-0">
+                                        <label className="relative block aspect-[4/3] sm:aspect-square sm:w-28 sm:h-28 rounded-xl overflow-hidden cursor-pointer border-2 border-dashed border-gray-200 hover:border-indigo-400 transition-all bg-gray-50/80 hover:bg-indigo-50/20 flex items-center justify-center group shadow-xs">
+                                          {imgUrl ? (
+                                            <>
+                                              <img
+                                                src={imgUrl}
+                                                alt=""
+                                                className="w-full h-full object-cover"
+                                              />
+                                              <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <span className="text-white text-[10px] font-bold px-2 py-1 rounded bg-black/60 backdrop-blur-xs">
+                                                  Replace
+                                                </span>
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation();
+                                                  removeHeroImage(idx);
+                                                }}
+                                                className="absolute top-1.5 right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center z-10 leading-none shadow transition-transform hover:scale-110 cursor-pointer"
+                                                title="Remove photo"
+                                              >
+                                                ×
+                                              </button>
+                                            </>
+                                          ) : uploading ? (
+                                            <div className="flex flex-col items-center justify-center gap-1.5 p-2 text-center">
+                                              <svg className="animate-spin h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                              </svg>
+                                              <span className="text-[10px] text-indigo-600 font-bold">Uploading...</span>
+                                            </div>
+                                          ) : (
+                                            <div className="text-center p-2">
+                                              <HeroPhotoIcon className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 mx-auto transition-colors" />
+                                              <span className="text-[10px] font-semibold text-gray-500 group-hover:text-indigo-600 mt-1 block">
+                                                Upload Photo
+                                              </span>
+                                              <span className="text-[8px] text-gray-400 block mt-0.5">JPG, PNG, WEBP</span>
+                                            </div>
+                                          )}
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={(e) => {
+                                              const f = e.target.files?.[0];
+                                              if (f) uploadHeroImage(f, idx);
+                                              e.target.value = "";
+                                            }}
+                                          />
+                                        </label>
+                                      </div>
+
+                                      {/* Inputs Stack (Full Width, Spacious) */}
+                                      <div className="flex-1 w-full space-y-2 min-w-0">
+                                        {/* Title input */}
+                                        <div>
+                                          <label className="text-[11px] font-semibold text-gray-700 block mb-0.5">
+                                            Title / Text Link
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={heroForm.imageTitles?.[idx] ?? ""}
+                                            onChange={(e) => {
+                                              const titles = [...(heroForm.imageTitles ?? ["", "", ""])];
+                                              titles[idx] = e.target.value;
+                                              setHeroForm((p) => ({ ...p, imageTitles: titles }));
+                                            }}
+                                            placeholder={idx === 0 ? "Shop Chains" : idx === 1 ? "Shop Rings" : "SS26 Campaign: Out Now"}
+                                            className="w-full border border-gray-300 bg-white rounded-lg px-3 py-1.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                                          />
+                                        </div>
+
+                                        {/* Link input */}
+                                        <div>
+                                          <label className="text-[11px] font-semibold text-gray-700 block mb-0.5">
+                                            Destination Link
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={heroForm.imageLinks?.[idx] ?? ""}
+                                            onChange={(e) => {
+                                              const links = [...(heroForm.imageLinks ?? ["", "", ""])];
+                                              links[idx] = e.target.value;
+                                              setHeroForm((p) => ({ ...p, imageLinks: links }));
+                                            }}
+                                            placeholder="/products"
+                                            className="w-full border border-gray-300 bg-white rounded-lg px-3 py-1.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-mono text-[11px]"
+                                          />
+                                        </div>
+
+                                        {/* Subtitle input */}
+                                        <div>
+                                          <label className="text-[11px] font-semibold text-gray-700 block mb-0.5">
+                                            Bottom Tag / Caption
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={heroForm.imageSubtitles?.[idx] ?? ""}
+                                            onChange={(e) => {
+                                              const subs = [...(heroForm.imageSubtitles ?? ["", "", ""])];
+                                              subs[idx] = e.target.value;
+                                              setHeroForm((p) => ({ ...p, imageSubtitles: subs }));
+                                            }}
+                                            placeholder={idx === 2 ? "SOURCE MATERIAL" : "Optional (e.g. NEW DROP)"}
+                                            className="w-full border border-gray-300 bg-white rounded-lg px-3 py-1.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </>
+                        </div>
                       )}
                       {key === "7" && (
                         <div>
                           <label className="text-xs font-semibold text-gray-600">
                             Accent Label{" "}
                             <span className="font-normal text-gray-400">
-                              (small text above headline — also used as the giant faded
-                              background watermark if set)
+                              (small text above headline)
                             </span>
                           </label>
                           <input
@@ -3077,73 +3514,421 @@ export default function HomepageManager() {
                             onChange={(e) => setHeroForm((p) => ({ ...p, accentText: e.target.value }))}
                             placeholder="The Collection"
                           />
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            Leave blank and the watermark falls back to the first word of the headline.
-                          </p>
                         </div>
                       )}
                       {key === "8" && (
-                        <>
+                        <div className="space-y-3.5">
                           <div>
-                            <label className="text-xs font-semibold text-gray-600">
-                              Accent Label{" "}
-                              <span className="font-normal text-gray-400">
-                                (small text above headline)
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-bold text-gray-700">
+                                Gallery Arc Images
+                              </label>
+                              <span className="text-[10px] text-gray-400">
+                                7 Slots • 3D Curved Ribbon
                               </span>
-                            </label>
-                            <input
-                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                              value={heroForm.accentText ?? ""}
-                              onChange={(e) => setHeroForm((p) => ({ ...p, accentText: e.target.value }))}
-                              placeholder="Sale Ends Soon"
-                            />
+                            </div>
+                            <p className="text-[11px] text-gray-400 mb-3">
+                              Upload photos for the 7 arc positions. Slot 4 sits in the front center. Leave empty to use defaults.
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              {[0, 1, 2, 3, 4, 5, 6].map((i) => {
+                                const imgUrl = heroForm.images?.[i] ?? "";
+                                const uploading = uploadingHeroImage === i;
+                                const isCenter = i === 3;
+                                const slotLabels = [
+                                  "Far Left",
+                                  "Left",
+                                  "Mid-Left",
+                                  "Center (Hero)",
+                                  "Mid-Right",
+                                  "Right",
+                                  "Far Right",
+                                ];
+
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`relative flex flex-col bg-white rounded-xl border p-2.5 shadow-xs transition-all ${
+                                      isCenter
+                                        ? "border-indigo-400 ring-2 ring-indigo-50 bg-indigo-50/20"
+                                        : "border-gray-200 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span
+                                          className={`w-4 h-4 rounded-full font-bold text-[10px] flex items-center justify-center shrink-0 ${
+                                            isCenter
+                                              ? "bg-indigo-600 text-white"
+                                              : "bg-gray-100 text-gray-700"
+                                          }`}
+                                        >
+                                          {i + 1}
+                                        </span>
+                                        <span
+                                          className={`text-[11px] font-bold truncate ${
+                                            isCenter ? "text-indigo-700" : "text-gray-800"
+                                          }`}
+                                        >
+                                          {slotLabels[i]}
+                                        </span>
+                                      </div>
+                                      {isCenter && (
+                                        <span className="text-[8px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wider">
+                                          Center
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <label className="relative aspect-[3/4] w-full rounded-lg overflow-hidden cursor-pointer border-2 border-dashed border-gray-200 hover:border-indigo-400 transition-all bg-gray-50/80 hover:bg-indigo-50/20 flex items-center justify-center group shadow-2xs">
+                                      {imgUrl ? (
+                                        <>
+                                          <img
+                                            src={imgUrl}
+                                            alt={slotLabels[i]}
+                                            className="w-full h-full object-cover"
+                                          />
+                                          <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <span className="text-white text-[10px] font-bold px-2 py-1 rounded bg-black/60 backdrop-blur-xs">
+                                              Replace
+                                            </span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              removeHeroImage(i);
+                                            }}
+                                            className="absolute top-1.5 right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center z-10 leading-none shadow transition-transform hover:scale-110 cursor-pointer"
+                                            title="Remove photo"
+                                          >
+                                            ×
+                                          </button>
+                                        </>
+                                      ) : uploading ? (
+                                        <div className="flex flex-col items-center justify-center gap-1 p-2 text-center">
+                                          <svg
+                                            className="animate-spin h-5 w-5 text-indigo-600"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <circle
+                                              className="opacity-25"
+                                              cx="12"
+                                              cy="12"
+                                              r="10"
+                                              stroke="currentColor"
+                                              strokeWidth="4"
+                                            />
+                                            <path
+                                              className="opacity-75"
+                                              fill="currentColor"
+                                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            />
+                                          </svg>
+                                          <span className="text-[9px] text-indigo-600 font-bold">
+                                            Uploading
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="text-center p-2">
+                                          <HeroPhotoIcon className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 mx-auto transition-colors" />
+                                          <span className="text-[10px] font-semibold text-gray-500 group-hover:text-indigo-600 mt-1 block">
+                                            Upload
+                                          </span>
+                                        </div>
+                                      )}
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="sr-only"
+                                        onChange={(e) => {
+                                          const f = e.target.files?.[0];
+                                          if (f) uploadHeroImage(f, i);
+                                          e.target.value = "";
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
+
+                          {/* Direct Image URL input dropdown */}
+                          <details className="mt-2 text-xs text-gray-500">
+                            <summary className="cursor-pointer hover:text-indigo-600 font-medium select-none text-[11px] py-1">
+                              Or paste direct image URLs...
+                            </summary>
+                            <div className="grid grid-cols-1 gap-2 mt-2 pt-2 border-t border-gray-100">
+                              {[0, 1, 2, 3, 4, 5, 6].map((idx) => (
+                                <div key={idx} className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold text-gray-400 w-14 shrink-0">
+                                    Slot {idx + 1}:
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={heroForm.images?.[idx] ?? ""}
+                                    onChange={(e) => {
+                                      const imgs = [
+                                        ...(heroForm.images ?? ["", "", "", "", "", "", ""]),
+                                      ];
+                                      imgs[idx] = e.target.value;
+                                      setHeroForm((p) => ({ ...p, images: imgs }));
+                                    }}
+                                    placeholder="https://..."
+                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1 text-[11px] text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        </div>
+                      )}
+                      {key === "9" && (
+                        <div className="space-y-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-bold text-gray-700">
+                                5 Carousel Banner Images
+                              </label>
+                              <span className="text-[10px] text-gray-400">
+                                Auto-rotates (5s)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-400 mb-3">
+                              Upload or paste image URLs for all 5 banner slides. Any empty slots will fall back to curated default banners.
+                            </p>
+
+                            <div className="space-y-3.5">
+                              {[0, 1, 2, 3, 4].map((idx) => {
+                                const imgUrl = heroForm.images?.[idx] ?? "";
+                                const uploading = uploadingHeroImage === idx;
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="p-3.5 bg-white rounded-xl border border-gray-200 shadow-xs space-y-3 transition-all hover:border-gray-300"
+                                  >
+                                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 font-bold text-[11px] flex items-center justify-center border border-indigo-100">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="text-xs font-bold text-gray-800">
+                                          Banner Slide {idx + 1}
+                                        </span>
+                                      </div>
+                                      {imgUrl ? (
+                                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                          Custom Photo
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-gray-400 font-normal">
+                                          Default Fallback
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row gap-3.5 items-start">
+                                      {/* Image Upload / Preview Box */}
+                                      <div className="w-full sm:w-36 flex-shrink-0">
+                                        <label className="relative block aspect-[16/9] sm:w-36 rounded-xl overflow-hidden cursor-pointer border-2 border-dashed border-gray-200 hover:border-indigo-400 transition-all bg-gray-50/80 hover:bg-indigo-50/20 flex items-center justify-center group shadow-xs">
+                                          {imgUrl ? (
+                                            <>
+                                              <img
+                                                src={imgUrl}
+                                                alt={`Banner ${idx + 1}`}
+                                                className="w-full h-full object-cover"
+                                              />
+                                              <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <span className="text-white text-[10px] font-bold px-2 py-1 rounded bg-black/60 backdrop-blur-xs">
+                                                  Replace
+                                                </span>
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation();
+                                                  removeHeroImage(idx);
+                                                }}
+                                                className="absolute top-1.5 right-1.5 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center z-10 leading-none shadow transition-transform hover:scale-110 cursor-pointer"
+                                                title="Remove banner"
+                                              >
+                                                ×
+                                              </button>
+                                            </>
+                                          ) : uploading ? (
+                                            <div className="flex flex-col items-center justify-center gap-1.5 p-2 text-center">
+                                              <svg className="animate-spin h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                              </svg>
+                                              <span className="text-[10px] text-indigo-600 font-bold">Uploading...</span>
+                                            </div>
+                                          ) : (
+                                            <div className="text-center p-2">
+                                              <PhotoIcon className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 mx-auto transition-colors" />
+                                              <span className="text-[10px] font-semibold text-gray-500 group-hover:text-indigo-600 mt-1 block">
+                                                Upload Banner
+                                              </span>
+                                              <span className="text-[8px] text-gray-400 block mt-0.5">16:9 • Max 1 MB</span>
+                                            </div>
+                                          )}
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={(e) => {
+                                              const f = e.target.files?.[0];
+                                              if (f) uploadHeroImage(f, idx);
+                                              e.target.value = "";
+                                            }}
+                                          />
+                                        </label>
+                                      </div>
+
+                                      {/* Direct Image URL input (Full Width) */}
+                                      <div className="flex-1 w-full space-y-1.5 min-w-0">
+                                        <label className="text-[11px] font-semibold text-gray-700 block">
+                                          Or Direct Image URL
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={heroForm.images?.[idx] ?? ""}
+                                          onChange={(e) => {
+                                            const imgs = [...(heroForm.images ?? ["", "", "", "", ""])];
+                                            imgs[idx] = e.target.value;
+                                            setHeroForm((p) => ({ ...p, images: imgs }));
+                                          }}
+                                          placeholder="https://... (or upload photo above)"
+                                          className="w-full border border-gray-300 bg-white rounded-lg px-3 py-1.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-mono text-[11px]"
+                                        />
+                                        <p className="text-[10px] text-gray-400">
+                                          Upload a file above or paste an external image link.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {key === "10" && (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600">
+                                Main Headline (Serif Font)
+                              </label>
+                              <input
+                                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                value={heroForm.title ?? ""}
+                                onChange={(e) =>
+                                  setHeroForm((p) => ({
+                                    ...p,
+                                    title: e.target.value,
+                                  }))
+                                }
+                                placeholder="Festive"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600">
+                                Script Accent Word (Cursive Font)
+                              </label>
+                              <input
+                                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 font-serif italic"
+                                value={heroForm.highlightText ?? ""}
+                                onChange={(e) =>
+                                  setHeroForm((p) => ({
+                                    ...p,
+                                    highlightText: e.target.value,
+                                  }))
+                                }
+                                placeholder="Sale"
+                              />
+                            </div>
+                          </div>
+
                           <div>
                             <label className="text-xs font-semibold text-gray-600">
-                              Discount Numeral{" "}
+                              Offer Subtitle Lines{" "}
                               <span className="font-normal text-gray-400">
-                                (the giant number — this IS the hero's main visual)
+                                (press enter for new line)
                               </span>
                             </label>
                             <textarea
                               rows={2}
-                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none font-mono"
-                              value={heroForm.badgeText ?? ""}
-                              onChange={(e) => setHeroForm((p) => ({ ...p, badgeText: e.target.value }))}
-                              placeholder={"70%\nOFF"}
+                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none font-serif"
+                              value={heroForm.subtitle ?? ""}
+                              onChange={(e) =>
+                                setHeroForm((p) => ({
+                                  ...p,
+                                  subtitle: e.target.value,
+                                }))
+                              }
+                              placeholder={"Flat 50% OFF +\nExtra Rs.1000/- OFF"}
                             />
-                            <p className="text-[11px] text-gray-400 mt-0.5">
-                              First line = the giant number, second line = the label beneath it.
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600">
+                                Button Text
+                              </label>
+                              <input
+                                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 uppercase text-xs tracking-wider"
+                                value={heroForm.ctaText ?? ""}
+                                onChange={(e) =>
+                                  setHeroForm((p) => ({
+                                    ...p,
+                                    ctaText: e.target.value,
+                                  }))
+                                }
+                                placeholder="Explore More"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600">
+                                Button Destination Link
+                              </label>
+                              <input
+                                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                value={heroForm.ctaLink ?? ""}
+                                onChange={(e) =>
+                                  setHeroForm((p) => ({
+                                    ...p,
+                                    ctaLink: e.target.value,
+                                  }))
+                                }
+                                placeholder="/products"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-gray-600 block mb-1">
+                              Background Banner Photo
+                            </label>
+                            <p className="text-[11px] text-gray-400 mb-2">
+                              Upload a background image or paste an image URL.
                             </p>
-                          </div>
-                        </>
-                      )}
-                      {key === "9" && (
-                        <>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-600">
-                              Accent Label{" "}
-                              <span className="font-normal text-gray-400">
-                                (small text above headline)
-                              </span>
-                            </label>
-                            <input
-                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                              value={heroForm.accentText ?? ""}
-                              onChange={(e) => setHeroForm((p) => ({ ...p, accentText: e.target.value }))}
-                              placeholder="New In"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-gray-600">
-                              Full-bleed Background Photo{" "}
-                              <span className="font-normal text-gray-400">(leave blank for default)</span>
-                            </label>
-                            <div className="mt-1 flex gap-2">
+                            <div className="flex gap-2">
                               <input
                                 className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                                 value={heroForm.bgImage ?? ""}
-                                onChange={(e) => setHeroForm((p) => ({ ...p, bgImage: e.target.value }))}
+                                onChange={(e) =>
+                                  setHeroForm((p) => ({
+                                    ...p,
+                                    bgImage: e.target.value,
+                                  }))
+                                }
                                 placeholder="https://..."
                               />
                               <label className="flex-none cursor-pointer flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 text-xs text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors bg-white whitespace-nowrap">
@@ -3173,17 +3958,22 @@ export default function HomepageManager() {
                                 />
                               </label>
                             </div>
+
                             {heroForm.bgImage && (
-                              <div className="mt-2 min-h-[160px] max-h-72 w-full rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 relative group flex items-center justify-center p-2.5 shadow-inner">
-                                <img src={heroForm.bgImage} alt="" className="max-h-64 w-auto h-auto object-contain rounded-lg shadow-md" />
+                              <div className="mt-2 w-full rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 relative group p-2 shadow-inner">
+                                <img
+                                  src={heroForm.bgImage}
+                                  alt=""
+                                  className="w-full h-auto max-h-64 object-contain rounded-lg"
+                                />
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.preventDefault();
                                     removeHeroBgImage();
                                   }}
-                                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
-                                  title="Remove image from Cloudinary"
+                                  className="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 transition-colors z-10 cursor-pointer"
+                                  title="Remove image"
                                 >
                                   <TrashIcon className="w-3 h-3" />
                                   Remove
@@ -3191,7 +3981,7 @@ export default function HomepageManager() {
                               </div>
                             )}
                           </div>
-                        </>
+                        </div>
                       )}
                       <button
                         onClick={() => saveHeroTemplate()}
@@ -3325,24 +4115,31 @@ export default function HomepageManager() {
                     )}
 
                     {key === "5" && (
-                      <div className="w-full bg-indigo-600 text-white rounded-lg p-2.5 border border-indigo-700 shadow-xs flex items-center justify-between h-20">
+                      <div className="w-full bg-white text-gray-900 rounded-lg p-2.5 border border-gray-200 shadow-xs flex items-center justify-between h-20">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-md bg-white text-[8px] font-bold text-indigo-700 flex items-center justify-center">
-                            A
+                          <div className="w-4 h-4 rounded-xs bg-black text-[8px] font-black text-white flex items-center justify-center">
+                            P
                           </div>
-                          <div className="h-2 w-8 bg-white/90 rounded-xs" />
+                          <div className="flex flex-col">
+                            <span className="text-[8px] font-black tracking-wider uppercase text-gray-900 leading-none">PEARLS</span>
+                            <span className="text-[5px] text-gray-400 font-medium tracking-widest uppercase leading-none mt-0.5">COUTURE</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className="px-2 py-0.5 bg-white text-[8px] text-indigo-900 font-bold rounded-md shadow-xs">
-                            Home
-                          </span>
-                          <span className="px-1.5 py-0.5 text-[8px] text-white/80">
-                            Festive
+                        <div className="flex items-center gap-1.5 text-[7px] font-semibold tracking-wider uppercase text-gray-700">
+                          <div className="flex flex-col items-center">
+                            <span className="text-black font-bold">HOME</span>
+                            <span className="w-2.5 h-[1.5px] bg-black rounded-full mt-0.5" />
+                          </div>
+                          <span className="text-gray-400">SHOP</span>
+                          <span className="text-gray-400 flex items-center gap-0.5">
+                            CAT <span className="text-[6px]">▾</span>
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <div className="h-3 w-8 bg-white/20 rounded-full" />
-                          <div className="w-3.5 h-3.5 rounded-full bg-white text-indigo-900" />
+                        <div className="flex items-center gap-1 text-gray-700">
+                          <div className="w-2.5 h-2.5 rounded-full border border-gray-400" />
+                          <div className="w-2.5 h-2.5 rounded-full border border-gray-400" />
+                          <div className="w-2.5 h-2.5 rounded-full border border-gray-400" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-black" />
                         </div>
                       </div>
                     )}
@@ -3410,6 +4207,320 @@ export default function HomepageManager() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ── PRE-FOOTER BANNERS TAB ─────────────────────────────────────── */}
+      {activeTab === "PRE_FOOTER" && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header & Main Actions */}
+          <div className="bg-white border border-gray-200/80 shadow-sm rounded-2xl p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Full-Width Pre-Footer Banners</h2>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                  Manage up to 3 full-width banners displayed one by one directly above the footer. Images display at their natural uploaded dimensions across the full screen width with zero cropping. Each banner can optionally link to any product, category, or page.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={savePreFooterConfig}
+                disabled={savingPreFooter}
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-indigo-100"
+              >
+                {savingPreFooter ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircleIcon className="w-4 h-4" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Global Controls & Status Pill */}
+            <div className="pt-5 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              {/* Section Visibility Toggle */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-gray-200 bg-gray-50/50">
+                <div>
+                  <span className="text-xs font-bold text-gray-800 block">Section Visibility</span>
+                  <span className="text-[11px] text-gray-500">
+                    {preFooterConfig.enabled ? "Visible on storefront" : "Hidden from storefront"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreFooterConfig((p) => ({ ...p, enabled: !p.enabled }))}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    preFooterConfig.enabled ? "bg-indigo-600" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      preFooterConfig.enabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Status Mode Indicator */}
+              <div className="p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/40 text-left">
+                <span className="text-xs font-bold text-indigo-950 block">Active Banners Stack</span>
+                <span className="text-[11px] text-indigo-700 font-medium leading-tight block mt-0.5">
+                  {!preFooterConfig.enabled
+                    ? "🚫 Section is Disabled (Hidden from storefront)"
+                    : (() => {
+                        const count = (preFooterConfig.banners || []).filter(
+                          (b) => b && b.isActive !== false && b.image && b.image.trim() !== ""
+                        ).length;
+                        if (count === 0) return "⚪ 0 active banners (Hidden from storefront)";
+                        if (count === 1) return "⭐ 1 full-width banner active (100% natural size)";
+                        return `📸 ${count} full-width banners active (stacked one by one)`;
+                      })()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Banner Slots */}
+          <div className="space-y-4">
+            {[0, 1, 2].map((slotIndex) => {
+              const slot = preFooterConfig.banners?.[slotIndex];
+              const hasImage = Boolean(slot?.image && slot.image.trim() !== "");
+              const isUploading = uploadingPreFooterSlot === slotIndex;
+              const isActive = slot?.isActive !== false;
+
+              return (
+                <div
+                  key={slotIndex}
+                  className={`bg-white border rounded-2xl shadow-sm transition-all overflow-hidden ${
+                    hasImage && isActive
+                      ? "border-gray-200"
+                      : hasImage && !isActive
+                      ? "border-amber-200 bg-amber-50/20"
+                      : "border-gray-200/80"
+                  }`}
+                >
+                  {/* Slot Header */}
+                  <div className="px-5 py-3.5 bg-gray-50/70 border-b border-gray-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-6 h-6 rounded-lg bg-gray-200 text-gray-700 font-bold text-xs flex items-center justify-center">
+                        {slotIndex + 1}
+                      </span>
+                      <span className="text-xs font-bold text-gray-900">
+                        Banner Slot {slotIndex + 1}
+                      </span>
+                      {slotIndex === 0 && (
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          Primary
+                        </span>
+                      )}
+                      {hasImage && !isActive && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          Paused
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {hasImage && (
+                        <button
+                          type="button"
+                          onClick={() => updatePreFooterSlot(slotIndex, { isActive: !isActive })}
+                          className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors ${
+                            isActive
+                              ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }`}
+                        >
+                          {isActive ? "Active" : "Paused"}
+                        </button>
+                      )}
+                      {hasImage && (
+                        <button
+                          type="button"
+                          onClick={() => removePreFooterSlotImage(slotIndex)}
+                          title="Remove banner"
+                          className="p-1 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Slot Body */}
+                  <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    {/* Image Area (5 cols) */}
+                    <div className="lg:col-span-5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5 block">
+                        Banner Image
+                      </label>
+                      {hasImage ? (
+                        <div className="relative group rounded-xl overflow-hidden border border-gray-200 bg-neutral-950 min-h-[100px] max-h-[220px] flex items-center justify-center">
+                          <img
+                            src={slot.image}
+                            alt={slot.title || `Slot ${slotIndex + 1}`}
+                            className="w-full h-auto max-h-[220px] object-contain block"
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-gray-900 hover:bg-gray-100 shadow transition-transform active:scale-95">
+                              Replace Image
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={isUploading}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) uploadPreFooterSlotImage(file, slotIndex);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removePreFooterSlotImage(slotIndex)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 shadow transition-transform active:scale-95"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          {isUploading && (
+                            <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center gap-2 text-white text-xs">
+                              <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Uploading...
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <label
+                          className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 hover:border-indigo-400 bg-gray-50/50 hover:bg-indigo-50/20 py-8 px-4 transition-all cursor-pointer text-center ${
+                            isUploading ? "pointer-events-none opacity-60" : ""
+                          }`}
+                        >
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={isUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) uploadPreFooterSlotImage(file, slotIndex);
+                              e.target.value = "";
+                            }}
+                          />
+                          {isUploading ? (
+                            <div className="flex flex-col items-center gap-1.5 text-indigo-600">
+                              <span className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                              <span className="text-xs font-semibold">Uploading...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <PhotoIcon className="w-7 h-7 text-gray-400 mb-1" />
+                              <span className="text-xs font-bold text-gray-700">Click to upload banner</span>
+                              <span className="text-[10px] text-gray-400 mt-0.5">
+                                JPG, PNG, WEBP &bull; Max 1 MB &bull; Full-width banner (natural size)
+                              </span>
+                            </>
+                          )}
+                        </label>
+                      )}
+                    </div>
+
+                    {/* Controls Area (7 cols) */}
+                    <div className="lg:col-span-7 space-y-3.5">
+                      {/* Link input */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                            Banner Click Link <span className="text-gray-400 font-normal lowercase">(optional)</span>
+                          </label>
+                          {/* Quick suggestion pills */}
+                          <div className="flex gap-1 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => updatePreFooterSlot(slotIndex, { link: "/products" })}
+                              className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                            >
+                              + All Products
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updatePreFooterSlot(slotIndex, { link: "/about" })}
+                              className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                            >
+                              + About
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          value={slot?.link || ""}
+                          onChange={(e) => updatePreFooterSlot(slotIndex, { link: e.target.value })}
+                          placeholder="e.g. /products/handloom-saree or https://..."
+                          className="w-full text-xs border border-gray-300 rounded-xl px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          If provided, clicking this banner redirects customers here. If blank, banner is display-only.
+                        </p>
+                      </div>
+
+                      {/* Title / Alt input */}
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">
+                          Title / Alt Text <span className="text-gray-400 font-normal lowercase">(optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={slot?.title || ""}
+                          onChange={(e) => updatePreFooterSlot(slotIndex, { title: e.target.value })}
+                          placeholder="e.g. Exclusive Festive Collection 2026"
+                          className="w-full text-xs border border-gray-300 rounded-xl px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Accessibility description for screen readers and SEO alt attribute.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom Save Bar */}
+          <div className="sticky bottom-4 z-10 bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl p-4 shadow-lg flex items-center justify-between gap-4">
+            <p className="text-xs text-gray-500">
+              Make sure to save your changes to publish them to your storefront live preview.
+            </p>
+            <button
+              type="button"
+              onClick={savePreFooterConfig}
+              disabled={savingPreFooter}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-indigo-100"
+            >
+              {savingPreFooter ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="w-4 h-4" />
+                  Save Changes
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}
@@ -3499,6 +4610,30 @@ export default function HomepageManager() {
                   {/* Inline edit form */}
                   {isEditing && (
                     <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+                      {/* Display Company Name Toggle */}
+                      <div className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-gray-200 shadow-xs">
+                        <div className="pr-4">
+                          <label htmlFor="footerShowCompanyName" className="text-xs font-bold text-gray-800 cursor-pointer block">
+                            Display Company Name Next to Logo
+                          </label>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            Show text brand name next to your logo. Turn OFF to hide the text if your logo image already contains your brand name.
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          id="footerShowCompanyName"
+                          checked={footerForm.showCompanyName !== false}
+                          onChange={(e) =>
+                            setFooterForm((p) => ({
+                              ...p,
+                              showCompanyName: e.target.checked,
+                            }))
+                          }
+                          className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer shrink-0"
+                        />
+                      </div>
+
                       <div>
                         <label className="text-xs font-semibold text-gray-600">
                           Tagline / Description
@@ -3516,28 +4651,15 @@ export default function HomepageManager() {
                           placeholder="Short brand description shown in the footer"
                         />
                       </div>
-                      {key === "3" && (
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600">
-                            Newsletter Section Title
-                          </label>
-                          <input
-                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                            value={footerForm.newsletterTitle ?? ""}
-                            onChange={(e) =>
-                              setFooterForm((p) => ({
-                                ...p,
-                                newsletterTitle: e.target.value,
-                              }))
-                            }
-                            placeholder="Stay in the loop"
-                          />
-                        </div>
-                      )}
 
                       {/* Social Media Links section */}
                       <div className="border-t border-gray-200 pt-3 mt-3 space-y-3">
-                        <p className="text-xs font-black uppercase text-gray-400 tracking-wider">Social Links</p>
+                        <div>
+                          <p className="text-xs font-black uppercase text-gray-400 tracking-wider">Social Links</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            Leave any field blank to hide that icon from your footer.
+                          </p>
+                        </div>
 
                         <div>
                           <label className="text-xs font-semibold text-gray-600">
@@ -3553,7 +4675,7 @@ export default function HomepageManager() {
                                 instagramLink: e.target.value,
                               }))
                             }
-                            placeholder="https://instagram.com/yourbrand"
+                            placeholder="https://instagram.com/yourbrand (leave empty to hide)"
                           />
                         </div>
 
@@ -3571,31 +4693,13 @@ export default function HomepageManager() {
                                 facebookLink: e.target.value,
                               }))
                             }
-                            placeholder="https://facebook.com/yourbrand"
+                            placeholder="https://facebook.com/yourbrand (leave empty to hide)"
                           />
                         </div>
 
                         <div>
                           <label className="text-xs font-semibold text-gray-600">
-                            Twitter / X Link
-                          </label>
-                          <input
-                            type="url"
-                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                            value={footerForm.twitterLink ?? ""}
-                            onChange={(e) =>
-                              setFooterForm((p) => ({
-                                ...p,
-                                twitterLink: e.target.value,
-                              }))
-                            }
-                            placeholder="https://twitter.com/yourbrand"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600">
-                            Contact Email / Mail Link
+                            Contact Email / Gmail Link
                           </label>
                           <input
                             className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
@@ -3606,7 +4710,7 @@ export default function HomepageManager() {
                                 mailLink: e.target.value,
                               }))
                             }
-                            placeholder="info@yourbrand.com"
+                            placeholder="info@yourbrand.com (leave empty to hide)"
                           />
                         </div>
                       </div>
@@ -4099,9 +5203,9 @@ export default function HomepageManager() {
                         </h4>
 
                         {banner.discount && (
-                          <p className="text-indigo-600 font-extrabold text-sm tracking-wide bg-indigo-50/60 inline-block px-2 py-0.5 rounded-md mb-2">
-                            {banner.discount}
-                          </p>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide bg-indigo-50 text-indigo-700 border border-indigo-100/80 mb-2">
+                            {formatDiscountBadge(banner.discount)}
+                          </span>
                         )}
 
                         {banner.description && (
@@ -4594,6 +5698,267 @@ export default function HomepageManager() {
             </div>
           </div>
         )}
+
+        {/* ── ADDITIONAL FEATURED SECTIONS (CATEGORY SHOWCASES) ────────────── */}
+        <div className="pt-6 border-t-2 border-dashed border-gray-200 space-y-6">
+          {/* Header Card with Explanatory alternating workflow */}
+          <div className="bg-gradient-to-r from-indigo-50/70 via-purple-50/40 to-white border border-indigo-100/90 rounded-2xl p-5 sm:p-6 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1.5 max-w-2xl">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200">
+                  <SparklesIcon className="w-3.5 h-3.5" />
+                  Homepage Interleaved Showcase
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 tracking-tight">
+                  Additional Featured Sections (Category Showcases 2 – 3)
+                </h3>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Configure up to 2 category showcases that alternate with your Pre-Footer Banners across the homepage. Products from each category are automatically fetched and presented with a dedicated <span className="font-semibold text-gray-800">"View All [Category] →"</span> button.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={saveFeaturedCategoriesConfig}
+                disabled={savingFeaturedCategories}
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-indigo-100"
+              >
+                {savingFeaturedCategories ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircleIcon className="w-4 h-4" />
+                    Save Category Showcases
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Alternating Workflow Flow Diagram Pill */}
+            <div className="mt-4 pt-4 border-t border-indigo-100/80">
+              <div className="text-[11px] font-bold text-indigo-900 mb-2 flex items-center gap-1.5">
+                <span>🔄 Alternating Showcase Layout:</span>
+                <span className="text-[10px] font-normal text-indigo-700">
+                  (Banners &amp; Sections alternate down the homepage; uneven counts automatically flow cleanly)
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-gray-700">
+                <span className="px-2 py-1 bg-white rounded-md border border-indigo-200 shadow-2xs">Banner 1</span>
+                <span className="text-indigo-400">➔</span>
+                <span className="px-2 py-1 bg-amber-50 rounded-md border border-amber-200 text-amber-900 shadow-2xs">Section 1 (Curated)</span>
+                <span className="text-indigo-400">➔</span>
+                <span className="px-2 py-1 bg-white rounded-md border border-indigo-200 shadow-2xs">Banner 2</span>
+                <span className="text-indigo-400">➔</span>
+                <span className="px-2 py-1 bg-purple-50 rounded-md border border-purple-200 text-purple-900 shadow-2xs">Section 2 (Slot 1)</span>
+                <span className="text-indigo-400">➔</span>
+                <span className="px-2 py-1 bg-white rounded-md border border-indigo-200 shadow-2xs">Banner 3</span>
+                <span className="text-indigo-400">➔</span>
+                <span className="px-2 py-1 bg-purple-50 rounded-md border border-purple-200 text-purple-900 shadow-2xs">Section 3 (Slot 2)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2 Category Slots */}
+          <div className="grid grid-cols-1 gap-5">
+            {[0, 1].map((slotIdx) => {
+              const slot = (featuredCatConfig.slots || DEFAULT_FEATURED_CATEGORIES_CONFIG.slots)[slotIdx] || {
+                id: `slot-${slotIdx + 1}`,
+                categoryId: "",
+                customTitle: "",
+                customSubtitle: "",
+                limit: 8,
+                isActive: true,
+              };
+
+              const isActive = slot.isActive !== false;
+              const hasCategory = Boolean(slot.categoryId && slot.categoryId.trim() !== "");
+              const selectedCat = allCategoriesList.find((c) => c.id === slot.categoryId);
+              const selectedCatName = selectedCat?.name.replace(/^—\s*/, "") || "";
+
+              return (
+                <div
+                  key={slotIdx}
+                  className={`bg-white border rounded-2xl shadow-sm transition-all ${
+                    hasCategory && isActive
+                      ? "border-gray-200"
+                      : hasCategory && !isActive
+                      ? "border-amber-200 bg-amber-50/15"
+                      : "border-gray-200/80"
+                  }`}
+                >
+                  {/* Card Header */}
+                  <div className="px-5 py-3.5 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-3 rounded-t-2xl">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-7 h-7 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-2xs">
+                        {slotIdx + 2}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-gray-900">
+                            Featured Section {slotIdx + 2}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            Slot {slotIdx + 1}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          {selectedCatName ? `Category: ${selectedCatName}` : "No category selected"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Enable Toggle Switch */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-500 hidden sm:inline">
+                        {isActive ? "Enabled" : "Disabled"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateFeaturedCategorySlot(slotIdx, { isActive: !isActive })}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isActive ? "bg-indigo-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            isActive ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card Inputs */}
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Target Category Select */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                          Target Category <span className="text-indigo-600 font-semibold">*</span>
+                        </label>
+                        <CustomDropdownSelect
+                          value={slot.categoryId || ""}
+                          onChange={(val) => updateFeaturedCategorySlot(slotIdx, { categoryId: String(val) })}
+                          options={[
+                            { value: "", label: "-- Select a Category --" },
+                            ...allCategoriesList.map((cat) => ({
+                              value: cat.id,
+                              label: cat.name,
+                            })),
+                          ]}
+                          placeholder="-- Select a Category --"
+                          searchable={allCategoriesList.length > 5}
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Products from this category will automatically be fetched.
+                        </p>
+                      </div>
+
+                      {/* Display Limit Select */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                          Max Products to Display
+                        </label>
+                        <CustomDropdownSelect
+                          value={slot.limit || 8}
+                          onChange={(val) => updateFeaturedCategorySlot(slotIdx, { limit: Number(val) })}
+                          options={[
+                            { value: 4, label: "4 Products" },
+                            { value: 8, label: "8 Products", badge: "Default" },
+                            { value: 12, label: "12 Products" },
+                            { value: 16, label: "16 Products" },
+                          ]}
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          How many products to show in this section before "View All".
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Custom Title Input */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                          Custom Section Title <span className="text-gray-400 font-normal">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={slot.customTitle || ""}
+                          onChange={(e) => updateFeaturedCategorySlot(slotIdx, { customTitle: e.target.value })}
+                          placeholder={selectedCatName ? `Default: ${selectedCatName}` : "e.g. Best in Sarees"}
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-xs sm:text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        />
+                      </div>
+
+                      {/* Custom Subtitle Input */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                          Subtitle <span className="text-gray-400 font-normal">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={slot.customSubtitle || ""}
+                          onChange={(e) => updateFeaturedCategorySlot(slotIdx, { customSubtitle: e.target.value })}
+                          placeholder="e.g. Handcrafted styles curated especially for you"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-xs sm:text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Status Pill Indicator */}
+                    <div className="pt-2">
+                      {!isActive ? (
+                        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-500 font-medium">
+                          <span>⚪</span>
+                          <span>Slot is disabled and will be omitted from the homepage.</span>
+                        </div>
+                      ) : !hasCategory ? (
+                        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 font-medium">
+                          <span>⚠️</span>
+                          <span>No category selected. This slot is currently idle and will be skipped on the storefront.</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-medium">
+                          <span>✅</span>
+                          <span>
+                            Active: Will showcase up to <strong className="font-bold">{slot.limit || 8}</strong> products from{" "}
+                            <strong className="font-bold text-emerald-900">"{selectedCatName}"</strong> with a dedicated{" "}
+                            <strong className="font-bold">"View All {selectedCatName} →"</strong> button.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom Save Action Bar */}
+          <div className="flex items-center justify-end pt-3">
+            <button
+              type="button"
+              onClick={saveFeaturedCategoriesConfig}
+              disabled={savingFeaturedCategories}
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-indigo-100"
+            >
+              {savingFeaturedCategories ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving Category Showcases...
+                </>
+              ) : (
+                <>
+                  <CheckCircleIcon className="w-4 h-4" />
+                  Save Category Showcases
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     )}
 
@@ -4708,14 +6073,14 @@ export default function HomepageManager() {
                   )}
                 </label>
                 <div
-                  className="relative border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center h-44 cursor-pointer hover:border-indigo-400 transition-colors overflow-hidden"
+                  className="relative border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center h-48 cursor-pointer hover:border-indigo-400 transition-colors overflow-hidden bg-slate-50"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {imagePreview ? (
                     <img
                       src={imagePreview}
                       alt="Preview"
-                      className="absolute inset-0 w-full h-full object-cover rounded-xl"
+                      className="absolute inset-0 w-full h-full object-contain p-1.5 rounded-xl"
                     />
                   ) : (
                     <>

@@ -291,9 +291,9 @@ const DetailDialog = ({
                     <p className="font-semibold text-gray-900 text-sm truncate">{item.name}</p>
                     <p className="text-xs text-gray-400">{item.category?.name ?? ""} · {item.code}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-sm font-bold text-gray-900">₹{discountedPrice.toFixed(0)}</span>
+                      <span className="text-sm font-extrabold text-emerald-700 tracking-tight">₹{Math.round(discountedPrice).toLocaleString("en-IN")}</span>
                       {discount > 0 && (
-                        <span className="text-xs text-green-600 font-semibold bg-green-50 px-1.5 py-0.5 rounded-full">-{discount}%</span>
+                        <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">-{Math.round(discount)}%</span>
                       )}
                     </div>
                     {tab === "cart" && item.quantity && (
@@ -1016,16 +1016,12 @@ const CancellationFeedbackSection = ({
   onDeleteFeedback: (feedback: CancellationFeedbackDoc) => void;
 }) => {
   const [selectedReasonFilter, setSelectedReasonFilter] = useState("");
-  const [selectedMethodFilter, setSelectedMethodFilter] = useState("");
   const [selectedFeedback, setSelectedFeedback] = useState<CancellationFeedbackDoc | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
   const filteredFeedbacks = feedbacks.filter((fb) => {
     if (selectedReasonFilter && !fb.selectedReasons.includes(selectedReasonFilter)) {
-      return false;
-    }
-    if (selectedMethodFilter && fb.paymentMethod.toUpperCase() !== selectedMethodFilter.toUpperCase()) {
       return false;
     }
     return true;
@@ -1035,22 +1031,10 @@ const CancellationFeedbackSection = ({
   const startIndex = (page - 1) * PAGE_SIZE;
   const paginatedFeedbacks = filteredFeedbacks.slice(startIndex, startIndex + PAGE_SIZE);
 
-  const handleMethodChange = (val: string) => {
-    setSelectedMethodFilter(val);
-    setPage(1);
-  };
-
   const handleReasonChange = (val: string) => {
     setSelectedReasonFilter(val);
     setPage(1);
   };
-
-  const paymentMethodOptions: DropdownOption[] = [
-    { value: "", label: "All Payment Methods", icon: <CreditCardIcon className="w-3.5 h-3.5" /> },
-    { value: "ONLINE", label: "Online (Razorpay / UPI)", icon: <CreditCardIcon className="w-3.5 h-3.5 text-blue-500" /> },
-    { value: "POD", label: "Cash on Delivery (COD)", icon: <BanknotesIcon className="w-3.5 h-3.5 text-amber-500" /> },
-    { value: "QR", label: "QR Code Payment", icon: <TagIcon className="w-3.5 h-3.5 text-purple-500" /> },
-  ];
 
   const reasonOptions: DropdownOption[] = [
     { value: "", label: "All Reasons", icon: <FunnelIcon className="w-3.5 h-3.5" /> },
@@ -1085,7 +1069,7 @@ const CancellationFeedbackSection = ({
       </div>
 
       {/* Minimal Key Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="p-3.5 rounded-xl bg-white border border-slate-100 shadow-xs">
           <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Surveys</p>
           <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{analytics.totalFeedbacks}</p>
@@ -1101,30 +1085,11 @@ const CancellationFeedbackSection = ({
             {analytics.reasonDistribution[0] ? `${analytics.reasonDistribution[0].percentage}% of responses` : "No data"}
           </p>
         </div>
-
-        <div className="p-3.5 rounded-xl bg-white border border-slate-100 shadow-xs">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Abandoned Cart Total</p>
-          <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">
-            ₹{analytics.totalAbandonedAmount.toLocaleString("en-IN")}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">Unfinished checkout value</p>
-        </div>
       </div>
-
-
 
       {/* Filter Bar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Payment Method Dropdown */}
-          <CustomFilterDropdown
-            label="Payment Method"
-            value={selectedMethodFilter}
-            options={paymentMethodOptions}
-            onChange={handleMethodChange}
-            icon={CreditCardIcon}
-          />
-
           {/* Cancellation Reasons Dropdown */}
           {analytics.reasonDistribution.length > 0 && (
             <CustomFilterDropdown
@@ -1137,17 +1102,16 @@ const CancellationFeedbackSection = ({
           )}
 
           {/* Reset Filters Trigger */}
-          {(selectedReasonFilter || selectedMethodFilter) && (
+          {selectedReasonFilter && (
             <button
               onClick={() => {
                 setSelectedReasonFilter("");
-                setSelectedMethodFilter("");
                 setPage(1);
               }}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-100 transition cursor-pointer"
             >
               <XMarkIcon className="w-3.5 h-3.5" />
-              Reset Filters
+              Reset Filter
             </button>
           )}
         </div>
@@ -1175,8 +1139,8 @@ const CancellationFeedbackSection = ({
           </div>
           <h4 className="text-xs font-bold text-slate-700">No feedback entries found</h4>
           <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs">
-            {selectedReasonFilter || selectedMethodFilter
-              ? "No responses match the active filters"
+            {selectedReasonFilter
+              ? "No responses match the active filter"
               : "When customers exit or cancel purchases, their feedback will appear here"}
           </p>
         </div>

@@ -7,7 +7,6 @@ import {
   Navigate,
 } from "react-router-dom";
 import { useEffect, useRef } from "react";
-import { PulseLoader } from "react-spinners";
 
 /* ==================== CONTEXT HOOKS ==================== */
 import { useAuth } from "./context/AuthContext";
@@ -18,6 +17,7 @@ import PageSeo from "./components/seo/PageSeo";
 /* ==================== GLOBAL COMPONENTS ==================== */
 // Kept eager: needed immediately for every customer route, and small.
 import Navbar from "./components/Navbar";
+import FestiveAmbientOverlay from "./components/FestiveAmbientOverlay";
 
 /* ==================== AUTH ==================== */
 // Kept eager: tiny, and Login is the very first thing an unauthenticated visit needs.
@@ -70,6 +70,7 @@ const CustomerActivityTracker = lazy(() => import("./dashboard/CustomerActivityT
 const PaymentTransactionLogs = lazy(() => import("./dashboard/PaymentTransactionLogs"));
 const AdminOrderPage = lazy(() => import("./dashboard/AdminOrderPage"));
 const SuperAdminMonitoring = lazy(() => import("./dashboard/SuperAdminMonitoring"));
+const AdminProductStockManagement = lazy(() => import("./dashboard/AdminProductStockManagement"));
 
 /* ── Customer ── */
 const ProductsPage = lazy(() => import("./components/AllProducts"));
@@ -105,12 +106,11 @@ const ContactPage = lazy(() => import("./pages/static/ContactPage"));
 const Home = lazy(() => import("./home/Home"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-/* Shown while a lazy route chunk is downloading — mirrors the loading state
- * every dashboard already renders during its own initial data fetch, so a
- * chunk-load and a data-load look the same to the user. */
+/* Top progress indicator while a lazy route chunk is resolving — prevents
+ * jarring full-screen white flashes ("blinking") during navigation and reloads. */
 const RouteFallback = () => (
-  <div className="flex h-screen w-screen items-center justify-center bg-white">
-    <PulseLoader color="#000000" />
+  <div className="fixed inset-x-0 top-0 z-[9999] h-1 w-full overflow-hidden bg-slate-100">
+    <div className="h-full w-full bg-indigo-600 origin-left animate-pulse" />
   </div>
 );
 
@@ -146,17 +146,24 @@ const CustomerLayout = () => {
   }, [pathname]);
 
   // Privileged roles must never see the customer-facing layout.
-  // Handles the browser back-button case where an admin lands on "/".
+  // Handles the browser back-button case or slow internet load where an admin lands on "/".
   // Exception: Homepage Manager's live-preview iframe deliberately embeds this same
   // layout under an admin/super-admin session — isStorefrontPreview() only returns true
   // there (requires both ?preview=1 AND actually being framed), never for a real
   // top-level visit, so this doesn't relax the redirect for anyone else.
-  if (!user.isInitialLoad && user.isAuthenticated && !isStorefrontPreview()) {
-    const role = user.role?.toUpperCase();
-    if (role === "SUPER_ADMIN")
+  const effectiveRole = (user.role || (typeof window !== "undefined" ? localStorage.getItem("userRole") : null))?.toUpperCase();
+  const isPrivileged = effectiveRole === "SUPER_ADMIN" || effectiveRole === "ADMIN" || effectiveRole === "STAFF";
+
+  if (isPrivileged && !isStorefrontPreview()) {
+    if (effectiveRole === "SUPER_ADMIN")
       return <Navigate to="/super-admin-dashboard" replace />;
-    if (role === "ADMIN") return <Navigate to="/admin-dashboard" replace />;
-    if (role === "STAFF") return <Navigate to="/staff-dashboard" replace />;
+    if (effectiveRole === "ADMIN") return <Navigate to="/admin-dashboard" replace />;
+    if (effectiveRole === "STAFF") return <Navigate to="/staff-dashboard" replace />;
+  }
+
+  // If still in initial load on a slow connection, do not render customer navbar until auth resolves
+  if (user.isInitialLoad) {
+    return null;
   }
 
   return (
@@ -167,10 +174,21 @@ const CustomerLayout = () => {
         cartItemCount={user.isAuthenticated ? cartItems.length : 0}
         handleLogout={logout}
       />
+      <FestiveAmbientOverlay />
 
       {/* Locked inside-scroll wrapper container under the fixed Navbar */}
       <div ref={scrollContainerRef} className="h-screen overflow-y-auto w-full select-text scrollbar-thin">
-        <Outlet />
+        <Suspense
+          fallback={
+            <div className="min-h-[calc(100vh-var(--app-header-h,80px))] flex items-center justify-center">
+              <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono text-center select-none">
+                Loading...
+              </p>
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </div>
     </UserNotificationProvider>
   );
@@ -182,12 +200,15 @@ const CustomerLayout = () => {
  */
 const LoginGuard = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
-  if (!user.isInitialLoad && user.isAuthenticated) {
-    const role = user.role?.toUpperCase();
-    if (role === "SUPER_ADMIN")
+  const effectiveRole = (user.role || (typeof window !== "undefined" ? localStorage.getItem("userRole") : null))?.toUpperCase();
+  const isPrivileged = effectiveRole === "SUPER_ADMIN" || effectiveRole === "ADMIN" || effectiveRole === "STAFF";
+  const isLoggedIn = user.isAuthenticated || (typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true");
+
+  if (isLoggedIn && isPrivileged) {
+    if (effectiveRole === "SUPER_ADMIN")
       return <Navigate to="/super-admin-dashboard" replace />;
-    if (role === "ADMIN") return <Navigate to="/admin-dashboard" replace />;
-    if (role === "STAFF") return <Navigate to="/staff-dashboard" replace />;
+    if (effectiveRole === "ADMIN") return <Navigate to="/admin-dashboard" replace />;
+    if (effectiveRole === "STAFF") return <Navigate to="/staff-dashboard" replace />;
   }
   return <>{children}</>;
 };
@@ -200,13 +221,12 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<RouteFallback />}>
     <Routes>
-      {/* ===================== ADMIN ROUTES (ADMIN role only) ===================== */}
+      {/* ===================== ADMIN ROUTES (ADMIN & SUPER_ADMIN) ===================== */}
       <Route
         path="/admin-dashboard"
         element={
           <ProtectedRoute
-            requiredRoles={["ADMIN"]}
-            redirectTo="/super-admin-dashboard"
+            requiredRoles={["ADMIN", "SUPER_ADMIN"]}
           >
             <NotificationProvider>
               <StaffPermissionProvider>
@@ -223,6 +243,7 @@ const AppRoutes = () => {
         {/* Unified Catalog Management (Category + Product merge) */}
         <Route path="manage-catalog" element={<Listcategory />} />
         <Route path="manage-catalog/attributes/:categoryId" element={<CategoryAttributes />} />
+        <Route path="products" element={<AdminProductStockManagement />} />
         {/* Legacy paths — kept working as redirects for existing bookmarks */}
         <Route path="manage-categories/add-category" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-categories/list-category" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
@@ -256,7 +277,6 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute
             requiredRoles={["SUPER_ADMIN"]}
-            redirectTo="/admin-dashboard"
           >
             <NotificationProvider>
               <StaffPermissionProvider>
@@ -272,6 +292,7 @@ const AppRoutes = () => {
         {/* Unified Catalog Management (Category + Product merge) */}
         <Route path="manage-catalog" element={<Listcategory />} />
         <Route path="manage-catalog/attributes/:categoryId" element={<CategoryAttributes />} />
+        <Route path="products" element={<AdminProductStockManagement />} />
         {/* Legacy paths — kept working as redirects for existing bookmarks */}
         <Route path="manage-categories/add-category" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
         <Route path="manage-categories/list-category" element={<LegacyCatalogRedirect toSuffix="manage-catalog" />} />
@@ -336,6 +357,16 @@ const AppRoutes = () => {
               anyOf={["CATEGORY_VIEW", "CATEGORY_ADD", "CATEGORY_EDIT", "CATEGORY_DELETE", "PRODUCT_VIEW", "PRODUCT_ADD", "PRODUCT_EDIT", "PRODUCT_DELETE"]}
             >
               <CategoryAttributes />
+            </RequireStaffPermission>
+          }
+        />
+        <Route
+          path="products"
+          element={
+            <RequireStaffPermission
+              anyOf={["PRODUCT_VIEW", "PRODUCT_ADD", "PRODUCT_EDIT", "PRODUCT_DELETE"]}
+            >
+              <AdminProductStockManagement />
             </RequireStaffPermission>
           }
         />

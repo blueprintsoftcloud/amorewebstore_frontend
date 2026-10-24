@@ -124,7 +124,7 @@ const ProductCard = ({ product }: { product: Product }) => {
   return (
     <div 
       onClick={handleCardClick}
-      className="group relative aspect-[3/4] w-full cursor-pointer overflow-hidden rounded-[2rem] bg-gray-100 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2"
+      className="group relative aspect-[5/7] w-full cursor-pointer overflow-hidden rounded-[2rem] bg-gray-100 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2"
     >
       {/* 1. Background Image */}
       <img
@@ -135,13 +135,6 @@ const ProductCard = ({ product }: { product: Product }) => {
 
       {/* 2. Gradient Overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-
-      {/* 3. Top Left: Category Tag */}
-      <div className="absolute left-4 top-4">
-        <span className="inline-flex items-center rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wider text-gray-900 backdrop-blur-md shadow-sm">
-          {categoryName || "Collection"}
-        </span>
-      </div>
 
       {/* 4. Top Right: Action Buttons */}
       <div className="absolute right-4 top-4 flex flex-col gap-3">
@@ -183,19 +176,19 @@ const ProductCard = ({ product }: { product: Product }) => {
             </h3>
             {product.discount && product.discount > 0 ? (
               <div className="mt-0.5 flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-xs font-extrabold text-gray-900">
-                  ₹{calculateDiscountedPrice(product.price, product.discount).toFixed(0)}
+                <span className="text-xs sm:text-sm font-black text-emerald-700 tracking-tight">
+                  ₹{Math.round(calculateDiscountedPrice(product.price, product.discount)).toLocaleString("en-IN")}
                 </span>
-                <span className="text-[10px] text-gray-400 line-through">
-                  ₹{product.price?.toLocaleString()}
+                <span className="text-[10px] text-gray-400 line-through font-normal">
+                  ₹{Math.round(Number(product.price)).toLocaleString("en-IN")}
                 </span>
-                <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">
-                  {product.discount}% OFF
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-md leading-none shadow-2xs">
+                  {Math.round(Number(product.discount))}% OFF
                 </span>
               </div>
             ) : (
-              <p className="mt-0.5 text-xs font-bold text-gray-500">
-                ₹ {product.price?.toLocaleString()}
+              <p className="mt-0.5 text-xs sm:text-sm font-black text-emerald-700 tracking-tight">
+                ₹{Math.round(Number(product.price)).toLocaleString("en-IN")}
               </p>
             )}
           </div>

@@ -5,7 +5,6 @@ import { domainUrl } from "../utils/constant";
 import api from "../utils/api";
 import toast from "react-hot-toast";
 import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Loader2 } from "lucide-react";
-import DeliveryLocationModal from "./DeliveryLocationModal";
 
 interface CartItemType {
   productId: string;
@@ -49,7 +48,6 @@ function CartPage() {
   } = useCart();
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
 
   // --- 1. Stock Validation Logic ---
   useEffect(() => {
@@ -106,13 +104,11 @@ function CartPage() {
   const handleCheckoutClick = async () => {
     try {
       setCheckoutLoading(true);
-      await api.post("/order/pre-checkout");
-      // Same delivery-location flow as "Buy Now" on a product page (Google-Maps-style
-      // GPS/saved-address/manual picker with a live shipping preview) instead of
-      // dropping straight onto the checkout page's own address form — see
-      // DeliveryLocationModal.tsx, generalized to preview the whole cart when no
-      // single `product` is passed.
-      setShowDeliveryModal(true);
+      const res = await api.post("/order/pre-checkout");
+      if (res.data?.message && res.data.message !== "Proceed to address selection") {
+        toast(res.data.message);
+      }
+      navigate("/checkout");
     } catch (err) {
       const _e = err as any;
       toast.error(_e.response?.data?.message || "Checkout failed", { id: "checkout failedd" });
@@ -133,8 +129,17 @@ function CartPage() {
     );
   }
 
-  // --- 4. Empty state ---
-  if (!loading && cartItems.length === 0) {
+  // --- 4. Loading state for initial load ---
+  if (loading && cartItems.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-slate-700" />
+      </div>
+    );
+  }
+
+  // --- 5. Empty state ---
+  if (cartItems.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
         <div
@@ -220,7 +225,7 @@ function CartPage() {
           )}
 
           <div className="space-y-4">
-            {loading ? (
+            {loading && cartItems.length === 0 ? (
               Array.from({ length: 3 }).map((_, i) => <RowSkeleton key={i} />)
             ) : (
               cartItems.map((item) => {
@@ -312,7 +317,7 @@ function CartPage() {
 
         {/* Right Column: Sidebar */}
         <div className="w-full lg:w-[400px] bg-[#F9FAFB] rounded-2xl p-6 h-fit flex flex-col lg:sticky lg:top-28">
-          {loading ? (
+          {loading && cartItems.length === 0 ? (
             <div className="space-y-3 mb-8 animate-pulse">
               <div className="h-4 w-full bg-gray-200 rounded" />
               <div className="h-4 w-2/3 bg-gray-200 rounded" />
@@ -359,8 +364,6 @@ function CartPage() {
           </button>
         </div>
       </div>
-
-      <DeliveryLocationModal isOpen={showDeliveryModal} onClose={() => setShowDeliveryModal(false)} />
     </div>
   );
 }

@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, Variants } from "framer-motion";
-import { Trash2, ShoppingBag, X, ArrowLeft } from "lucide-react";
+import { Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
 import { useWishlist } from "../context/WishlistContext";
-import toast, { Toaster } from "react-hot-toast";
-import FooterSection from "../components/FooterSection";
+import toast from "react-hot-toast";
 import { domainUrl } from "../utils/constant";
 import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 
@@ -39,60 +39,60 @@ const ConfirmationModal = ({
   onConfirm,
 }: ConfirmationModalProps) => {
   useBodyScrollLock(isOpen);
-  if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 transition-opacity"
+            className="fixed inset-0 bg-slate-900/50 cursor-pointer"
           />
 
           {/* Modal Content */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 bg-white rounded-3xl shadow-2xl p-6 sm:p-8 w-full max-w-sm border border-gray-100"
           >
-            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 pointer-events-auto border border-gray-100">
-              <div className="text-center">
-                <div className="mx-auto w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-4">
-                  <Trash2 className="w-6 h-6 text-red-500" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  Clear Wishlist?
-                </h3>
-                <p className="text-sm text-gray-500 mb-6">
-                  Are you sure you want to remove all items from your wishlist?
-                  This action cannot be undone.
-                </p>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={onClose}
-                    className="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={onConfirm}
-                    className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 transition-all transform hover:scale-105"
-                  >
-                    Yes, Clear All
-                  </button>
-                </div>
+            <div className="text-center">
+              <div className="mx-auto w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                Clear Wishlist?
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Are you sure you want to remove all items from your wishlist?
+                This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={onClose}
+                  className="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={onConfirm}
+                  className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20 transition-all cursor-pointer"
+                >
+                  Yes, Clear All
+                </button>
               </div>
             </div>
           </motion.div>
-        </>
+        </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 
@@ -139,20 +139,20 @@ const WishlistProductCard = ({
         className="block"
       >
         {/* Image Container */}
-        <div className="relative w-full aspect-[3/4] overflow-hidden rounded-2xl bg-gray-100 shadow-sm transition-all duration-500 group-hover:shadow-xl">
+        <div className="relative w-full aspect-[3/4] overflow-hidden rounded-2xl bg-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-lg">
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 z-10" />
 
           <img
             src={imageUrl}
             alt={name}
-            className="h-full w-full object-cover object-center transform transition-transform duration-700 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] group-hover:scale-110"
+            className="h-full w-full object-cover object-center transform transition-transform duration-500 ease-out group-hover:scale-105"
           />
 
           {/* Floating Remove Button */}
-          <div className="absolute top-3 right-3 z-20 opacity-0 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+          <div className="absolute top-3 right-3 z-20 opacity-0 transform translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
             <button
               onClick={handleRemove}
-              className="bg-white/90 backdrop-blur-sm p-2.5 rounded-full shadow-lg hover:bg-red-50 transition-colors group/btn"
+              className="bg-white/95 backdrop-blur-xs p-2.5 rounded-full shadow-md hover:bg-red-50 transition-colors group/btn cursor-pointer"
               title="Remove from Wishlist"
             >
               <Trash2 className="w-4 h-4 text-gray-900 group-hover/btn:text-red-600" />
@@ -161,13 +161,8 @@ const WishlistProductCard = ({
         </div>
 
         {/* Text Container */}
-        <div className="mt-5 text-center relative px-2">
-          {product.brand && (
-            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1 select-none">
-              {product.brand}
-            </p>
-          )}
-          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest line-clamp-1">
+        <div className="mt-4 text-center relative px-2">
+          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider line-clamp-1">
             {name}
           </h3>
           {product.variantOptions && Object.keys(product.variantOptions).length > 0 && (
@@ -177,10 +172,9 @@ const WishlistProductCard = ({
                 .join(" · ")}
             </p>
           )}
-          <p className="text-xs text-gray-500 mt-1 font-medium tracking-wide">
+          <p className="text-xs text-gray-500 mt-1 font-semibold tracking-wide">
             {formattedPrice}
           </p>
-          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-px bg-gray-400 transition-all duration-300 group-hover:w-1/2"></span>
         </div>
       </Link>
     </motion.div>
@@ -192,7 +186,6 @@ const WishlistPage = () => {
   const navigate = useNavigate();
   const {
     wishlistItems,
-    fetchWishlist,
     loading,
     wishlistCount,
     clearWishlist,
@@ -200,18 +193,13 @@ const WishlistPage = () => {
 
   const [isClearModalOpen, setClearModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchWishlist();
-  }, [fetchWishlist]);
-
   const handleClearConfirm = async () => {
     const success = await clearWishlist();
     setClearModalOpen(false);
     if (success) {
-      (toast.success("Wishlist cleared successfully"),
-        { id: "wishlist cleared " });
+      toast.success("Wishlist cleared successfully", { id: "wishlist-cleared" });
     } else {
-      (toast.error("Failed to clear wishlist"), { id: "failed wishlist" });
+      toast.error("Failed to clear wishlist", { id: "wishlist-clear-fail" });
     }
   };
 
@@ -220,16 +208,16 @@ const WishlistPage = () => {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: { staggerChildren: 0.1 },
+      transition: { staggerChildren: 0.05 },
     },
   };
 
   const cardVariants: Variants = {
-    hidden: { y: 30, opacity: 0 },
+    hidden: { y: 15, opacity: 0 },
     visible: {
       y: 0,
       opacity: 1,
-      transition: { duration: 0.6, ease: "easeOut" as const },
+      transition: { duration: 0.35, ease: "easeOut" as const },
     },
   };
 
@@ -238,7 +226,7 @@ const WishlistPage = () => {
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-10">
       {[...Array(4)].map((_, i) => (
         <div key={i} className="animate-pulse">
-          <div className="w-full aspect-[3/4] bg-gray-200 rounded-xl mb-4"></div>
+          <div className="w-full aspect-[3/4] bg-gray-200 rounded-2xl mb-4"></div>
           <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
         </div>
       ))}
@@ -246,82 +234,63 @@ const WishlistPage = () => {
   );
 
   return (
-  <section className="bg-white min-h-screen pt-(--app-header-h) pb-24 relative overflow-hidden">
-    {/* Toast Configuration */}
+    <section className="bg-white min-h-screen pt-[var(--app-header-h,5rem)] pb-24 relative overflow-hidden">
+      {/* Custom Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isClearModalOpen}
+        onClose={() => setClearModalOpen(false)}
+        onConfirm={handleClearConfirm}
+      />
 
-    {/* Custom Confirmation Modal */}
-    <ConfirmationModal
-      isOpen={isClearModalOpen}
-      onClose={() => setClearModalOpen(false)}
-      onConfirm={handleClearConfirm}
-    />
+      {/* Background Decor */}
+      <div
+        className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full blur-3xl opacity-40 pointer-events-none"
+        style={{ background: "color-mix(in srgb, var(--theme-accent) 30%, transparent)" }}
+      />
 
-    {/* Background Decor */}
-    <div
-      className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full blur-3xl opacity-50 pointer-events-none"
-      style={{ background: "color-mix(in srgb, var(--theme-accent) 35%, transparent)" }}
-    ></div>
-
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-10">
-
-      {/* Conditionally render header block only when data is loaded and items exist */}
-      {!loading && wishlistCount > 0 && (
-        <>
-          <button
-            onClick={() => navigate(-1)}
-            className="group flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-colors mb-6"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 transform transition-transform group-hover:-translate-x-1" />
-            <span>Go Back</span>
-          </button>
-
-          {/* Header Section */}
-          <div className="text-center mb-16 relative">
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-3xl font-bold tracking-tighter text-gray-900 sm:text-5xl"
-              style={{ fontFamily: "var(--theme-font-heading)" }}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-10">
+        {/* Render header block when items exist */}
+        {!loading && wishlistCount > 0 && (
+          <>
+            <button
+              onClick={() => navigate(-1)}
+              className="group flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-colors mb-6 cursor-pointer"
             >
-              My Wishlist
-            </motion.h2>
+              <ArrowLeft className="w-3.5 h-3.5 transform transition-transform group-hover:-translate-x-1" />
+              <span>Go Back</span>
+            </button>
 
-            <motion.div
-              initial={{ width: 0 }}
-              whileInView={{ width: "80px" }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              className="h-1 mx-auto mt-4 mb-6"
-              style={{ background: "var(--theme-primary)" }}
-            />
+            {/* Header Section */}
+            <div className="text-center mb-12 relative">
+              <h2
+                className="text-3xl font-bold tracking-tighter text-gray-900 sm:text-5xl"
+                style={{ fontFamily: "var(--theme-font-heading)" }}
+              >
+                My Wishlist
+              </h2>
 
-            {/* Clear All Action (Redundant inner check removed) */}
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              onClick={() => setClearModalOpen(true)}
-              className="group flex items-center justify-center gap-2 mx-auto text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-600 transition-colors"
-            >
-              <span>Clear All Items</span>
-              <Trash2 className="w-3 h-3 group-hover:scale-110 transition-transform" />
-            </motion.button>
-          </div>
-        </>
-      )}
+              <div
+                className="h-1 w-20 mx-auto mt-4 mb-6 rounded-full"
+                style={{ background: "var(--theme-primary)" }}
+              />
 
-      {/* Remaining Content Area (loading state / grid / empty state) continues here... */}
+              <button
+                type="button"
+                onClick={() => setClearModalOpen(true)}
+                className="group flex items-center justify-center gap-2 mx-auto text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+              >
+                <span>Clear All Items</span>
+                <Trash2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Content Area */}
-        {loading ? (
+        {loading && wishlistCount === 0 ? (
           <LoadingSkeleton />
         ) : wishlistCount === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
+          <div className="text-center py-20 animate-fade-in">
             <div className="mx-auto w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-300">
               <ShoppingBag className="w-8 h-8" />
             </div>
@@ -337,13 +306,12 @@ const WishlistPage = () => {
             >
               Continue Shopping
             </Link>
-          </motion.div>
+          </div>
         ) : (
           <motion.div
             variants={containerVariants}
             initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
+            animate="visible"
             className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12"
           >
             {wishlistItems.map((product) => (

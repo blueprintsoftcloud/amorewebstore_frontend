@@ -234,7 +234,7 @@ export default function BulkInvoiceModal({
       addLine(`Order: #${order.id.slice(-8).toUpperCase()}`);
       addLine(`Status: ${order.orderStatus}`);
       const methodLabel = order.paymentMethod === "ONLINE" ? "Online" : order.paymentMethod === "QR" ? "QR" : "POD";
-      addLine(`Payment: ${order.paymentStatus ?? "Pending"} (${methodLabel})`);
+      addLine(`Payment: ${methodLabel}`);
       addDivider();
 
       addLine("BILL TO", { size: 7, bold: true });
@@ -453,11 +453,11 @@ export default function BulkInvoiceModal({
                           {fmtCurrency(o.finalAmount)}
                         </span>
                         {o.invoicePrinted ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-white shadow-xs">
                             Printed
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 shadow-xs">
                             Unprinted
                           </span>
                         )}
@@ -570,7 +570,7 @@ export default function BulkInvoiceModal({
                   </div>
 
                   {/* Order Meta Strip */}
-                  <div className="grid grid-cols-4 gap-3 py-3.5 border-b border-gray-200 text-xs bg-gray-50/60 px-4 rounded-xl my-4">
+                  <div className="grid grid-cols-3 gap-3 py-3.5 border-b border-gray-200 text-xs bg-gray-50/60 px-4 rounded-xl my-4">
                     <div>
                       <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Order ID</span>
                       <span className="font-mono font-bold text-gray-900">#{order.id.slice(-8).toUpperCase()}</span>
@@ -580,11 +580,7 @@ export default function BulkInvoiceModal({
                       <span className="font-bold text-gray-900">{order.orderStatus}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Payment</span>
-                      <span className="font-bold text-gray-900">{order.paymentStatus ?? "Pending"}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Method</span>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Payment Method</span>
                       <span className="font-bold text-gray-900">
                         {order.paymentMethod === "ONLINE" ? "Online" : order.paymentMethod === "QR" ? "QR Code" : "POD"}
                       </span>

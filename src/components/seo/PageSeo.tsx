@@ -27,7 +27,7 @@ export default function PageSeo({ title, description, image, path, noIndex }: Pa
   const { seo } = useSeoSettings();
   const { branding } = useBranding();
 
-  const siteName = branding.companyName || "";
+  const siteName = branding.companyName?.trim() || "Storra";
   let resolvedTitle = title;
   if (seo.titleTemplate) {
     resolvedTitle = seo.titleTemplate.includes("%s")
@@ -45,12 +45,18 @@ export default function PageSeo({ title, description, image, path, noIndex }: Pa
   const resolvedImage = image || seo.defaultOgImage || undefined;
   const canonicalPath = path ?? (typeof window !== "undefined" ? window.location.pathname : "/");
   const canonicalUrl = typeof window !== "undefined" ? `${window.location.origin}${canonicalPath}` : undefined;
-  const faviconHref = branding.companyFavicon || "/vite.svg";
+  const faviconHref = branding.companyFavicon?.trim() || "/vite.svg";
 
   return (
     <Helmet>
       <title>{resolvedTitle}</title>
-      {faviconHref && <link rel="icon" href={faviconHref} />}
+      {faviconHref && (
+        <link
+          rel="icon"
+          type={faviconHref.endsWith(".svg") ? "image/svg+xml" : "image/png"}
+          href={faviconHref}
+        />
+      )}
       {resolvedDescription && <meta name="description" content={resolvedDescription} />}
       {seo.keywords && <meta name="keywords" content={seo.keywords} />}
       {noIndex && <meta name="robots" content="noindex, nofollow" />}

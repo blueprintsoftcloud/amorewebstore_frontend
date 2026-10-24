@@ -2,7 +2,6 @@
 // Admin-editable via Content Pages (StaticPagesManager.tsx) → PAGE_TERMS AppSetting key.
 
 import { useEffect, useState } from "react";
-import { PulseLoader } from "react-spinners";
 import FooterSection from "../../components/FooterSection";
 import PageSeo from "../../components/seo/PageSeo";
 import api from "../../utils/api";
@@ -23,8 +22,13 @@ export default function TermsPage() {
 
   if (!content) {
     return (
-      <div className="flex justify-center py-24">
-        <PulseLoader color="var(--theme-primary)" size={10} />
+      <div className="bg-white min-h-screen font-sans flex flex-col">
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-(--app-header-h) w-full flex-1 flex items-center justify-center min-h-[calc(100vh-var(--app-header-h,80px))]">
+          <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono text-center select-none">
+            Loading...
+          </p>
+        </main>
+        <FooterSection />
       </div>
     );
   }

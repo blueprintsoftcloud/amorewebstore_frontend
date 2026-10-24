@@ -15,7 +15,6 @@ import NoInternet from "./pages/NoInternet";
 import ScrollToTop from "./components/ScrollToTop";
 import { WishlistProvider } from "./context/WishlistContext";
 import { UserNotificationProvider } from "./context/UserNotificationContext";
-import { PulseLoader } from "react-spinners";
 
 import { GLOBAL_COLORS } from "./utils/colors";
 
@@ -87,18 +86,9 @@ function AppContent() {
               {isOnline ? (
                 user.isInitialLoad ? (
                   <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 font-sans">
-                    <div className="flex flex-col items-center justify-center gap-6 text-center">
-  {/* Keeps the loader's alignment context stable */}
-  <div className="relative flex items-center justify-center w-0 h-0 pl-1.5">
-                          <PulseLoader color="#000000" />
-                        </div>
-                        
-                        {/* Static text layer locked right beneath the center line */}
-                        <p className="text-xs uppercase font-bold tracking-widest text-slate-400 font-mono mt-12 w-full text-center select-none">
-                          Loading...
-                        </p>
-                        
-                      </div>
+                    <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono text-center select-none">
+                      Loading...
+                    </p>
                   </div>
                 ) : (
                   <AppRoutes />

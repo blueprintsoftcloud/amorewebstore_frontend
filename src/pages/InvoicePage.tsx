@@ -21,7 +21,7 @@ interface OrderItem {
    * was purchased in, if the product has variants (see mongoose.ts's ProductVariant).
    * null/absent for a plain single-SKU product. Needed on the invoice for fulfillment
    * — "128GB Black" vs "256GB Silver" are different physical items to pack/ship. */
-  variant?: { options: Record<string, string> } | null;
+  variant?: { options: Record<string, string>; image?: string | null; secondaryImage?: string | null } | null;
 }
 
 const formatVariantOptions = (variant: OrderItem["variant"]): string =>
@@ -281,7 +281,7 @@ export default function InvoicePage() {
     addLine(`Order: #${order.id.slice(-8).toUpperCase()}`);
     addLine(`Status: ${orderMeta.label}`);
     const thermalMethod = order.paymentMethod === "ONLINE" ? "Online" : order.paymentMethod === "QR" ? "QR" : "POD";
-    addLine(`Payment: ${payMeta.label} (${thermalMethod})`);
+    addLine(`Payment: ${thermalMethod}`);
     addDivider();
 
     addLine("BILL TO", { size: 7, bold: true });
@@ -418,7 +418,7 @@ export default function InvoicePage() {
               <p><span className="font-bold">Date:</span> {invoiceDate}</p>
               <p><span className="font-bold">Order:</span> #{order.id.slice(-8).toUpperCase()}</p>
               <p><span className="font-bold">Status:</span> {orderMeta.label}</p>
-              <p><span className="font-bold">Payment:</span> {payMeta.label} ({order.paymentMethod === "ONLINE" ? "Online" : order.paymentMethod === "QR" ? "Pay with QR" : "POD"})</p>
+              <p><span className="font-bold">Payment:</span> {order.paymentMethod === "ONLINE" ? "Online" : order.paymentMethod === "QR" ? "Pay with QR" : "POD"}</p>
             </div>
 
             <div className="border-b border-dashed border-gray-400 mb-5" />
@@ -539,19 +539,18 @@ export default function InvoicePage() {
           </div>
 
           {/* ── Status strip ── */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-8 py-6 bg-gray-50/60 border-b border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-8 py-6 bg-gray-50/60 border-b border-gray-100">
             {[
-              { label: "Order ID",     value: `#${order.id.slice(-8).toUpperCase()}`, color: "#475569", icon: Hash },
-              { label: "Order Status", value: orderMeta.label,                        color: orderMeta.color, icon: orderMeta.icon },
-              { label: "Payment",      value: payMeta.label,                          color: payMeta.color, icon: payMeta.label === "Paid" ? CheckCircle : Clock },
+              { label: "Order ID",       value: `#${order.id.slice(-8).toUpperCase()}`, color: "#475569", icon: Hash },
+              { label: "Order Status",   value: orderMeta.label,                        color: orderMeta.color, icon: orderMeta.icon },
               {
-                label: "Method",
+                label: "Payment Method",
                 value:
                   order.paymentMethod === "ONLINE"
                     ? "Online (Razorpay)"
                     : order.paymentMethod === "QR"
                       ? "Pay with QR"
-                      : "Pay on Delivery",
+                      : "Pay on Delivery (POD)",
                 color: order.paymentMethod === "QR" ? "#9333ea" : "#475569",
                 icon:
                   order.paymentMethod === "ONLINE"
@@ -632,10 +631,10 @@ export default function InvoicePage() {
                   <tr key={idx} className={idx % 2 === 1 ? "bg-gray-50/50" : ""}>
                     <td className="py-3.5 pl-2 pr-4 rounded-l-xl">
                       <div className="flex items-center gap-3">
-                        {item.product?.image ? (
+                        {item.variant?.image || item.product?.image ? (
                           <img
-                            src={item.product.image}
-                            alt={item.product.name ?? "Product"}
+                            src={item.variant?.image || item.product!.image}
+                            alt={item.product?.name ?? "Product"}
                             className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0"
                           />
                         ) : (

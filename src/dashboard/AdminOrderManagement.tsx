@@ -34,10 +34,13 @@ import {
   ChevronDownIcon,
   CheckIcon,
   PrinterIcon,
+  CalendarIcon,
+  MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import { Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import BulkInvoiceModal from "./BulkInvoiceModal";
+import DatePicker from "../components/DatePicker";
 
 // --- API Endpoints ---
 const ADMIN_ALL_ORDERS_ENDPOINT = '/order/all';
@@ -76,6 +79,9 @@ interface Order {
   paymentScreenshot?: string;
   items?: OrderItem[];
   shippingAddress?: {
+    name?: string;
+    fullName?: string;
+    phone?: string;
     fullAddress?: string;
     city?: string;
     state?: string;
@@ -134,46 +140,52 @@ const getStatusIcon = (status: string) => {
 const getStatusClasses = (status: string) => {
   switch (status) {
     case "PROCESSING":
+      return {
+        container: "inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-1 text-xs font-semibold text-amber-800",
+        dot: "size-1.5 rounded-full bg-amber-500 animate-pulse",
+        chipActive: "bg-amber-500 text-white border-amber-500 shadow-2xs font-bold",
+        chipInactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
+      };
     case "CONFIRMED":
       return {
-        container: "inline-flex items-center gap-1.5 rounded-md bg-amber-50/60 border border-amber-200/60 px-2.5 py-1 text-xs font-semibold text-amber-800 backdrop-blur-sm",
-        dot: "h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse",
-        chipActive: "bg-amber-600 text-white border-amber-600 shadow-sm shadow-amber-600/20",
-        chipInactive: "bg-white text-amber-700 border-amber-200 hover:bg-amber-50/50",
+        container: "inline-flex items-center gap-1.5 rounded-full bg-orange-50 border border-orange-200/80 px-2.5 py-1 text-xs font-semibold text-orange-800",
+        dot: "size-1.5 rounded-full bg-orange-500 animate-pulse",
+        chipActive: "bg-orange-500 text-white border-orange-500 shadow-2xs font-bold",
+        chipInactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
       };
     case "SHIPPED":
       return {
-        container: "inline-flex items-center gap-1.5 rounded-md bg-sky-50/60 border border-sky-200/60 px-2.5 py-1 text-xs font-semibold text-sky-800 backdrop-blur-sm",
-        dot: "h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse",
-        chipActive: "bg-sky-600 text-white border-sky-600 shadow-sm shadow-sky-600/20",
-        chipInactive: "bg-white text-sky-700 border-sky-200 hover:bg-sky-50/50",
+        container: "inline-flex items-center gap-1.5 rounded-full bg-sky-50 border border-sky-200/80 px-2.5 py-1 text-xs font-semibold text-sky-800",
+        dot: "size-1.5 rounded-full bg-sky-500 animate-pulse",
+        chipActive: "bg-sky-600 text-white border-sky-600 shadow-2xs font-bold",
+        chipInactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
       };
     case "DELIVERED":
       return {
-        container: "inline-flex items-center gap-1.5 rounded-md bg-emerald-50/60 border border-emerald-200/60 px-2.5 py-1 text-xs font-semibold text-emerald-800 backdrop-blur-sm",
-        dot: "h-1.5 w-1.5 rounded-full bg-emerald-500",
-        chipActive: "bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-600/20",
-        chipInactive: "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50/50",
+        container: "inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-xs font-semibold text-emerald-800",
+        dot: "size-1.5 rounded-full bg-emerald-500",
+        chipActive: "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold",
+        chipInactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
       };
     case "CANCELLED":
       return {
-        container: "inline-flex items-center gap-1.5 rounded-md bg-rose-50/60 border border-rose-200/60 px-2.5 py-1 text-xs font-semibold text-rose-800 backdrop-blur-sm",
-        dot: "h-1.5 w-1.5 rounded-full bg-rose-500",
-        chipActive: "bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-600/20",
-        chipInactive: "bg-white text-rose-700 border-rose-200 hover:bg-rose-50/50",
+        container: "inline-flex items-center gap-1.5 rounded-full bg-rose-50 border border-rose-200/80 px-2.5 py-1 text-xs font-semibold text-rose-800",
+        dot: "size-1.5 rounded-full bg-rose-500",
+        chipActive: "bg-rose-600 text-white border-rose-600 shadow-2xs font-bold",
+        chipInactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
       };
     case "RETURNED":
       return {
-        container: "inline-flex items-center gap-1.5 rounded-md bg-purple-50/60 border border-purple-200/60 px-2.5 py-1 text-xs font-semibold text-purple-800 backdrop-blur-sm",
-        dot: "h-1.5 w-1.5 rounded-full bg-purple-500",
-        chipActive: "bg-purple-600 text-white border-purple-600 shadow-sm shadow-purple-600/20",
-        chipInactive: "bg-white text-purple-700 border-purple-200 hover:bg-purple-50/50",
+        container: "inline-flex items-center gap-1.5 rounded-full bg-purple-50 border border-purple-200/80 px-2.5 py-1 text-xs font-semibold text-purple-800",
+        dot: "size-1.5 rounded-full bg-purple-500",
+        chipActive: "bg-purple-600 text-white border-purple-600 shadow-2xs font-bold",
+        chipInactive: "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900",
       };
     default:
       return {
-        container: "inline-flex items-center gap-1.5 rounded-md bg-slate-50/60 border border-slate-200/60 px-2.5 py-1 text-xs font-semibold text-slate-800 backdrop-blur-sm",
-        dot: "h-1.5 w-1.5 rounded-full bg-slate-500",
-        chipActive: "bg-slate-800 text-white border-slate-800",
+        container: "inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-800",
+        dot: "size-1.5 rounded-full bg-slate-500",
+        chipActive: "bg-slate-800 text-white border-slate-800 font-bold",
         chipInactive: "bg-white text-slate-600 border-slate-200 hover:bg-slate-50",
       };
   }
@@ -212,6 +224,296 @@ const formatDateTime = (value: string | undefined) => {
     hour12: true
   });
 };
+
+// WhatsApp and Phone Call Helpers & Brand Icons
+const WhatsAppIcon = ({ className = "size-4" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm0 18.15c-1.49 0-2.94-.4-4.21-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.13 8.13 0 01-1.25-4.38c0-4.54 3.7-8.24 8.24-8.24 2.2 0 4.27.86 5.82 2.42a8.18 8.18 0 012.41 5.83c.01 4.54-3.69 8.23-8.22 8.23zm4.51-6.17c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.12-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.43s-.56-1.34-.76-1.84c-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.22.25-.86.84-.86 2.05 0 1.21.88 2.38 1 2.55.12.17 1.74 2.66 4.21 3.73.59.25 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.07-.12-.23-.19-.48-.31z" />
+  </svg>
+);
+
+const PhoneCallIcon = ({ className = "size-4" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+  </svg>
+);
+
+const getWhatsAppUrl = (phone?: string): string => {
+  if (!phone) return "";
+  let digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  // Indian phone number normalization: 10 digits gets prefixed with country code 91
+  if (digits.length === 10) {
+    digits = `91${digits}`;
+  } else if (digits.length === 11 && digits.startsWith("0")) {
+    digits = `91${digits.slice(1)}`;
+  }
+  return `https://wa.me/${digits}`;
+};
+
+interface OrderSourceFilterDropdownProps {
+  value: "ALL" | "CUSTOMER" | "ADMIN";
+  onChange: (value: "ALL" | "CUSTOMER" | "ADMIN") => void;
+}
+
+const ORDER_SOURCE_OPTIONS: {
+  id: "ALL" | "CUSTOMER" | "ADMIN";
+  label: string;
+}[] = [
+  {
+    id: "ALL",
+    label: "All Orders",
+  },
+  {
+    id: "CUSTOMER",
+    label: "Customers",
+  },
+  {
+    id: "ADMIN",
+    label: "By Admin / Staff",
+  },
+];
+
+function OrderSourceFilterDropdown({ value, onChange }: OrderSourceFilterDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const currentOption = ORDER_SOURCE_OPTIONS.find((opt) => opt.id === value) || ORDER_SOURCE_OPTIONS[0];
+  const isFiltered = value !== "ALL";
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-500/20 ${
+          isOpen
+            ? "border-slate-400 bg-slate-100 text-slate-900 shadow-sm ring-2 ring-slate-400/15"
+            : isFiltered
+              ? value === "CUSTOMER"
+                ? "border-emerald-300 bg-emerald-50/90 text-emerald-950 font-bold"
+                : "border-indigo-300 bg-indigo-50/90 text-indigo-950 font-bold"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+        }`}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span>{currentOption.label}</span>
+        <ChevronDownIcon
+          className={`size-3.5 transition-transform duration-200 ${
+            isFiltered ? "text-slate-700" : "text-slate-400"
+          } ${isOpen ? "rotate-180 text-slate-700" : ""}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute left-0 top-full mt-1.5 w-48 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-xl z-50 animate-in fade-in-0 zoom-in-95 duration-150"
+          role="listbox"
+        >
+          <div className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+            Order Source
+          </div>
+
+          <div className="space-y-0.5">
+            {ORDER_SOURCE_OPTIONS.map((opt) => {
+              const isSelected = value === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-xl transition cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-100 text-slate-900 font-bold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                  role="option"
+                  aria-selected={isSelected}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Checkbox */}
+                    <div
+                      className={`size-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected
+                          ? "border-indigo-600 bg-indigo-600 text-white"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {isSelected && <CheckIcon className="size-3 stroke-[3]" />}
+                    </div>
+
+                    <span className="truncate">{opt.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface InvoiceFilterDropdownProps {
+  value: "ALL" | "UNPRINTED" | "PRINTED";
+  unprintedCount: number;
+  onChange: (value: "ALL" | "UNPRINTED" | "PRINTED") => void;
+}
+
+const INVOICE_FILTER_OPTIONS: {
+  id: "ALL" | "UNPRINTED" | "PRINTED";
+  label: string;
+}[] = [
+  { id: "ALL", label: "All Invoices" },
+  { id: "UNPRINTED", label: "Unprinted" },
+  { id: "PRINTED", label: "Printed" },
+];
+
+function InvoiceFilterDropdown({ value, unprintedCount, onChange }: InvoiceFilterDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const currentOption = INVOICE_FILTER_OPTIONS.find((opt) => opt.id === value) || INVOICE_FILTER_OPTIONS[0];
+  const isFiltered = value !== "ALL";
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-500/20 ${
+          isOpen
+            ? "border-slate-400 bg-slate-100 text-slate-900 shadow-sm ring-2 ring-slate-400/15"
+            : isFiltered
+              ? value === "UNPRINTED"
+                ? "border-amber-300 bg-amber-50/90 text-amber-950 font-bold"
+                : "border-slate-400 bg-slate-100 text-slate-900 font-bold"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+        }`}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <div className="flex items-center gap-1.5">
+          <span>{currentOption.label}</span>
+          {value === "UNPRINTED" && unprintedCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">
+              {unprintedCount}
+            </span>
+          )}
+        </div>
+        <ChevronDownIcon
+          className={`size-3.5 transition-transform duration-200 ${
+            isFiltered ? "text-slate-700" : "text-slate-400"
+          } ${isOpen ? "rotate-180 text-slate-700" : ""}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute left-0 top-full mt-1.5 w-48 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-xl z-50 animate-in fade-in-0 zoom-in-95 duration-150"
+          role="listbox"
+        >
+          <div className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+            Invoice Status
+          </div>
+
+          <div className="space-y-0.5">
+            {INVOICE_FILTER_OPTIONS.map((opt) => {
+              const isSelected = value === opt.id;
+              const isUnprinted = opt.id === "UNPRINTED";
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-xl transition cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-100 text-slate-900 font-bold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                  role="option"
+                  aria-selected={isSelected}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Checkbox */}
+                    <div
+                      className={`size-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected
+                          ? "border-indigo-600 bg-indigo-600 text-white"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {isSelected && <CheckIcon className="size-3 stroke-[3]" />}
+                    </div>
+
+                    <span className="truncate">{opt.label}</span>
+                  </div>
+
+                  {isUnprinted && unprintedCount > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      isSelected ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-800"
+                    }`}>
+                      {unprintedCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface StatusFilterDropdownProps {
   value: string;
@@ -347,6 +649,512 @@ function StatusFilterDropdown({ value, onChange }: StatusFilterDropdownProps) {
             })}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Date Filter Helpers & Component ──────────────────────────────────────────
+const padZero = (n: number) => String(n).padStart(2, "0");
+const formatToYMD = (d: Date) => `${d.getFullYear()}-${padZero(d.getMonth() + 1)}-${padZero(d.getDate())}`;
+
+const parseYMD = (str: string | undefined): Date | null => {
+  if (!str) return null;
+  const [y, m, d] = str.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const getPresetDates = (presetId: string): { startDate: string; endDate: string } => {
+  const now = new Date();
+  switch (presetId) {
+    case "TODAY": {
+      const s = formatToYMD(now);
+      return { startDate: s, endDate: s };
+    }
+    case "YESTERDAY": {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const s = formatToYMD(y);
+      return { startDate: s, endDate: s };
+    }
+    case "LAST_7_DAYS": {
+      const p7 = new Date(now);
+      p7.setDate(p7.getDate() - 6);
+      return { startDate: formatToYMD(p7), endDate: formatToYMD(now) };
+    }
+    case "LAST_30_DAYS": {
+      const p30 = new Date(now);
+      p30.setDate(p30.getDate() - 29);
+      return { startDate: formatToYMD(p30), endDate: formatToYMD(now) };
+    }
+    case "THIS_MONTH": {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { startDate: formatToYMD(first), endDate: formatToYMD(now) };
+    }
+    case "LAST_MONTH": {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { startDate: formatToYMD(first), endDate: formatToYMD(last) };
+    }
+    case "ALL":
+    default:
+      return { startDate: "", endDate: "" };
+  }
+};
+
+const formatDateDisplay = (dateStr: string) => {
+  if (!dateStr) return "";
+  const d = parseYMD(dateStr);
+  if (!d) return dateStr;
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const formatDateShort = (dateStr: string) => {
+  if (!dateStr) return "";
+  const d = parseYMD(dateStr);
+  if (!d) return dateStr;
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+};
+
+const getDateFilterLabel = (preset: string, startDate: string, endDate: string) => {
+  if (preset === "ALL" && !startDate && !endDate) return "Date (All)";
+  if (preset === "TODAY") return "Today";
+  if (preset === "YESTERDAY") return "Yesterday";
+  if (preset === "LAST_7_DAYS") return "Last 7 Days";
+  if (preset === "LAST_30_DAYS") return "Last 30 Days";
+  if (preset === "THIS_MONTH") return "This Month";
+  if (preset === "LAST_MONTH") return "Last Month";
+
+  if (startDate && endDate) {
+    if (startDate === endDate) return formatDateDisplay(startDate);
+    return `${formatDateShort(startDate)} – ${formatDateShort(endDate)}`;
+  }
+  if (startDate) return `From ${formatDateShort(startDate)}`;
+  if (endDate) return `Until ${formatDateShort(endDate)}`;
+  return "Date";
+};
+
+const QUICK_PRESETS = [
+  { id: "ALL", label: "All Time" },
+  { id: "TODAY", label: "Today" },
+  { id: "YESTERDAY", label: "Yesterday" },
+  { id: "LAST_7_DAYS", label: "Last 7 Days" },
+  { id: "THIS_MONTH", label: "This Month" },
+];
+
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+interface DateFilterDropdownProps {
+  preset: string;
+  startDate: string;
+  endDate: string;
+  onPresetSelect: (presetId: string) => void;
+  onCustomDateChange: (start: string, end: string) => void;
+  onClear: () => void;
+}
+
+function DateFilterDropdown({
+  preset,
+  startDate,
+  endDate,
+  onPresetSelect,
+  onCustomDateChange,
+  onClear,
+}: DateFilterDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [tempStart, setTempStart] = useState<string>(startDate);
+  const [tempEnd, setTempEnd] = useState<string>(endDate);
+  const [isSelectingRange, setIsSelectingRange] = useState(false);
+  const [hoverDate, setHoverDate] = useState<string | null>(null);
+  const [viewDate, setViewDate] = useState<Date>(() => parseYMD(startDate) || new Date());
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const now = new Date();
+  const todayStr = formatToYMD(now);
+
+  useEffect(() => {
+    setTempStart(startDate);
+    setTempEnd(endDate);
+    setIsSelectingRange(false);
+    setHoverDate(null);
+    if (startDate) {
+      const d = parseYMD(startDate);
+      if (d) setViewDate(d);
+    }
+  }, [startDate, endDate, isOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const isFiltered = preset !== "ALL" || Boolean(startDate || endDate);
+  const label = getDateFilterLabel(preset, startDate, endDate);
+
+  // Month calculations
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const isCurrentOrFutureMonth =
+    year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth());
+
+  const cells: { dateStr: string; inMonth: boolean }[] = [];
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    const d = new Date(year, month - 1, daysInPrevMonth - i);
+    cells.push({ inMonth: false, dateStr: formatToYMD(d) });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dObj = new Date(year, month, d);
+    cells.push({ inMonth: true, dateStr: formatToYMD(dObj) });
+  }
+  let nextDay = 1;
+  while (cells.length < 35 || cells.length % 7 !== 0) {
+    const d = new Date(year, month + 1, nextDay);
+    cells.push({ inMonth: false, dateStr: formatToYMD(d) });
+    nextDay += 1;
+  }
+
+  const handleDayClick = (dateStr: string) => {
+    if (dateStr > todayStr) return; // Future dates not allowed
+
+    if (!isSelectingRange) {
+      // Step 1: User starts picking a range or single date
+      setTempStart(dateStr);
+      setTempEnd("");
+      setIsSelectingRange(true);
+      setHoverDate(null);
+    } else {
+      // Step 2: User completes or adjusts the selection
+      if (dateStr < tempStart) {
+        // Clicked an earlier date -> update start date and continue awaiting end date
+        setTempStart(dateStr);
+        setTempEnd("");
+        setIsSelectingRange(true);
+        setHoverDate(null);
+      } else if (dateStr === tempStart) {
+        // Clicked the same date again -> select single day
+        setTempStart(dateStr);
+        setTempEnd(dateStr);
+        setIsSelectingRange(false);
+        setHoverDate(null);
+      } else {
+        // Clicked a date after start date -> complete range
+        setTempEnd(dateStr);
+        setIsSelectingRange(false);
+        setHoverDate(null);
+      }
+    }
+  };
+
+  const handleApply = () => {
+    if (!tempStart) {
+      onClear();
+      setIsOpen(false);
+      return;
+    }
+    const finalStart = tempStart;
+    const finalEnd = tempEnd || tempStart;
+    onCustomDateChange(finalStart, finalEnd);
+    setIsOpen(false);
+  };
+
+  const handleQuickPreset = (presetId: string) => {
+    onPresetSelect(presetId);
+    setIsOpen(false);
+  };
+
+  const getDaysCount = (start: string, end: string) => {
+    const d1 = parseYMD(start);
+    const d2 = parseYMD(end);
+    if (!d1 || !d2) return 0;
+    const diffTime = Math.abs(d2.getTime() - d1.getTime());
+    return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  const monthLabel = viewDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  const activeRangeStart = tempStart;
+  const activeRangeEnd = isSelectingRange
+    ? (hoverDate && hoverDate >= tempStart ? hoverDate : null)
+    : (tempEnd || (tempStart ? tempStart : null));
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <div className="inline-flex items-center">
+        <button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-500/20 ${
+            isOpen
+              ? "border-slate-400 bg-slate-100 text-slate-900 shadow-sm ring-2 ring-slate-400/15"
+              : isFiltered
+                ? "border-indigo-300 bg-indigo-50/90 text-indigo-950 font-bold"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+          }`}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+        >
+          <CalendarIcon className={`size-3.5 ${isFiltered ? "text-indigo-600" : "text-slate-400"}`} />
+          <span>{label}</span>
+          <ChevronDownIcon
+            className={`size-3.5 transition-transform duration-200 ${
+              isFiltered ? "text-indigo-600" : "text-slate-400"
+            } ${isOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {isFiltered && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+            title="Clear date filter"
+            className="ml-1 p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+          >
+            <XMarkIcon className="size-3.5" />
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <>
+          {/* Mobile backdrop for tap outside on mobile */}
+          <div
+            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-xs sm:hidden"
+            onClick={() => setIsOpen(false)}
+          />
+
+          <div
+            className="fixed inset-x-3 top-1/2 -translate-y-1/2 sm:translate-y-0 sm:inset-auto sm:absolute sm:left-0 sm:top-full sm:mt-2 max-w-[340px] mx-auto sm:mx-0 w-auto sm:w-[330px] rounded-2xl border border-slate-200/95 bg-white p-3.5 shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 duration-150 space-y-3"
+            role="dialog"
+            aria-label="Calendar Date Filter"
+          >
+            {/* Quick Presets Pills */}
+            <div className="flex flex-wrap items-center gap-1 pb-2 border-b border-slate-100">
+              {QUICK_PRESETS.map((p) => {
+                const isSelected = p.id === preset && !tempStart;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleQuickPreset(p.id)}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                      isSelected
+                        ? "bg-indigo-600 text-white shadow-xs font-bold"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selection Status Bar (Normal UI Flow Indicator) */}
+            <div className="p-2 rounded-xl border border-indigo-100/90 bg-indigo-50/60 text-xs">
+              {isSelectingRange ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">From:</span>
+                    <span className="font-bold text-indigo-950 truncate text-[11px]">
+                      {formatDateDisplay(tempStart)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white animate-pulse shrink-0">
+                    Select end date
+                  </span>
+                </div>
+              ) : tempStart ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Selected:</span>
+                    <span className="font-bold text-indigo-950 truncate text-[11px]">
+                      {tempEnd && tempEnd !== tempStart
+                        ? `${formatDateDisplay(tempStart)} – ${formatDateDisplay(tempEnd)}`
+                        : formatDateDisplay(tempStart)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 shrink-0">
+                    {tempEnd && tempEnd !== tempStart ? `${getDaysCount(tempStart, tempEnd)} days` : "Single Day"}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                  <span>Click a date to select range</span>
+                  <span className="text-[10px] font-bold text-slate-400">All Time</span>
+                </div>
+              )}
+            </div>
+
+            {/* Month / Year Header */}
+            <div className="flex items-center justify-between px-1">
+              <button
+                type="button"
+                onClick={() => setViewDate(new Date(year, month - 1, 1))}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+                aria-label="Previous month"
+              >
+                <ChevronRightIcon className="size-4 rotate-180" />
+              </button>
+              <span className="text-xs font-bold text-slate-900">{monthLabel}</span>
+              <button
+                type="button"
+                disabled={isCurrentOrFutureMonth}
+                onClick={() => setViewDate(new Date(year, month + 1, 1))}
+                className={`p-1 rounded-lg transition ${
+                  isCurrentOrFutureMonth
+                    ? "opacity-30 cursor-not-allowed text-slate-300"
+                    : "hover:bg-slate-100 text-slate-600 cursor-pointer"
+                }`}
+                aria-label="Next month"
+                title={isCurrentOrFutureMonth ? "Future dates not available" : "Next month"}
+              >
+                <ChevronRightIcon className="size-4" />
+              </button>
+            </div>
+
+            {/* Weekday Names */}
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {WEEKDAYS.map((w) => (
+                <span key={w} className="text-[10px] font-bold uppercase text-slate-400">
+                  {w}
+                </span>
+              ))}
+            </div>
+
+            {/* Calendar Day Grid */}
+            <div
+              className="grid grid-cols-7 gap-1"
+              onMouseLeave={() => {
+                if (isSelectingRange) setHoverDate(null);
+              }}
+            >
+              {cells.map(({ dateStr, inMonth }, idx) => {
+                const dayNum = parseYMD(dateStr)?.getDate();
+                const isToday = dateStr === todayStr;
+                const isFuture = dateStr > todayStr;
+
+                const isStart = Boolean(activeRangeStart && dateStr === activeRangeStart);
+                const isEnd = Boolean(activeRangeEnd && dateStr === activeRangeEnd);
+                const isSingleDay = Boolean(
+                  (isStart && (activeRangeEnd === activeRangeStart || (!activeRangeEnd && !isSelectingRange))) ||
+                  (isStart && isEnd)
+                );
+
+                const inRange = Boolean(
+                  activeRangeStart &&
+                  activeRangeEnd &&
+                  activeRangeStart !== activeRangeEnd &&
+                  dateStr > activeRangeStart &&
+                  dateStr < activeRangeEnd
+                );
+
+                const isEndpoint = (isStart || isEnd) && !isFuture;
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isFuture}
+                    onClick={() => handleDayClick(dateStr)}
+                    onMouseEnter={() => {
+                      if (isSelectingRange && tempStart && !isFuture && dateStr >= tempStart) {
+                        setHoverDate(dateStr);
+                      }
+                    }}
+                    className={`h-8 text-xs font-semibold flex items-center justify-center transition-all relative ${
+                      isFuture
+                        ? "text-slate-300 opacity-25 cursor-not-allowed pointer-events-none bg-slate-50/30 rounded-lg"
+                        : !inMonth
+                          ? "text-slate-300 hover:text-slate-500 cursor-pointer rounded-lg"
+                          : "text-slate-700 hover:bg-slate-100 cursor-pointer rounded-lg"
+                    } ${
+                      inRange && !isFuture
+                        ? "!bg-indigo-50 !text-indigo-900 !rounded-none font-bold"
+                        : ""
+                    } ${
+                      isSingleDay && !isFuture
+                        ? "!bg-indigo-600 !text-white !rounded-lg font-black shadow-xs z-10 hover:!bg-indigo-700"
+                        : isStart && !isFuture
+                          ? "!bg-indigo-600 !text-white !rounded-l-lg !rounded-r-none font-black shadow-xs z-10 hover:!bg-indigo-700"
+                          : isEnd && !isFuture
+                            ? "!bg-indigo-600 !text-white !rounded-r-lg !rounded-l-none font-black shadow-xs z-10 hover:!bg-indigo-700"
+                            : ""
+                    } ${
+                      isToday && !isEndpoint && !inRange
+                        ? "ring-1 ring-slate-300 font-bold text-indigo-600"
+                        : ""
+                    }`}
+                  >
+                    {dayNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer Selection Summary & Action Buttons */}
+            <div className="pt-2 border-t border-slate-100 space-y-2">
+              <div className="text-[11px] text-slate-600 flex items-center justify-between px-0.5">
+                <span className="font-medium text-slate-400">Selected:</span>
+                <span className="font-bold text-slate-900 truncate max-w-[200px]">
+                  {isSelectingRange ? (
+                    `${formatDateShort(tempStart)} → picking end date`
+                  ) : tempStart ? (
+                    tempEnd && tempEnd !== tempStart ? (
+                      `${formatDateShort(tempStart)} – ${formatDateShort(tempEnd)}`
+                    ) : (
+                      formatDateDisplay(tempStart)
+                    )
+                  ) : (
+                    "All Time"
+                  )}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempStart("");
+                    setTempEnd("");
+                    setIsSelectingRange(false);
+                    setHoverDate(null);
+                    onClear();
+                    setIsOpen(false);
+                  }}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer shadow-xs"
+                >
+                  Apply Date
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -626,7 +1434,8 @@ export default function AdminOrderManagementPage() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [adminStaffList, setAdminStaffList] = useState<AdminStaffUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
   // getOrdersForAdmin (order.controller.ts) is already paginated server-side
@@ -642,6 +1451,16 @@ export default function AdminOrderManagementPage() {
   const [placedByFilter, setPlacedByFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [invoiceFilter, setInvoiceFilter] = useState<"ALL" | "UNPRINTED" | "PRINTED">("ALL");
+  const [datePreset, setDatePreset] = useState<string>("ALL");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const searchDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const searchQueryRef = useRef(searchQuery);
+  useEffect(() => {
+    searchQueryRef.current = searchQuery;
+  }, [searchQuery]);
 
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -665,15 +1484,21 @@ export default function AdminOrderManagementPage() {
       placedBy?: string;
       status?: string;
       invoiceFilter?: "ALL" | "UNPRINTED" | "PRINTED";
+      startDate?: string;
+      endDate?: string;
+      search?: string;
     }
   ) => {
-    setLoading(true);
+    setTableLoading(true);
     setError(null);
     try {
       const activeSource = filters?.source !== undefined ? filters.source : sourceFilter;
       const activePlacedBy = filters?.placedBy !== undefined ? filters.placedBy : placedByFilter;
       const activeStatus = filters?.status !== undefined ? filters.status : statusFilter;
       const activeInvoice = filters?.invoiceFilter !== undefined ? filters.invoiceFilter : invoiceFilter;
+      const activeStartDate = filters?.startDate !== undefined ? filters.startDate : startDate;
+      const activeEndDate = filters?.endDate !== undefined ? filters.endDate : endDate;
+      const activeSearch = filters?.search !== undefined ? filters.search : searchQueryRef.current;
 
       const params: Record<string, any> = {
         page: targetPage,
@@ -685,6 +1510,9 @@ export default function AdminOrderManagementPage() {
       if (activeStatus) params.status = activeStatus;
       if (activeInvoice === "UNPRINTED") params.invoicePrinted = "false";
       if (activeInvoice === "PRINTED") params.invoicePrinted = "true";
+      if (activeStartDate) params.startDate = activeStartDate;
+      if (activeEndDate) params.endDate = activeEndDate;
+      if (activeSearch && activeSearch.trim()) params.search = activeSearch.trim();
 
       const res = await api.get(ADMIN_ALL_ORDERS_ENDPOINT, { params });
       setOrders(res.data.order || []);
@@ -703,9 +1531,10 @@ export default function AdminOrderManagementPage() {
         setError("Failed to fetch orders. Please check backend connection and API endpoint.");
       }
     } finally {
-      setLoading(false);
+      setTableLoading(false);
+      setInitialLoading(false);
     }
-  }, [sourceFilter, placedByFilter, statusFilter, invoiceFilter]);
+  }, [sourceFilter, placedByFilter, statusFilter, invoiceFilter, startDate, endDate]);
 
   const handleSourceChange = (newSource: "ALL" | "CUSTOMER" | "ADMIN") => {
     setSourceFilter(newSource);
@@ -729,14 +1558,64 @@ export default function AdminOrderManagementPage() {
     fetchOrderStats({ invoiceFilter: newInvFilter });
   };
 
+  const handleDatePresetSelect = (presetId: string) => {
+    setDatePreset(presetId);
+    if (presetId === "CUSTOM") {
+      return;
+    }
+    const { startDate: s, endDate: e } = getPresetDates(presetId);
+    setStartDate(s);
+    setEndDate(e);
+    setPage(1);
+    fetchAllOrders(1, { startDate: s, endDate: e });
+    fetchOrderStats({ startDate: s, endDate: e });
+  };
+
+  const handleCustomDateApply = (start: string, end: string) => {
+    setDatePreset("CUSTOM");
+    setStartDate(start);
+    setEndDate(end);
+    setPage(1);
+    fetchAllOrders(1, { startDate: start, endDate: end });
+    fetchOrderStats({ startDate: start, endDate: end });
+  };
+
+  const handleClearDateFilter = () => {
+    setDatePreset("ALL");
+    setStartDate("");
+    setEndDate("");
+    setPage(1);
+    fetchAllOrders(1, { startDate: "", endDate: "" });
+    fetchOrderStats({ startDate: "", endDate: "" });
+  };
+
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q);
+    if (searchDebounceTimer.current) {
+      clearTimeout(searchDebounceTimer.current);
+    }
+    searchDebounceTimer.current = setTimeout(() => {
+      setPage(1);
+      fetchAllOrders(1, { search: q });
+    }, 300);
+  };
+
   const handleClearFilters = () => {
+    if (searchDebounceTimer.current) {
+      clearTimeout(searchDebounceTimer.current);
+    }
     setSourceFilter("ALL");
+    setPlacedByFilter("");
     setStatusFilter("");
     setInvoiceFilter("ALL");
+    setDatePreset("ALL");
+    setStartDate("");
+    setEndDate("");
+    setSearchQuery("");
     setSelectedOrderIds([]);
     setPage(1);
-    fetchAllOrders(1, { source: "ALL", status: "", invoiceFilter: "ALL" });
-    fetchOrderStats({ source: "ALL", status: "", invoiceFilter: "ALL" });
+    fetchAllOrders(1, { source: "ALL", placedBy: "", status: "", invoiceFilter: "ALL", startDate: "", endDate: "", search: "" });
+    fetchOrderStats({ source: "ALL", placedBy: "", status: "", invoiceFilter: "ALL", startDate: "", endDate: "" });
   };
 
   const toggleSelectOrder = (id: string) => {
@@ -767,19 +1646,23 @@ export default function AdminOrderManagementPage() {
   };
 
   // Header metric cards are computed server-side and dynamically scoped to active filters
-  // (source, placedBy, status, invoicePrinted) so volumes, income, and fulfillment progress
+  // (source, placedBy, status, invoicePrinted, startDate, endDate) so volumes, income, and fulfillment progress
   // accurately reflect whatever segment of the pipeline is currently being viewed.
   const fetchOrderStats = useCallback(async (filters?: {
     source?: "ALL" | "CUSTOMER" | "ADMIN";
     placedBy?: string;
     status?: string;
     invoiceFilter?: "ALL" | "UNPRINTED" | "PRINTED";
+    startDate?: string;
+    endDate?: string;
   }) => {
     try {
       const activeSource = filters?.source !== undefined ? filters.source : sourceFilter;
       const activePlacedBy = filters?.placedBy !== undefined ? filters.placedBy : placedByFilter;
       const activeStatus = filters?.status !== undefined ? filters.status : statusFilter;
       const activeInvoice = filters?.invoiceFilter !== undefined ? filters.invoiceFilter : invoiceFilter;
+      const activeStartDate = filters?.startDate !== undefined ? filters.startDate : startDate;
+      const activeEndDate = filters?.endDate !== undefined ? filters.endDate : endDate;
 
       const params: Record<string, any> = {};
       if (activeSource && activeSource !== "ALL") params.source = activeSource;
@@ -787,13 +1670,15 @@ export default function AdminOrderManagementPage() {
       if (activeStatus) params.status = activeStatus;
       if (activeInvoice === "UNPRINTED") params.invoicePrinted = "false";
       if (activeInvoice === "PRINTED") params.invoicePrinted = "true";
+      if (activeStartDate) params.startDate = activeStartDate;
+      if (activeEndDate) params.endDate = activeEndDate;
 
       const res = await api.get(ADMIN_ORDER_STATS_ENDPOINT, { params });
       setOrderStats(res.data);
     } catch (err) {
       console.error("Error fetching order stats:", err);
     }
-  }, [sourceFilter, placedByFilter, statusFilter, invoiceFilter]);
+  }, [sourceFilter, placedByFilter, statusFilter, invoiceFilter, startDate, endDate]);
 
   useEffect(() => {
     fetchAllOrders(page);
@@ -1071,18 +1956,16 @@ export default function AdminOrderManagementPage() {
   // previous hardcoded 78% "Target Pace Achieved" bar, which never reflected real data.
   const collectedPct = metrics.totalOrderValue > 0 ? (metrics.paidRevenue / metrics.totalOrderValue) * 100 : 0;
 
-  // Real per-status distribution for the "Total Volumes" mini bar chart — replaces 5
-  // hardcoded static bar heights that had no relationship to actual order data.
-  const statusDistribution = useMemo(() => {
-    const bars = [
-      { key: "processing", count: metrics.pureProcessing, color: "bg-amber-400" },
-      { key: "confirmed", count: metrics.confirmed, color: "bg-orange-400" },
-      { key: "shipped", count: metrics.shipped, color: "bg-blue-400" },
-      { key: "delivered", count: metrics.delivered, color: "bg-emerald-400" },
-      { key: "cancelled", count: metrics.cancelled, color: "bg-rose-300" },
-    ];
-    const max = Math.max(1, ...bars.map((b) => b.count));
-    return bars.map((b) => ({ ...b, heightPct: Math.max(8, (b.count / max) * 100) }));
+  // Per-status distribution segments for the "Total Volumes" progress bar
+  const volumeSegments = useMemo(() => {
+    if (!metrics.totalOrders) return [];
+    return [
+      { key: "Processing", count: metrics.pureProcessing, color: "bg-amber-400", pct: (metrics.pureProcessing / metrics.totalOrders) * 100 },
+      { key: "Confirmed", count: metrics.confirmed, color: "bg-orange-400", pct: (metrics.confirmed / metrics.totalOrders) * 100 },
+      { key: "Shipped", count: metrics.shipped, color: "bg-sky-400", pct: (metrics.shipped / metrics.totalOrders) * 100 },
+      { key: "Delivered", count: metrics.delivered, color: "bg-emerald-500", pct: (metrics.delivered / metrics.totalOrders) * 100 },
+      { key: "Cancelled", count: metrics.cancelled, color: "bg-rose-400", pct: (metrics.cancelled / metrics.totalOrders) * 100 },
+    ].filter((s) => s.count > 0);
   }, [metrics]);
 
   const openDrawer = (order: Order) => {
@@ -1095,20 +1978,30 @@ export default function AdminOrderManagementPage() {
     setSelectedOrder(null);
   };
 
-  if (loading) {
+  const isFiltered =
+    sourceFilter !== "ALL" ||
+    Boolean(placedByFilter) ||
+    Boolean(statusFilter) ||
+    invoiceFilter !== "ALL" ||
+    datePreset !== "ALL" ||
+    Boolean(startDate) ||
+    Boolean(endDate) ||
+    Boolean(searchQuery.trim());
+
+  if (initialLoading) {
     return (
-      <div className="bg-slate-50 min-h-screen p-8">
-        <div className="max-w-[1600px] mx-auto space-y-8">
+      <div className="bg-slate-50 min-h-screen p-6 md:p-10">
+        <div className="max-w-[1600px] mx-auto space-y-6">
           <div className="flex justify-between items-center animate-pulse">
             <div className="space-y-2">
-              <div className="h-8 w-64 rounded-lg bg-slate-200" />
-              <div className="h-4 w-96 rounded-lg bg-slate-200" />
+              <div className="h-8 w-56 rounded-xl bg-slate-200" />
+              <div className="h-4 w-80 rounded-lg bg-slate-200" />
             </div>
-            <div className="h-10 w-36 rounded-xl bg-slate-200" />
+            <div className="h-10 w-32 rounded-xl bg-slate-200" />
           </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-28 rounded-2xl border border-slate-200 bg-white p-6 animate-pulse" />
+              <div key={i} className="h-36 rounded-2xl border border-slate-200 bg-white p-5 animate-pulse" />
             ))}
           </div>
           <div className="h-96 rounded-2xl border border-slate-200 bg-white animate-pulse" />
@@ -1121,12 +2014,15 @@ export default function AdminOrderManagementPage() {
     return (
       <div className="bg-slate-50 min-h-screen flex items-center justify-center p-6">
         <div className="max-w-md w-full rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-rose-50 text-rose-600 mb-4 border border-rose-100">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 mb-4 border border-rose-100">
             <XCircleIcon className="size-6" />
           </div>
           <h2 className="text-lg font-bold text-slate-900 mb-2">Operations Error</h2>
           <p className="text-sm text-slate-500 mb-6 leading-relaxed">{error}</p>
-          <button onClick={() => fetchAllOrders(page)} className="w-full inline-flex justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors">
+          <button
+            onClick={() => fetchAllOrders(page)}
+            className="w-full inline-flex justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors cursor-pointer"
+          >
             Retry Connection
           </button>
         </div>
@@ -1135,73 +2031,89 @@ export default function AdminOrderManagementPage() {
   }
 
   return (
-    <div className="bg-slate-50/50 min-h-screen font-sans antialiased text-slate-900">
-      <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-8">
+    <div className="bg-slate-50/60 min-h-screen font-sans antialiased text-slate-900">
+      <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-6">
 
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 pb-6 border-b border-slate-200/80">
+        {/* Page Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-200/80">
           <div>
-
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-950">
-              Order Management
-            </h1>
-            <p className="mt-1 text-sm text-slate-500 max-w-2xl leading-relaxed">
-              Monitor routing metrics and sync fulfillment workflows seamlessly using our real-time tracking suite.
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-950">
+                Order Management
+              </h1>
+              {metrics.totalOrders > 0 && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
+                  {metrics.totalOrders} {metrics.totalOrders === 1 ? "order" : "orders"}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xs md:text-sm text-slate-500 max-w-2xl leading-relaxed">
+              Track pipeline fulfillment, manage status lifecycles, and generate printable invoices.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => {
                 fetchAllOrders(page);
                 fetchOrderStats();
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition-all"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-slate-950 hover:border-slate-300 transition-all cursor-pointer active:scale-95"
             >
-              <ArrowPathIcon className="size-4 text-slate-500" />
-              Sync Live Stream
+              <ArrowPathIcon className="size-3.5 text-slate-500" />
+              <span>Sync Orders</span>
             </button>
           </div>
         </div>
 
-        {/* Dynamic Graphic Metrics Grid */}
-        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Top Metric Cards Grid */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
 
           {/* Card 1: Total Volumes */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group">
-            <div className="flex items-start justify-between z-10">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all duration-200 flex flex-col justify-between h-36">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Volumes</p>
-                <p className="mt-1.5 text-3xl font-black tracking-tight text-slate-900">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Volumes</p>
+                <p className="mt-1 text-2xl md:text-3xl font-black tracking-tight text-slate-950">
                   {metrics.totalOrders}
                 </p>
               </div>
-              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-slate-500">
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-slate-600">
                 <ShoppingBagIcon className="size-4" />
               </div>
             </div>
-            {/* Order Status Distribution — real per-status counts, not a fake trend line */}
-            <div className="w-full pt-4 z-10">
-              <div className="flex items-end gap-1 h-12">
-                {statusDistribution.map((bar) => (
+            <div className="w-full pt-2">
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
+                {volumeSegments.map((seg) => (
                   <div
-                    key={bar.key}
-                    className={`w-full rounded-t-sm ${bar.color} transition-all`}
-                    style={{ height: `${bar.heightPct}%` }}
-                    title={`${bar.key}: ${bar.count}`}
+                    key={seg.key}
+                    className={`h-full ${seg.color} transition-all duration-500`}
+                    style={{ width: `${seg.pct}%` }}
+                    title={`${seg.key}: ${seg.count} (${seg.pct.toFixed(0)}%)`}
                   />
                 ))}
+                {volumeSegments.length === 0 && <div className="h-full bg-slate-200 w-full" />}
+              </div>
+              <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-2">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Active ({metrics.activeOrders})
+                </span>
+                <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Delivered ({metrics.delivered})
+                </span>
               </div>
             </div>
           </div>
 
           {/* Card 2: Gross Income */}
-          <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group">
-            <div className="flex items-start justify-between z-10">
+          <div className="rounded-2xl border border-emerald-100/90 bg-white p-5 shadow-2xs hover:shadow-xs hover:border-emerald-200 transition-all duration-200 flex flex-col justify-between h-36">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Gross Income</p>
-                <p className="mt-1.5 text-3xl font-black tracking-tight text-emerald-950">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Gross Income</p>
+                <p className="mt-1 text-2xl md:text-3xl font-black tracking-tight text-emerald-950">
                   ₹{metrics.paidRevenue.toLocaleString("en-IN")}
                 </p>
               </div>
@@ -1209,24 +2121,26 @@ export default function AdminOrderManagementPage() {
                 <CurrencyRupeeIcon className="size-4" />
               </div>
             </div>
-            {/* % of total order value actually collected (paid), not a hardcoded figure */}
-            <div className="w-full pt-4 z-10">
+            <div className="w-full pt-2">
               <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full rounded-full shadow-sm transition-all duration-500" style={{ width: `${Math.min(collectedPct, 100)}%` }} />
+                <div
+                  className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500 shadow-2xs"
+                  style={{ width: `${Math.min(collectedPct, 100)}%` }}
+                />
               </div>
-              <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2">
+              <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-2">
                 <span>₹{metrics.totalOrderValue.toLocaleString("en-IN")} ordered</span>
-                <span className="text-emerald-600">{collectedPct.toFixed(0)}% Collected</span>
+                <span className="text-emerald-700 font-bold">{collectedPct.toFixed(0)}% Collected</span>
               </div>
             </div>
           </div>
 
           {/* Card 3: In Processing */}
-          <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group">
-            <div className="flex items-start justify-between z-10">
+          <div className="rounded-2xl border border-amber-100/90 bg-white p-5 shadow-2xs hover:shadow-xs hover:border-amber-200 transition-all duration-200 flex flex-col justify-between h-36">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-700">In Processing</p>
-                <p className="mt-1.5 text-3xl font-black tracking-tight text-amber-950">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700">In Processing</p>
+                <p className="mt-1 text-2xl md:text-3xl font-black tracking-tight text-amber-950">
                   {metrics.processing}
                 </p>
               </div>
@@ -1234,25 +2148,30 @@ export default function AdminOrderManagementPage() {
                 <ClockIcon className="size-4" />
               </div>
             </div>
-            {/* Share of active (non-cancelled) orders — cancelled orders no longer dilute this */}
-            <div className="w-full pt-4 z-10">
+            <div className="w-full pt-2">
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
-                <div style={{ width: `${graphPercentages.processing}%` }} className="h-full bg-amber-400" />
-                <div style={{ width: `${graphPercentages.confirmed}%` }} className="h-full bg-orange-400" />
+                <div style={{ width: `${graphPercentages.processing}%` }} className="h-full bg-amber-400 transition-all duration-500" />
+                <div style={{ width: `${graphPercentages.confirmed}%` }} className="h-full bg-orange-400 transition-all duration-500" />
               </div>
               <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-2">
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />Proc ({metrics.pureProcessing})</span>
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400" />Conf ({metrics.confirmed})</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Proc ({metrics.pureProcessing})
+                </span>
+                <span className="flex items-center gap-1 text-orange-600 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                  Conf ({metrics.confirmed})
+                </span>
               </div>
             </div>
           </div>
 
           {/* Card 4: Dispatched & Done */}
-          <div className="rounded-2xl border border-indigo-100 bg-white p-6 shadow-sm flex flex-col justify-between h-40 relative overflow-hidden group">
-            <div className="flex items-start justify-between z-10">
+          <div className="rounded-2xl border border-indigo-100/90 bg-white p-5 shadow-2xs hover:shadow-xs hover:border-indigo-200 transition-all duration-200 flex flex-col justify-between h-36">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Dispatched & Done</p>
-                <p className="mt-1.5 text-3xl font-black tracking-tight text-indigo-950">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Dispatched & Done</p>
+                <p className="mt-1 text-2xl md:text-3xl font-black tracking-tight text-indigo-950">
                   {metrics.dispatchedAndDone}
                 </p>
               </div>
@@ -1260,16 +2179,20 @@ export default function AdminOrderManagementPage() {
                 <CheckCircleIcon className="size-4" />
               </div>
             </div>
-            {/* Shipped (dispatched) + Delivered (done), matching the card's own name —
-                previously counted DELIVERED only, silently dropping SHIPPED orders. */}
-            <div className="w-full pt-4 z-10">
+            <div className="w-full pt-2">
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
-                <div style={{ width: `${graphPercentages.shipped}%` }} className="h-full bg-blue-400" />
-                <div style={{ width: `${graphPercentages.delivered}%` }} className="h-full bg-indigo-600" />
+                <div style={{ width: `${graphPercentages.shipped}%` }} className="h-full bg-sky-400 transition-all duration-500" />
+                <div style={{ width: `${graphPercentages.delivered}%` }} className="h-full bg-indigo-600 transition-all duration-500" />
               </div>
               <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-2">
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />Shipped ({metrics.shipped})</span>
-                <span className="flex items-center gap-1 text-indigo-600"><span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />Delivered ({metrics.delivered})</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                  Shipped ({metrics.shipped})
+                </span>
+                <span className="flex items-center gap-1 text-indigo-600 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                  Delivered ({metrics.delivered})
+                </span>
               </div>
             </div>
           </div>
@@ -1277,12 +2200,12 @@ export default function AdminOrderManagementPage() {
         </div>
 
         {/* Master Table Area */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 flex flex-col gap-4 bg-slate-50/50">
+        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-2xs overflow-visible relative">
+          <div className="px-6 py-4.5 border-b border-slate-100 flex flex-col gap-3.5 bg-slate-50/60 rounded-t-2xl relative z-20 overflow-visible">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Active Pipeline</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Realtime checkout lists. Modify orders directly via structural interactive status action buttons.</p>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">Orders Pipeline</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Real-time checkout listings. Update order progress and print customer invoices.</p>
               </div>
 
               <div className="flex items-center gap-2.5 flex-wrap">
@@ -1292,11 +2215,11 @@ export default function AdminOrderManagementPage() {
                     setBulkModalParams({ unprintedOnly: true });
                     setBulkModalOpen(true);
                   }}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition shadow-2xs cursor-pointer shrink-0"
                   title="Print all invoices for unprinted orders at once"
                 >
-                  <Printer className="size-4" />
-                  Print Unprinted Invoices
+                  <Printer className="size-3.5" />
+                  <span>Print Unprinted Invoices</span>
                   {(metrics.unprintedInvoices ?? 0) > 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-indigo-800/90 text-indigo-100 text-[10px] font-black">
                       {metrics.unprintedInvoices}
@@ -1307,263 +2230,262 @@ export default function AdminOrderManagementPage() {
             </div>
 
             {/* Filter Bar Controls */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/60">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-2.5 border-t border-slate-200/60">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 flex items-center gap-1 mr-1">
+                <span className="text-xs font-bold text-slate-400 flex items-center gap-1 mr-0.5">
                   <FunnelIcon className="size-3.5 text-slate-400" /> Filter:
                 </span>
 
-                {/* Origin Pill Buttons */}
-                <div className="inline-flex rounded-xl bg-slate-200/70 p-1 text-xs font-semibold gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleSourceChange("ALL")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      sourceFilter === "ALL"
-                        ? "bg-white text-slate-900 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    }`}
-                  >
-                    All Orders
-                  </button>
+                {/* Order Source Filter Dropdown with Checkbox Options */}
+                <OrderSourceFilterDropdown
+                  value={sourceFilter}
+                  onChange={handleSourceChange}
+                />
 
-                  <button
-                    type="button"
-                    onClick={() => handleSourceChange("CUSTOMER")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      sourceFilter === "CUSTOMER"
-                        ? "bg-emerald-600 text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    }`}
-                  >
-                    <ShoppingBagIcon className="size-3.5" />
-                    Customers
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSourceChange("ADMIN")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      sourceFilter === "ADMIN"
-                        ? "bg-indigo-600 text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    }`}
-                  >
-                    <BuildingStorefrontIcon className="size-3.5" />
-                    By Admin / Staff
-                  </button>
-                </div>
-
-                {/* Invoice Printed Filter */}
-                <div className="inline-flex rounded-xl bg-slate-200/70 p-1 text-xs font-semibold gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleInvoiceFilterChange("ALL")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      invoiceFilter === "ALL"
-                        ? "bg-white text-slate-900 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    }`}
-                  >
-                    All Invoices
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInvoiceFilterChange("UNPRINTED")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      invoiceFilter === "UNPRINTED"
-                        ? "bg-amber-600 text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    }`}
-                  >
-                    Unprinted
-                    {(metrics.unprintedInvoices ?? 0) > 0 && (
-                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        invoiceFilter === "UNPRINTED" ? "bg-amber-700 text-white" : "bg-amber-100 text-amber-800"
-                      }`}>
-                        {metrics.unprintedInvoices}
-                      </span>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleInvoiceFilterChange("PRINTED")}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      invoiceFilter === "PRINTED"
-                        ? "bg-slate-800 text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    }`}
-                  >
-                    Printed
-                  </button>
-                </div>
+                {/* Invoice Printed Filter Dropdown */}
+                <InvoiceFilterDropdown
+                  value={invoiceFilter}
+                  unprintedCount={metrics.unprintedInvoices ?? 0}
+                  onChange={handleInvoiceFilterChange}
+                />
 
                 {/* Order Status Filter */}
                 <StatusFilterDropdown
                   value={statusFilter}
                   onChange={handleStatusFilterChange}
                 />
+
+                {/* Date Filter Dropdown */}
+                <DateFilterDropdown
+                  preset={datePreset}
+                  startDate={startDate}
+                  endDate={endDate}
+                  onPresetSelect={handleDatePresetSelect}
+                  onCustomDateChange={handleCustomDateApply}
+                  onClear={handleClearDateFilter}
+                />
               </div>
 
-              {/* Active Filter Indicators & Reset */}
-              {(sourceFilter !== "ALL" || statusFilter || invoiceFilter !== "ALL") && (
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 transition cursor-pointer"
-                >
-                  <XMarkIcon className="size-3.5" />
-                  Reset Filters
-                </button>
-              )}
+              {/* Right side: Search Box & Reset Filters Button */}
+              <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                <div className="relative flex-1 md:flex-initial">
+                  {tableLoading ? (
+                    <ArrowPathIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-indigo-600 animate-spin" />
+                  ) : (
+                    <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+                  )}
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    placeholder="Search orders..."
+                    className="h-9 w-full sm:w-56 rounded-xl border border-slate-200/90 bg-white pl-8 pr-7 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-800 transition shadow-2xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (searchDebounceTimer.current) {
+                          clearTimeout(searchDebounceTimer.current);
+                        }
+                        setSearchQuery("");
+                        setPage(1);
+                        fetchAllOrders(1, { search: "" });
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
+                    >
+                      <XMarkIcon className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {isFiltered && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition cursor-pointer shadow-2xs shrink-0"
+                  >
+                    <XMarkIcon className="size-3.5" />
+                    Reset Filters
+                  </button>
+                )}
+              </div>
             </div>
+
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left border-collapse">
+          <div className={`overflow-x-auto rounded-b-2xl min-h-[380px] relative z-10 transition-opacity duration-150 ${tableLoading ? "opacity-60" : "opacity-100"}`}>
+            <table className="w-full min-w-[960px] text-sm text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  <th className="pl-6 pr-2 py-4 w-10">
+                <tr className="border-b border-slate-200 bg-slate-50/90 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <th className="pl-6 pr-3 py-4 w-12">
                     <input
                       type="checkbox"
                       checked={orders.length > 0 && selectedOrderIds.length === orders.length}
                       onChange={toggleSelectAllOnPage}
-                      className="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      className="size-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                       title="Select all on this page"
                     />
                   </th>
-                  <th className="px-4 py-4">Order ID</th>
-                  <th className="px-6 py-4">Account Client</th>
-                  <th className="px-6 py-4">Timestamp</th>
-                  <th className="px-6 py-4">Gross Settlement</th>
-                  <th className="px-6 py-4">Lifecycle State</th>
-                  <th className="px-6 py-4">Update Status Router (Action Chips)</th>
-                  <th className="px-6 py-4 text-right" />
+                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4">Customer Name</th>
+                  <th className="px-6 py-4">Amount</th>
+                  <th className="px-6 py-4">Update Status</th>
+                  <th className="px-6 py-4 text-right">Invoice</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {orders.map((order) => {
-                  const shortId = `#${order.id.slice(-8)}`;
-                  const currentStatusStyle = getStatusClasses(order.orderStatus);
-
                   return (
-                    <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
-                      {/* Checkbox Column */}
-                      <td className="pl-6 pr-2 py-4 w-10" onClick={(e) => e.stopPropagation()}>
+                    <tr
+                      key={order.id}
+                      onClick={() => openDrawer(order)}
+                      className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                    >
+                      {/* 1. Checkbox Column */}
+                      <td
+                        className="pl-6 pr-3 py-5 w-12"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <input
                           type="checkbox"
                           checked={selectedOrderIds.includes(order.id)}
                           onChange={() => toggleSelectOrder(order.id)}
-                          className="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          className="size-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         />
                       </td>
 
-                      {/* Token Reference */}
-                      <td className="px-4 py-4 font-mono text-xs cursor-pointer text-slate-600 group-hover:text-slate-900" onClick={() => openDrawer(order)}>
-                        <div className="flex flex-col gap-1 items-start">
-                          <span className="font-bold tracking-tight bg-slate-100 px-2 py-1 rounded-md border border-slate-200/60">
-                            {shortId}
+                      {/* 2. Date Column */}
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-900">
+                            {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                           </span>
-                          {order.invoicePrinted ? (
-                            <span
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200"
-                              title={order.invoicePrintedAt ? `Printed on ${new Date(order.invoicePrintedAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "Invoice already printed"}
-                            >
-                              <CheckCircleIcon className="size-2.5 text-emerald-600" />
-                              Printed
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                              <ClockIcon className="size-2.5 text-amber-500" />
-                              Unprinted
-                            </span>
-                          )}
+                          <span className="text-xs font-medium text-slate-500 mt-1">
+                            {order.createdAt ? new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : ""}
+                          </span>
                         </div>
                       </td>
 
-                      {/* Account Customer Client info */}
-                      <td className="px-6 py-4 cursor-pointer" onClick={() => openDrawer(order)}>
-                        <div className="flex items-center gap-3">
-                          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 border border-slate-200/50">
-                            <UserIcon className="size-4" />
-                          </div>
-                          <div className="max-w-[320px] truncate">
-                            <p className="text-sm font-semibold text-slate-900 truncate">
-                              {order.user?.username || "N/A"}
-                            </p>
-                            <p className="text-xs text-slate-400 truncate mt-0.5">
-                              {order.user?.email || "No email"}
-                            </p>
-                            {order.user?.phone && (
-                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                {order.user.phone}
-                              </p>
-                            )}
+                      {/* 3. Customer Name Column */}
+                      <td className="px-6 py-5">
+                        {(() => {
+                          const customerPhone = order.user?.phone || order.shippingAddress?.phone || "";
+                          const customerName = order.user?.username || order.shippingAddress?.fullName || order.shippingAddress?.name || "N/A";
+                          return (
+                            <div className="flex items-center justify-between gap-3 max-w-[320px]">
+                              <div className="min-w-0 flex-1 truncate">
+                                <p className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 truncate transition-colors">
+                                  {customerName}
+                                </p>
+                                <p className="text-xs font-medium text-slate-500 truncate mt-0.5">
+                                  {order.user?.email || "No email"}
+                                </p>
+                                {customerPhone && (
+                                  <p className="text-xs font-semibold text-slate-600 truncate mt-0.5">
+                                    {customerPhone}
+                                  </p>
+                                )}
 
-                            {/* Order Origin / Placed By Tag */}
-                            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                              {order.placedByAdminId ? (
-                                <span
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
-                                  title={`Placed internally by ${order.placedByAdmin?.username ? `${order.placedByAdmin.username} (${order.placedByAdmin.role})` : "Admin/Staff"}`}
-                                >
-                                  <BuildingStorefrontIcon className="size-3 text-indigo-600 shrink-0" />
-                                  <span>
-                                    Ordered by {order.placedByAdmin?.role === "STAFF" ? "Staff" : "Admin"}:{" "}
-                                    <strong className="font-black text-indigo-900">{order.placedByAdmin?.username ?? "Our Side"}</strong>
-                                  </span>
-                                </span>
-                              ) : (
-                                <span
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-xs"
-                                  title="Customer placed directly via storefront online checkout"
-                                >
-                                  <ShoppingBagIcon className="size-3 text-emerald-600 shrink-0" />
-                                  <span>Customer Order</span>
-                                </span>
-                              )}
+                                {/* Order Origin / Placed By Tag */}
+                                <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                  {order.placedByAdminId ? (
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs"
+                                      title={`Placed internally by ${order.placedByAdmin?.username ? `${order.placedByAdmin.username} (${order.placedByAdmin.role})` : "Admin/Staff"}`}
+                                    >
+                                      <span>
+                                        {order.placedByAdmin?.role === "STAFF" ? "Staff" : "Admin"}:{" "}
+                                        <strong className="font-bold text-indigo-900">{order.placedByAdmin?.username ?? "Our Side"}</strong>
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/70 shadow-2xs"
+                                      title="Customer placed directly via storefront online checkout"
+                                    >
+                                      <span>Customer Order</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Quick Call & WhatsApp Action Buttons */}
+                              <div
+                                className="flex flex-col gap-1.5 shrink-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {customerPhone ? (
+                                  <>
+                                    <a
+                                      href={`tel:${customerPhone.trim()}`}
+                                      title={`Call ${customerPhone}`}
+                                      className="flex size-7.5 items-center justify-center rounded-lg bg-sky-600 hover:bg-sky-500 active:scale-95 text-white shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                    >
+                                      <PhoneCallIcon className="size-4" />
+                                    </a>
+                                    <a
+                                      href={getWhatsAppUrl(customerPhone)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={`WhatsApp ${customerPhone}`}
+                                      className="flex size-7.5 items-center justify-center rounded-lg bg-[#25D366] hover:bg-[#20bd5a] active:scale-95 text-white shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                    >
+                                      <WhatsAppIcon className="size-4" />
+                                    </a>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div
+                                      title="No phone number available"
+                                      className="flex size-7.5 items-center justify-center rounded-lg bg-slate-100 text-slate-300 border border-slate-200/60 cursor-not-allowed"
+                                    >
+                                      <PhoneCallIcon className="size-4" />
+                                    </div>
+                                    <div
+                                      title="No phone number available"
+                                      className="flex size-7.5 items-center justify-center rounded-lg bg-slate-100 text-slate-300 border border-slate-200/60 cursor-not-allowed"
+                                    >
+                                      <WhatsAppIcon className="size-4" />
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </div>
+                          );
+                        })()}
                       </td>
 
-                      {/* Placed At Timestamp */}
-                      <td className="px-6 py-4 text-xs font-medium text-slate-500">
-                        {formatDateTime(order.createdAt)}
-                      </td>
-
-                      {/* Gross settlement item values & payment method */}
-                      <td className="px-6 py-4 text-sm font-bold text-slate-900">
+                      {/* 4. Amount Column */}
+                      <td className="px-6 py-5">
                         <div>
-                          <span className={order.orderStatus === "CANCELLED" ? "line-through text-slate-400 font-medium" : "text-slate-900 font-bold"}>
+                          <span className={order.orderStatus === "CANCELLED" ? "line-through text-slate-400 font-medium text-base" : "text-slate-950 font-black text-lg tracking-tight"}>
                             ₹{(order.finalAmount ?? order.totalAmount)?.toFixed(2) ?? "0.00"}
                           </span>
-                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                             {order.paymentMethod === "QR" ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80">
-                                <QrCodeIcon className="size-3 text-purple-600" /> Pay with QR
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                <QrCodeIcon className="size-3.5 text-purple-600" /> Pay with QR
                               </span>
                             ) : order.paymentMethod === "ONLINE" ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
                                 Online
                               </span>
                             ) : order.paymentMethod === "CASH" ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200/80">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200/80">
                                 Cash
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
                                 COD
                               </span>
                             )}
 
                             {/* Small, clean Refund Pending status & Mark Refunded action */}
                             {order.orderStatus === "CANCELLED" && order.paymentStatus === "PAID" && (
-                              <div className="inline-flex items-center gap-1">
+                              <div className="inline-flex items-center gap-1.5">
                                 <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200"
                                   title="Order cancelled but payment refund is pending"
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -1575,7 +2497,7 @@ export default function AdminOrderManagementPage() {
                                     e.stopPropagation();
                                     setRefundModalOrder(order);
                                   }}
-                                  className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+                                  className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
                                   title="Record refund for this order"
                                 >
                                   Mark Refunded
@@ -1584,7 +2506,7 @@ export default function AdminOrderManagementPage() {
                             )}
 
                             {order.paymentStatus === "REFUNDED" && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
                                 Refunded
                               </span>
@@ -1592,7 +2514,7 @@ export default function AdminOrderManagementPage() {
 
                             {/* Cancelled COD/unpaid order - No payment collected */}
                             {order.orderStatus === "CANCELLED" && (!order.paymentStatus || order.paymentStatus === "PENDING") && (order.paymentMethod === "POD" || order.paymentMethod === "COD" || order.paymentMethod === "CASH") && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                                 No Payment Made
                               </span>
@@ -1601,18 +2523,9 @@ export default function AdminOrderManagementPage() {
                         </div>
                       </td>
 
-                      {/* Badge Display View */}
-                      <td className="px-6 py-4">
-                        <div className={currentStatusStyle.container}>
-                          <span className={currentStatusStyle.dot} />
-                          {getStatusIcon(order.orderStatus)}
-                          <span>{statusLabel(order.orderStatus || "UNKNOWN")}</span>
-                        </div>
-                      </td>
-
-                      {/* Custom Action Chips Container Instead of list dropdowns */}
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative inline-flex flex-wrap gap-1 items-center bg-slate-100 p-1 rounded-xl border border-slate-200/40">
+                      {/* 5. Update Status Column */}
+                      <td className="px-6 py-5">
+                        <div className="relative inline-flex flex-wrap gap-1.5 items-center bg-slate-100/90 p-1.5 rounded-xl border border-slate-200/70 shadow-2xs">
                           {statusOptions.map((status) => {
                             const isCurrent = order.orderStatus === status;
                             const targetClasses = getStatusClasses(status);
@@ -1623,7 +2536,8 @@ export default function AdminOrderManagementPage() {
                                 key={status}
                                 type="button"
                                 disabled={chipDisabled}
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   if (order.orderStatus === status) return;
                                   if (order.orderStatus === "CANCELLED" || order.orderStatus === "DELIVERED" || order.orderStatus === "RETURNED") return;
                                   const blocked = blockedStatusMessage(order.orderStatus, status);
@@ -1639,12 +2553,13 @@ export default function AdminOrderManagementPage() {
                                     handleUpdateStatus(order.id, status);
                                   }
                                 }}
-                                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all duration-200 ${isCurrent
-                                  ? `${targetClasses.chipActive} cursor-default opacity-100`
-                                  : chipDisabled
-                                    ? "bg-slate-50 text-slate-300 border-transparent cursor-not-allowed opacity-40"
-                                    : "bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300 shadow-xs cursor-pointer"
-                                  }`}
+                                className={`px-3.5 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg border transition-all duration-150 ${
+                                  isCurrent
+                                    ? `${targetClasses.chipActive} cursor-default opacity-100`
+                                    : chipDisabled
+                                      ? "bg-transparent text-slate-300 border-transparent cursor-not-allowed opacity-40"
+                                      : "bg-white text-slate-700 border-slate-200/90 hover:text-slate-950 hover:border-slate-300 shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                                }`}
                               >
                                 {statusLabel(status)}
                               </button>
@@ -1653,53 +2568,60 @@ export default function AdminOrderManagementPage() {
                         </div>
                       </td>
 
-                      {/* Controls Rows */}
-                      <td className="px-6 py-4 text-right">
-                        <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => handleViewInvoice(order.id)}
-                            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-xs transition-all ${
-                              order.invoicePrinted
-                                ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                                : "border-indigo-200 bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100"
-                            }`}
-                            title={order.invoicePrinted ? "Invoice already printed (Click to view/reprint)" : "View / Print Invoice"}
-                          >
-                            <DocumentTextIcon className={`size-3.5 ${order.invoicePrinted ? "text-slate-400" : "text-indigo-500"}`} />
-                            {order.invoicePrinted ? "Invoice ✓" : "Invoice"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openDrawer(order)}
-                            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition-all"
-                          >
-                            View
-                            <ChevronRightIcon className="size-3.5 text-slate-400" />
-                          </button>
-                        </div>
+                      {/* 6. Invoice Column */}
+                      <td className="px-6 py-5 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewInvoice(order.id);
+                          }}
+                          className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-1.5 text-xs font-bold shadow-2xs transition-all shrink-0 whitespace-nowrap cursor-pointer active:scale-95 ${
+                            order.invoicePrinted
+                              ? "border-slate-200 bg-slate-100/90 text-slate-800 hover:bg-slate-200/80 hover:border-slate-300"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                          }`}
+                          title={order.invoicePrinted ? "Invoice Printed (Click to view/reprint)" : "Invoice Unprinted (Click to print)"}
+                        >
+                          <DocumentTextIcon className="size-4 shrink-0 text-slate-500" />
+                          <span>Invoice</span>
+                          {order.invoicePrinted ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                              <CheckIcon className="size-3.5 stroke-[2.5] text-slate-600" />
+                              Printed
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-medium text-slate-400">
+                              Unprinted
+                            </span>
+                          )}
+                        </button>
                       </td>
                     </tr>
                   );
                 })}
-                {orders.length === 0 && !loading && (
+                {orders.length === 0 && !tableLoading && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center">
-                      <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3">
-                        <ShoppingBagIcon className="size-6" />
+                    <td colSpan={6} className="px-6 py-20 text-center">
+                      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3 border border-slate-200/60 shadow-2xs">
+                        <ShoppingBagIcon className="size-7 text-slate-400" />
                       </div>
-                      <p className="text-sm font-bold text-slate-800">No orders found</p>
-                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        No orders match your active filter or search query.
+                      <p className="text-base font-bold text-slate-800">No orders found</p>
+                      <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+                        {isFiltered
+                          ? "No orders match your active filter criteria (date range, status, origin, or search query)."
+                          : "There are currently no orders registered in the pipeline."}
                       </p>
-                      {(sourceFilter !== "ALL" || placedByFilter || statusFilter || invoiceFilter !== "ALL") && (
-                        <button
-                          type="button"
-                          onClick={handleClearFilters}
-                          className="mt-3 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 rounded-lg border border-indigo-200 cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <XMarkIcon className="size-3.5" /> Clear Filters
-                        </button>
+                      {isFiltered && (
+                        <div className="mt-4 flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleClearFilters}
+                            className="px-4 py-2 text-xs font-bold text-indigo-700 hover:text-white hover:bg-indigo-600 bg-indigo-50 rounded-xl border border-indigo-200 transition cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <XMarkIcon className="size-4" /> Reset All Filters
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1708,8 +2630,7 @@ export default function AdminOrderManagementPage() {
             </table>
           </div>
 
-          {/* Pagination footer — getOrdersForAdmin caps each request at 20 orders
-              (order.controller.ts), this is what lets an admin actually reach order 21+. */}
+          {/* Pagination footer */}
           {totalOrders > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
               <p className="text-xs text-slate-500">
@@ -1729,8 +2650,8 @@ export default function AdminOrderManagementPage() {
                   <button
                     type="button"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1 || loading}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                    disabled={page <= 1 || tableLoading}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-2xs hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer"
                   >
                     <ChevronRightIcon className="size-3.5 rotate-180" />
                     Prev
@@ -1738,8 +2659,8 @@ export default function AdminOrderManagementPage() {
                   <button
                     type="button"
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page >= totalPages || loading}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                    disabled={page >= totalPages || tableLoading}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-2xs hover:bg-slate-50 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer"
                   >
                     Next
                     <ChevronRightIcon className="size-3.5" />
@@ -1759,19 +2680,42 @@ export default function AdminOrderManagementPage() {
 
                 <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5 bg-slate-50/50">
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Auditing Registry</p>
-                    <p className="text-base font-black text-slate-900 tracking-tight mt-0.5">Order ID: #{selectedOrder.id.slice(-8)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Order Details</p>
+                      {selectedOrder.invoicePrinted ? (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-white shadow-2xs"
+                          title={selectedOrder.invoicePrintedAt ? `Printed on ${new Date(selectedOrder.invoicePrintedAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "Invoice already printed"}
+                        >
+                          <CheckIcon className="size-2.5 stroke-[3]" />
+                          Printed
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 shadow-2xs border border-slate-200"
+                          title="Invoice not yet printed"
+                        >
+                          Unprinted
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-base font-black text-slate-900 tracking-tight">#{selectedOrder.id.slice(-8).toUpperCase()}</p>
+                      <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        {selectedOrder.id}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleViewInvoice(selectedOrder.id)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-900 hover:text-white transition-all"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-900 hover:text-white transition-all cursor-pointer"
                     >
                       <DocumentTextIcon className="size-4" />
                       Invoice
                     </button>
-                    <button type="button" onClick={closeDrawer} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all">
+                    <button type="button" onClick={closeDrawer} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all cursor-pointer">
                       <XMarkIcon className="size-4.5" />
                     </button>
                   </div>
@@ -1781,24 +2725,56 @@ export default function AdminOrderManagementPage() {
 
                   {/* Account Metadata profile */}
                   <section className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm font-bold">
-                        <UserIcon className="size-5" />
-                      </div>
-                      <div className="min-w-0 flex-1 truncate">
-                        <p className="text-sm font-bold text-slate-900 truncate">
-                          {selectedOrder.user?.username || "N/A"}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate mt-0.5">
-                          {selectedOrder.user?.email || "No email provided"}
-                        </p>
-                        {selectedOrder.user?.phone && (
-                          <p className="text-xs text-slate-500 truncate mt-0.5">
-                            {selectedOrder.user.phone}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    {(() => {
+                      const drawerPhone = selectedOrder.user?.phone || selectedOrder.shippingAddress?.phone || "";
+                      const drawerName = selectedOrder.user?.username || selectedOrder.shippingAddress?.fullName || selectedOrder.shippingAddress?.name || "N/A";
+                      return (
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm font-bold">
+                              <UserIcon className="size-5" />
+                            </div>
+                            <div className="min-w-0 flex-1 truncate">
+                              <p className="text-sm font-bold text-slate-900 truncate">
+                                {drawerName}
+                              </p>
+                              <p className="text-xs text-slate-500 truncate mt-0.5">
+                                {selectedOrder.user?.email || "No email provided"}
+                              </p>
+                              {drawerPhone && (
+                                <p className="text-xs font-semibold text-slate-700 truncate mt-0.5">
+                                  {drawerPhone}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Communication in Drawer */}
+                          {drawerPhone && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <a
+                                href={`tel:${drawerPhone.trim()}`}
+                                title={`Call ${drawerPhone}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                              >
+                                <PhoneCallIcon className="size-3.5" />
+                                <span>Call</span>
+                              </a>
+                              <a
+                                href={getWhatsAppUrl(drawerPhone)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`WhatsApp ${drawerPhone}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                              >
+                                <WhatsAppIcon className="size-3.5" />
+                                <span>WhatsApp</span>
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <hr className="border-slate-200/60" />
 

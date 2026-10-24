@@ -1,7 +1,7 @@
 // src/utils/occasionPresets.ts
 //
 // One-click "occasion" bundles for Homepage Manager (see HomepageManager.tsx's
-// Occasions tab) — each preset just sets the same fields an admin could already set by
+// Occasions tab) — each preset sets the same fields an admin could already set by
 // hand (theme + each section's template + a bit of prefilled copy), applied together in
 // one click instead of one at a time. Deliberately NOT a new backend concept: applying a
 // preset fires the exact same PUT endpoints Homepage Manager's individual pickers
@@ -13,10 +13,6 @@
 // editable form before anything is saved, so an admin can tweak the wording for their
 // own store without touching this file. Only the theme/template choices are fixed by
 // the preset itself.
-//
-// Template numbers reference HeroSection.tsx (1-9), FooterSection.tsx (1-6), and the
-// presentation-only pickers in AnnouncementBar.tsx/BannerCarousel.tsx/DiscountPage.tsx/
-// FeaturedProducts.tsx (1-4 each). themeId references utils/themes.ts.
 
 export interface HeroContentOverride {
   title?: string;
@@ -28,6 +24,8 @@ export interface HeroContentOverride {
   highlightText?: string;
   bgImage?: string;
 }
+
+export type AmbientEffectType = "petals" | "sparkles" | "snow" | "confetti" | "gulal";
 
 export interface OccasionPreset {
   id: string;
@@ -52,6 +50,16 @@ export interface OccasionPreset {
   carouselTemplate: number;
   discountTemplate: number;
   featuredTemplate: number;
+  /** Ambient visual particle effect rendered on the storefront during this occasion */
+  ambientEffect?: AmbientEffectType;
+  /** Festive banner greeting shown in interactive widgets and toasts */
+  greeting?: string;
+  /** Default celebratory promotional coupon code */
+  couponCode?: string;
+  /** Headline discount description */
+  discountText?: string;
+  /** Special badge text shown on product cards and banner tags */
+  badgeText?: string;
 }
 
 export const OCCASION_PRESETS: OccasionPreset[] = [
@@ -76,6 +84,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 3,
     discountTemplate: 4,
     featuredTemplate: 1,
+    ambientEffect: "sparkles",
+    greeting: "Happy Diwali! Celebrate with Radiant Savings & Light 🪔",
+    couponCode: "DIWALI20",
+    discountText: "Flat 20% OFF Festive Edit",
+    badgeText: "Diwali Special",
   },
   {
     id: "holi",
@@ -98,6 +111,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 2,
     discountTemplate: 2,
     featuredTemplate: 1,
+    ambientEffect: "gulal",
+    greeting: "Happy Holi! Splash into Vibrant Colors & Joy 🎨",
+    couponCode: "HOLI30",
+    discountText: "Extra 30% OFF Colorful Styles",
+    badgeText: "Holi Spotlight",
   },
   {
     id: "eid",
@@ -120,6 +138,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 3,
     discountTemplate: 4,
     featuredTemplate: 1,
+    ambientEffect: "sparkles",
+    greeting: "Eid Mubarak! Wishing you Peace, Joy & Prosperity 🌙",
+    couponCode: "EID25",
+    discountText: "25% OFF Festive Wear",
+    badgeText: "Eid Special",
   },
   {
     id: "onam",
@@ -143,6 +166,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 2,
     discountTemplate: 2,
     featuredTemplate: 1,
+    ambientEffect: "petals",
+    greeting: "Happy Onam! Celebrate the Season of Abundance & Harvest 🌼",
+    couponCode: "ONAM20",
+    discountText: "Extra ₹500 OFF Onam Hampers",
+    badgeText: "Onam Special",
   },
   {
     id: "christmas-new-year",
@@ -165,6 +193,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 3,
     discountTemplate: 4,
     featuredTemplate: 3,
+    ambientEffect: "snow",
+    greeting: "Season's Greetings! Wishing you Joy & A Bright New Year 🎄",
+    couponCode: "HOLIDAY25",
+    discountText: "Up to 35% OFF Winter Collection",
+    badgeText: "Holiday Pick",
   },
   {
     id: "wedding-season",
@@ -185,6 +218,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 4,
     discountTemplate: 1,
     featuredTemplate: 4,
+    ambientEffect: "petals",
+    greeting: "The Wedding Edit: Exquisite Elegance For Your Big Celebrations 💍",
+    couponCode: "BRIDAL15",
+    discountText: "Special Wedding Season Pricing",
+    badgeText: "Bridal Edit",
   },
   {
     id: "republic-day",
@@ -207,6 +245,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 3,
     discountTemplate: 4,
     featuredTemplate: 1,
+    ambientEffect: "confetti",
+    greeting: "Happy Republic Day! Celebrating India with Grand Savings 🇮🇳",
+    couponCode: "INDIA26",
+    discountText: "Flat 26% OFF Storewide",
+    badgeText: "Republic Deal",
   },
   {
     id: "valentines",
@@ -229,6 +272,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 2,
     discountTemplate: 2,
     featuredTemplate: 2,
+    ambientEffect: "petals",
+    greeting: "Love is in the Air! Curated Gifts For The Ones You Love 💝",
+    couponCode: "LOVE20",
+    discountText: "20% OFF Valentine Gifts",
+    badgeText: "Gift of Love",
   },
   {
     id: "sale-event",
@@ -251,6 +299,11 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 3,
     discountTemplate: 4,
     featuredTemplate: 3,
+    ambientEffect: "confetti",
+    greeting: "Mega Sale is Live! Biggest Discounts of the Season 🏷️",
+    couponCode: "MEGA70",
+    discountText: "Up to 70% OFF Storewide",
+    badgeText: "Mega Deal",
   },
   {
     id: "summer-coastal",
@@ -272,5 +325,56 @@ export const OCCASION_PRESETS: OccasionPreset[] = [
     carouselTemplate: 2,
     discountTemplate: 1,
     featuredTemplate: 2,
+    ambientEffect: "petals",
+    greeting: "The Summer Edit: Light Fabrics, Bright Colors & Endless Sunshine 🌴",
+    couponCode: "SUMMER15",
+    discountText: "Special Summer Collection",
+    badgeText: "Summer Pick",
   },
 ];
+
+/**
+ * Finds the active OccasionPreset given the current themeId and optional hero/footer template IDs.
+ * Returns null if the store is running standard/default themes (e.g., default-editorial, slate-minimal).
+ */
+export const findMatchingOccasion = (
+  occasionOrThemeId?: string,
+  heroTemplate?: number,
+  footerTemplate?: number
+): OccasionPreset | null => {
+  if (!occasionOrThemeId) return null;
+
+  // 1. Direct match by occasion id (e.g. 'onam', 'diwali', 'holi', etc.)
+  const directMatch = OCCASION_PRESETS.find((p) => p.id === occasionOrThemeId);
+  if (directMatch) return directMatch;
+
+  // 2. If heroTemplate is specified, check exact theme + hero match
+  if (heroTemplate) {
+    const match = OCCASION_PRESETS.find(
+      (p) => p.themeId === occasionOrThemeId && p.heroTemplate === heroTemplate
+    );
+    if (match) return match;
+  }
+
+  // 3. Check presets matching the theme
+  const matchingPresets = OCCASION_PRESETS.filter((p) => p.themeId === occasionOrThemeId);
+  if (matchingPresets.length === 1) {
+    return matchingPresets[0];
+  }
+
+  // 4. Disambiguate if multiple share the same theme
+  if (matchingPresets.length > 1) {
+    if (heroTemplate) {
+      const match = matchingPresets.find((p) => p.heroTemplate === heroTemplate);
+      if (match) return match;
+    }
+    if (footerTemplate) {
+      const match = matchingPresets.find((p) => p.footerTemplate === footerTemplate);
+      if (match) return match;
+    }
+    return matchingPresets[0];
+  }
+
+  return null;
+};
+

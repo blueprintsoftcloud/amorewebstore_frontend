@@ -11,7 +11,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { PulseLoader } from "react-spinners";
 import { DocumentTextIcon, PlusIcon, TrashIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import api from "../utils/api";
 import { useStaffPermissions } from "../context/StaffPermissionContext";
@@ -78,8 +77,10 @@ export default function StaticPagesManager() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <PulseLoader color="#000000" />
+      <div className="flex flex-col items-center justify-center py-24">
+        <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono text-center select-none">
+          Loading pages...
+        </p>
       </div>
     );
   }

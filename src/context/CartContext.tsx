@@ -130,7 +130,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [queryError, setLoading]);
 
   const fetchCart = useCallback(async () => {
-    setLoading(true);
     try {
       await refetch();
     } finally {

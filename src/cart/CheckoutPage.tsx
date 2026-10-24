@@ -13,7 +13,7 @@ import {
   LockClosedIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import { ArrowLeft, CheckCircle, Package, QrCode, UploadCloud, Copy, Trash2, X, Sparkles, AlertCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, Package, QrCode, UploadCloud, Copy, Trash2, X, Sparkles, AlertCircle, Smartphone } from "lucide-react";
 import QRCode from "qrcode";
 
 const validateTransactionId = (val: string) => {
@@ -270,6 +270,7 @@ const CheckoutPage = () => {
   const [qrModalStep, setQrModalStep] = useState<"SCAN" | "SUBMIT">("SCAN");
   useBodyScrollLock(showQrModal);
   const [dynamicQrUrl, setDynamicQrUrl] = useState<string | null>(null);
+  const [upiIntentUri, setUpiIntentUri] = useState<string | null>(null);
   const [qrTransactionId, setQrTransactionId] = useState("");
   const [qrScreenshotFile, setQrScreenshotFile] = useState<File | null>(null);
   const [qrScreenshotPreview, setQrScreenshotPreview] = useState<string | null>(null);
@@ -305,6 +306,32 @@ const CheckoutPage = () => {
         .catch(() => {});
     }
   }, [user?.isAuthenticated]);
+
+  // Fetch default saved address if no prefill address was provided (e.g. direct checkout from cart)
+  useEffect(() => {
+    if (!prefill?.addressPrefill && user?.isAuthenticated) {
+      api
+        .get("/address/default")
+        .then((res) => {
+          const addr = res.data?.address;
+          if (addr) {
+            setAddress({
+              house: addr.fullAddress || "",
+              city: addr.city || "",
+              state: addr.state || "",
+              pincode: addr.zipCode || "",
+              lat: addr.latitude ?? null,
+              lng: addr.longitude ?? null,
+            });
+            if (addr.latitude && addr.longitude) {
+              setPosition([addr.latitude, addr.longitude]);
+              setIsGpsLocked(true);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.isAuthenticated, prefill?.addressPrefill]);
 
   // Fetch shipping toggles so checkout knows if COD, Online, or QR have free shipping configured
   useEffect(() => {
@@ -976,6 +1003,8 @@ const CheckoutPage = () => {
         payeeName
       )}&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(`Order Payment - ${payeeName}`)}`;
 
+      setUpiIntentUri(upiUri);
+
       QRCode.toDataURL(upiUri, {
         width: 340,
         margin: 1.5,
@@ -992,6 +1021,7 @@ const CheckoutPage = () => {
         });
     } else {
       setDynamicQrUrl(null);
+      setUpiIntentUri(null);
     }
   }, [qrConfig.upiId, qrConfig.accountName, totalAmount]);
 
@@ -1005,10 +1035,10 @@ const CheckoutPage = () => {
       `}</style>
       {/* MAIN WRAPPER DIV */}
       <div
-        className={`mx-auto max-w-screen-2xl px-4 sm:px-6 md:px-12 transition-all duration-500 ${
+        className={`mx-auto max-w-screen-2xl px-4 sm:px-6 md:px-12 transition-opacity duration-300 ${
           isRazorpayOpen
-            ? "blur-md scale-95 pointer-events-none opacity-50"
-            : "blur-0 scale-100 opacity-100"
+            ? "pointer-events-none opacity-40"
+            : "opacity-100"
         }`}
       >
         {/* --- Header & Back Button --- */}
@@ -1816,6 +1846,24 @@ const CheckoutPage = () => {
                 {/* STEP 1: SCANNER IN THE CENTER */}
                 {qrModalStep === "SCAN" && (
                   <div className="mt-4 flex flex-col items-center">
+                    {/* 1-Tap Direct UPI Pay Button for Mobile Devices */}
+                    {upiIntentUri && (
+                      <div className="w-full mb-2">
+                        <a
+                          href={upiIntentUri}
+                          className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-md hover:shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 border border-purple-400/40 cursor-pointer"
+                        >
+                          <Smartphone className="w-4 h-4 shrink-0" />
+                          <span>Tap to Pay with Google Pay / Any UPI App</span>
+                        </a>
+                        <div className="relative flex py-2.5 items-center">
+                          <div className="flex-grow border-t border-gray-200"></div>
+                          <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-gray-400">or scan QR with another phone</span>
+                          <div className="flex-grow border-t border-gray-200"></div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Centered QR Frame with decorative scanner corner accents */}
                     <div className="relative p-2.5 bg-white rounded-2xl border border-purple-100 shadow-sm my-1">
                       <span className="absolute top-1 left-1 w-4 h-4 border-t-2 border-l-2 border-purple-600 rounded-tl-md pointer-events-none" />
@@ -1834,7 +1882,7 @@ const CheckoutPage = () => {
                     {dynamicQrUrl && (
                       <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200 shadow-2xs">
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                        Exact amount ₹{totalAmount} pre-filled in QR
+                        Exact amount ₹{totalAmount} pre-filled in QR &amp; App
                       </div>
                     )}
 
@@ -1853,7 +1901,7 @@ const CheckoutPage = () => {
                             navigator.clipboard.writeText(qrConfig.upiId!);
                             toast.success("UPI ID copied!");
                           }}
-                          className="text-purple-600 hover:text-purple-800 transition-colors p-0.5"
+                          className="text-purple-600 hover:text-purple-800 transition-colors p-0.5 cursor-pointer"
                           title="Copy UPI ID"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -1863,8 +1911,8 @@ const CheckoutPage = () => {
 
                     <p className="mt-2 text-[11px] text-gray-500 text-center max-w-xs">
                       {dynamicQrUrl
-                        ? `Scan with GPay, PhonePe, or Paytm — ₹${totalAmount} is automatically locked in.`
-                        : qrConfig.instructions || "Scan with any UPI app (GPay, PhonePe, Paytm) and complete payment."}
+                        ? `Tap the button above on mobile or scan with GPay, PhonePe, Paytm — ₹${totalAmount} is pre-filled.`
+                        : qrConfig.instructions || "Pay via Google Pay, PhonePe, Paytm or scan to complete payment."}
                     </p>
 
                     {/* Button to advance to Step 2 */}
@@ -1873,7 +1921,7 @@ const CheckoutPage = () => {
                       onClick={() => setQrModalStep("SUBMIT")}
                       className="mt-5 w-full py-3.5 px-5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                     >
-                      <span>I Have Scanned &amp; Paid</span>
+                      <span>I Have Completed Payment</span>
                       <span>→</span>
                     </button>
                   </div>

@@ -3,7 +3,6 @@ import { domainUrl } from "../utils/constant";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import Loader from "../components/Loader";
-import { PulseLoader } from "react-spinners";
 import { useAuth } from "../context/AuthContext";
 import { useBranding } from "../context/BrandingContext";
 import { useSeoSettings } from "../context/SeoContext";
@@ -26,6 +25,8 @@ import {
   Search,
   ChevronDown,
   QrCode,
+  Info,
+  Sparkles,
 } from "lucide-react";
 import api from "../utils/api";
 
@@ -159,11 +160,10 @@ const AdminProfile = () => {
       } catch (err) {
         const _e = err as any;
         console.error("Admin profile error:", err);
-        if (_e.response?.status === 404) {
+        if (_e.response?.status === 404 || _e.response?.status === 401 || _e.response?.status === 403) {
           logout();
         } else {
           toast.error("Failed to load admin profile.");
-          if (_e.response?.status === 401) navigate("/login");
         }
       } finally {
         setLoadingProfile(false);
@@ -738,11 +738,8 @@ const AdminProfile = () => {
 
               <div className="p-6">
                 {companyLoading ? (
-                  <div className="flex flex-col items-center justify-center py-16 gap-4">
-                    <div className="relative flex items-center justify-center w-0 h-0 pl-1.5">
-                      <PulseLoader color="#000000" />
-                    </div>
-                    <p className="text-xs uppercase font-bold tracking-widest text-slate-400 font-mono mt-12 select-none">
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono select-none">
                       Loading company settings...
                     </p>
                   </div>
@@ -852,10 +849,10 @@ const AdminProfile = () => {
                       <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200/80 rounded-2xl">
                         <div className="space-y-0.5">
                           <label htmlFor="showCompanyNameToggle" className="text-xs font-bold text-slate-900 cursor-pointer block">
-                            Display Company Name in Navbar
+                            Display Company Name Next to Logo
                           </label>
                           <p className="text-[11px] text-slate-500 font-medium">
-                            Display company name text next to logo in header.
+                            Display text brand name next to logo in header &amp; footer. Turn OFF if your logo already includes your brand name.
                           </p>
                         </div>
                         <input
@@ -970,9 +967,8 @@ const AdminProfile = () => {
 
               <div className="p-6">
                 {companyLoading ? (
-                  <div className="flex flex-col items-center justify-center py-16 gap-4">
-                    <PulseLoader color="#000000" />
-                    <p className="text-xs uppercase font-bold tracking-widest text-slate-400 font-mono mt-4">
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono select-none">
                       Loading QR settings...
                     </p>
                   </div>
@@ -1006,6 +1002,43 @@ const AdminProfile = () => {
                             paymentQr.PAYMENT_QR_ENABLED ? "translate-x-5" : "translate-x-0"
                           }`}
                         />
+                      </div>
+                    </div>
+
+                    {/* How Pay with QR Works Info Box */}
+                    <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-200/80 space-y-3">
+                      <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
+                        <Info className="w-4 h-4 text-purple-600 shrink-0" />
+                        <span>How Payment QR Works & How Amount is Charged</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                        <div className="p-3 rounded-xl bg-white border border-purple-100/90 shadow-2xs space-y-1">
+                          <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                            If Custom QR Image is uploaded:
+                          </p>
+                          <p className="text-slate-500 leading-relaxed">
+                            Shows only your static QR image at checkout. The customer scans it and must manually enter the order amount in their UPI app.
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-white border border-purple-100/90 shadow-2xs space-y-1">
+                          <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
+                            If UPI ID is provided (Recommended):
+                          </p>
+                          <p className="text-slate-500 leading-relaxed">
+                            The system automatically generates a dynamic QR code pre-filled with the customer's exact payable amount. The customer scans and pays the exact order amount without typing it.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200/70 p-3 rounded-xl">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold block">Testing Recommendation:</span>
+                          <span className="text-amber-700 leading-relaxed">
+                            Always place a test order with a small amount on checkout (e.g. ₹1) and scan the QR with your UPI app to verify that payments successfully credit your bank account with the correct amount.
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -1142,11 +1175,8 @@ const AdminProfile = () => {
 
               <div className="p-6">
                 {companyLoading ? (
-                  <div className="flex flex-col items-center justify-center py-16 gap-4">
-                    <div className="relative flex items-center justify-center w-0 h-0 pl-1.5">
-                      <PulseLoader color="#000000" />
-                    </div>
-                    <p className="text-xs uppercase font-bold tracking-widest text-slate-400 font-mono mt-12 select-none">
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono select-none">
                       Loading SEO settings...
                     </p>
                   </div>

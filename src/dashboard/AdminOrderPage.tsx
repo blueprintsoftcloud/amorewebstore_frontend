@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import toast from "react-hot-toast";
+import { stripHtml } from "../utils/sanitizeHtml";
 import {
   MagnifyingGlassIcon,
   UserCircleIcon,
@@ -29,16 +30,36 @@ import {
   GlobeAmericasIcon,
   SparklesIcon,
   CheckIcon,
+  ExclamationTriangleIcon,
+  ArrowRightIcon,
+  BuildingStorefrontIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import ShipOrderModal, { ShipOrderPayload } from "./ShipOrderModal";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+interface RecentOrderInfo {
+  id: string;
+  shortId: string;
+  createdAt: string;
+  formattedTime: string;
+  relativeTime: string;
+  finalAmount: number;
+  totalAmount?: number;
+  orderStatus: string;
+  paymentMethod: string;
+  placedByAdmin: boolean;
+  itemsCount: number;
+  itemsSummary: string;
+  customerName: string;
+}
+
 interface Customer {
   id: string;
   username: string;
   email: string | null;
   phone: string | null;
+  recentAddress?: Address | null;
 }
 
 interface ProductVariant {
@@ -47,6 +68,9 @@ interface ProductVariant {
   stock: number;
   priceOverride: number | null;
   discountOverride?: number | null;
+  image?: string | null;
+  secondaryImage?: string | null;
+  images?: string[];
 }
 
 interface Product {
@@ -54,6 +78,7 @@ interface Product {
   name: string;
   code: string;
   image?: string;
+  description?: string;
   price: number;
   stock: number;
   category?: { id: string; name: string };
@@ -151,10 +176,7 @@ const HighlightMatch = ({ text, query }: { text: string; query: string }) => {
   );
 };
 
-const CUSTOMER_MODE_TABS: { key: "existing" | "new"; label: string; icon: typeof MagnifyingGlassIcon }[] = [
-  { key: "existing", label: "Existing Customer", icon: MagnifyingGlassIcon },
-  { key: "new", label: "New Customer", icon: UserPlusIcon },
-];
+
 
 const INDIAN_STATES = [
   "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
@@ -165,6 +187,148 @@ const INDIAN_STATES = [
   "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
   "Uttarakhand", "West Bengal"
 ];
+
+// ─── Custom Product Variant Dropdown ────────────────────────────────────────
+interface ProductVariantDropdownProps {
+  variants: ProductVariant[];
+  basePrice: number;
+  selectedVariantId: string;
+  onSelect: (variantId: string) => void;
+}
+
+function ProductVariantDropdown({
+  variants,
+  basePrice,
+  selectedVariantId,
+  onSelect,
+}: ProductVariantDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedVariant = variants.find(v => v.id === selectedVariantId);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const formatVariantLabel = (options: Record<string, string>) => {
+    const entries = Object.entries(options);
+    if (entries.length === 0) return "Default Option";
+    return entries.map(([k, val]) => `${k}: ${val}`).join(" / ");
+  };
+
+  return (
+    <div className="relative mt-1 max-w-sm" ref={containerRef}>
+      {/* Trigger Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all duration-200 text-left ${
+          isOpen
+            ? "border-indigo-500 bg-white ring-4 ring-indigo-500/15 shadow-sm"
+            : "bg-gray-50/70 hover:bg-white hover:border-gray-300 border-gray-200 shadow-2xs"
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {selectedVariant ? (
+            <>
+              <span className="font-semibold text-gray-800 truncate">
+                {formatVariantLabel(selectedVariant.options)}
+              </span>
+              <span className="text-indigo-600 font-bold shrink-0">
+                ₹{(selectedVariant.priceOverride ?? basePrice).toLocaleString("en-IN")}
+              </span>
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold shrink-0 ${
+                  selectedVariant.stock > 0
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                    : "bg-rose-50 text-rose-600 border border-rose-200/60"
+                }`}
+              >
+                {selectedVariant.stock > 0 ? `${selectedVariant.stock} in stock` : "out of stock"}
+              </span>
+            </>
+          ) : (
+            <span className="text-gray-400 font-normal">Select option…</span>
+          )}
+        </div>
+        <ChevronDownIcon
+          className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-indigo-600" : ""
+          }`}
+        />
+      </button>
+
+      {/* Popover Menu */}
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1.5 z-40 w-full min-w-[280px] bg-white border border-gray-100 rounded-2xl shadow-xl shadow-indigo-950/10 p-1.5 space-y-1 animate-fadeIn">
+          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5">
+            {variants.map(v => {
+              const isSelected = v.id === selectedVariantId;
+              const isOutOfStock = v.stock <= 0;
+              const price = v.priceOverride ?? basePrice;
+
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  disabled={isOutOfStock}
+                  onClick={() => {
+                    onSelect(v.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs transition-all text-left group ${
+                    isSelected
+                      ? "bg-indigo-50/80 text-indigo-950 font-semibold border border-indigo-200/80 shadow-2xs"
+                      : isOutOfStock
+                      ? "opacity-45 cursor-not-allowed bg-gray-50/40 text-gray-400 border border-transparent"
+                      : "text-gray-700 hover:bg-gray-50/80 hover:text-indigo-600 border border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div
+                      className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected
+                          ? "bg-indigo-600 text-white"
+                          : "border border-gray-300 group-hover:border-indigo-400 bg-white"
+                      }`}
+                    >
+                      {isSelected && <CheckIcon className="w-2.5 h-2.5 stroke-[3]" />}
+                    </div>
+                    <span className="truncate">{formatVariantLabel(v.options)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`font-bold ${isSelected ? "text-indigo-700" : "text-gray-900"}`}>
+                      ₹{price.toLocaleString("en-IN")}
+                    </span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold shrink-0 ${
+                        v.stock > 0
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                          : "bg-rose-50 text-rose-600 border border-rose-200/60"
+                      }`}
+                    >
+                      {v.stock > 0 ? `${v.stock} in stock` : "out of stock"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export default function AdminOrderPage() {
@@ -179,17 +343,23 @@ export default function AdminOrderPage() {
   const [shippedInfo, setShippedInfo] = useState<{ deliveryPartnerName?: string; trackingId?: string } | null>(null);
 
   // ── Customer state ──
-  const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
-  const [customerLoading, setCustomerLoading] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [newCustomer, setNewCustomer] = useState({ username: "", phone: "", email: "" });
-  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
-  const [customerHighlighted, setCustomerHighlighted] = useState(0);
-  const [customerHasSearched, setCustomerHasSearched] = useState(false);
-  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const customerContainerRef = useRef<HTMLDivElement>(null);
+
+  // ── Duplicate customer detection & conflict modal state ──
+  const [conflictCustomer, setConflictCustomer] = useState<Customer | null>(null);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [conflictSubmitting, setConflictSubmitting] = useState(false);
+  const [conflictReason, setConflictReason] = useState("");
+  const [conflictTriggerSource, setConflictTriggerSource] = useState<"step1_next" | "place_order">("place_order");
+  const [inlineMatchedCustomer, setInlineMatchedCustomer] = useState<Customer | null>(null);
+  const checkNewCustomerDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── 24-hour recent order detection state ──
+  const [recentOrderWarning, setRecentOrderWarning] = useState<RecentOrderInfo | null>(null);
+  const [recentOrderModalOpen, setRecentOrderModalOpen] = useState(false);
+  const [recentOrderChecking, setRecentOrderChecking] = useState(false);
+  const [bypassRecentOrder, setBypassRecentOrder] = useState(false);
 
   // ── Products state ──
   const [productSearch, setProductSearch] = useState("");
@@ -308,59 +478,100 @@ export default function AdminOrderPage() {
   };
 
   // ── Payment state ──
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("POD");
   const [paymentNote, setPaymentNote] = useState("");
-
-  // ─── Customer search ─────────────────────────────────────────────────────
-  const handleCustomerSearch = (val: string) => {
-    setCustomerSearch(val);
-    setCustomerHighlighted(0);
-    setCustomerDropdownOpen(true);
-    if (searchDebounce.current) clearTimeout(searchDebounce.current);
-    if (!val.trim()) { setCustomerResults([]); setCustomerHasSearched(false); return; }
-    searchDebounce.current = setTimeout(async () => {
-      setCustomerLoading(true);
-      try {
-        const { data } = await api.get("/order/admin-order/search-customers", { params: { q: val } });
-        setCustomerResults(data.customers ?? []);
-      } catch {
-        // silent
-      } finally {
-        setCustomerLoading(false);
-        setCustomerHasSearched(true);
-      }
-    }, 350);
-  };
 
   const selectCustomer = (c: Customer) => {
     setSelectedCustomer(c);
-    setCustomerResults([]);
-    setCustomerSearch(c.username);
-    setCustomerDropdownOpen(false);
-  };
+    setNewCustomer({ username: "", phone: "", email: "" });
+    setInlineMatchedCustomer(null);
 
-  const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!customerDropdownOpen || customerResults.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setCustomerHighlighted((i) => Math.min(i + 1, customerResults.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setCustomerHighlighted((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const picked = customerResults[customerHighlighted];
-      if (picked) selectCustomer(picked);
-    } else if (e.key === "Escape") {
-      setCustomerDropdownOpen(false);
+    // Auto-fill recent ordered address if available
+    if (c.recentAddress && c.recentAddress.fullAddress) {
+      setAddress({
+        fullAddress: c.recentAddress.fullAddress || "",
+        city: c.recentAddress.city || "",
+        state: c.recentAddress.state || "",
+        zipCode: c.recentAddress.zipCode || "",
+        country: c.recentAddress.country || "India",
+      });
+      toast.success(`Auto-filled address from ${c.username}'s previous order!`, { id: "customer-address-autofill" });
     }
   };
 
+  // ── Auto-check if entered phone or email matches an existing customer ──
+  useEffect(() => {
+    if (selectedCustomer) {
+      setInlineMatchedCustomer(null);
+      return;
+    }
+    const cleanPhone = newCustomer.phone.trim();
+    const cleanEmail = newCustomer.email.trim();
+
+    if (cleanPhone.length < 5 && (!cleanEmail || !cleanEmail.includes("@"))) {
+      setInlineMatchedCustomer(null);
+      return;
+    }
+
+    if (checkNewCustomerDebounce.current) {
+      clearTimeout(checkNewCustomerDebounce.current);
+    }
+
+    checkNewCustomerDebounce.current = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/order/admin-order/check-customer", {
+          params: {
+            ...(cleanPhone.length >= 5 ? { phone: cleanPhone } : {}),
+            ...(cleanEmail.includes("@") ? { email: cleanEmail } : {}),
+          },
+        });
+        if (data && data.exists && data.customer) {
+          setInlineMatchedCustomer(data.customer);
+        } else {
+          setInlineMatchedCustomer(null);
+        }
+      } catch {
+        // silent
+      }
+    }, 350);
+
+    return () => {
+      if (checkNewCustomerDebounce.current) clearTimeout(checkNewCustomerDebounce.current);
+    };
+  }, [selectedCustomer, newCustomer.phone, newCustomer.email]);
+
+  useEffect(() => {
+    setBypassRecentOrder(false);
+    setRecentOrderWarning(null);
+  }, [selectedCustomer?.id, newCustomer.phone, newCustomer.email]);
+
+  useEffect(() => {
+    if (currentStep !== "confirm" || bypassRecentOrder) return;
+    const params: Record<string, string> = {};
+    if (selectedCustomer?.id) {
+      params.customerId = selectedCustomer.id;
+    } else if (newCustomer.phone.trim()) {
+      params.phone = newCustomer.phone.trim();
+    } else if (newCustomer.email.trim()) {
+      params.email = newCustomer.email.trim();
+    }
+    if (Object.keys(params).length === 0) return;
+
+    api.get("/order/admin-order/check-recent-order", { params })
+      .then(({ data }) => {
+        if (data && data.hasRecentOrder && data.order) {
+          setRecentOrderWarning(data.order);
+        } else {
+          setRecentOrderWarning(null);
+        }
+      })
+      .catch(() => {
+        // silent
+      });
+  }, [currentStep, selectedCustomer?.id, newCustomer.phone, newCustomer.email, bypassRecentOrder]);
+
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
-      if (customerContainerRef.current && !customerContainerRef.current.contains(e.target as Node)) {
-        setCustomerDropdownOpen(false);
-      }
       if (stateDropdownRef.current && !stateDropdownRef.current.contains(e.target as Node)) {
         setStateDropdownOpen(false);
       }
@@ -439,6 +650,14 @@ export default function AdminOrderPage() {
 
   const removeFromCart = (productId: string, variantId?: string | null) => {
     setCart(prev => prev.filter(c => !(c.product.id === productId && String(c.variantId ?? "") === String(variantId ?? ""))));
+    setSelectedVariantByProduct(prev => {
+      if (prev[productId]) {
+        const next = { ...prev };
+        delete next[productId];
+        return next;
+      }
+      return prev;
+    });
   };
 
   const cartTotal = cart.reduce((sum, c) => sum + c.unitPrice * c.quantity, 0);
@@ -485,17 +704,24 @@ export default function AdminOrderPage() {
   // ─── Validation helpers ───────────────────────────────────────────────────
   const canProceed = (): boolean => {
     if (currentStep === "customer") {
-      if (customerMode === "existing") return !!selectedCustomer;
+      if (selectedCustomer) return true;
       return !!(newCustomer.username.trim() && newCustomer.phone.trim());
     }
     if (currentStep === "products") return cart.length > 0;
     if (currentStep === "address") {
-      return !!(address.fullAddress.trim() && address.city.trim() && address.state.trim() && address.zipCode.trim());
+      return true;
     }
     return true;
   };
 
   const goNext = () => {
+    if (currentStep === "customer" && !selectedCustomer && inlineMatchedCustomer) {
+      setConflictCustomer(inlineMatchedCustomer);
+      setConflictReason("This phone number or email is already registered to an existing customer.");
+      setConflictTriggerSource("step1_next");
+      setConflictModalOpen(true);
+      return;
+    }
     const idx = STEP_ORDER.indexOf(currentStep);
     if (idx < STEP_ORDER.length - 1) setCurrentStep(STEP_ORDER[idx + 1]);
   };
@@ -506,7 +732,41 @@ export default function AdminOrderPage() {
   };
 
   // ─── Place order ──────────────────────────────────────────────────────────
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = async (bypassWarning = false) => {
+    // If not bypassing, check if customer already placed an order in last 24h
+    if (!bypassWarning && !bypassRecentOrder) {
+      if (recentOrderWarning) {
+        setRecentOrderModalOpen(true);
+        return;
+      }
+
+      setRecentOrderChecking(true);
+      try {
+        const params: Record<string, string> = {};
+        if (selectedCustomer?.id) {
+          params.customerId = selectedCustomer.id;
+        } else if (newCustomer.phone.trim()) {
+          params.phone = newCustomer.phone.trim();
+        } else if (newCustomer.email.trim()) {
+          params.email = newCustomer.email.trim();
+        }
+
+        if (Object.keys(params).length > 0) {
+          const { data } = await api.get("/order/admin-order/check-recent-order", { params });
+          if (data && data.hasRecentOrder && data.order) {
+            setRecentOrderWarning(data.order);
+            setRecentOrderModalOpen(true);
+            setRecentOrderChecking(false);
+            return;
+          }
+        }
+      } catch (checkErr) {
+        console.warn("Recent order pre-check failed, fallback to place check", checkErr);
+      } finally {
+        setRecentOrderChecking(false);
+      }
+    }
+
     setPlacing(true);
     try {
       const body: Record<string, unknown> = {
@@ -515,8 +775,9 @@ export default function AdminOrderPage() {
         paymentMethod,
         ...(paymentNote.trim() ? { paymentNote: paymentNote.trim() } : {}),
         ...(appliedCoupon ? { couponId: appliedCoupon.couponId } : {}),
+        ...(bypassWarning || bypassRecentOrder ? { bypassRecentOrderWarning: true } : {}),
       };
-      if (customerMode === "existing" && selectedCustomer) {
+      if (selectedCustomer) {
         body.customerId = selectedCustomer.id;
       } else {
         body.newCustomer = {
@@ -527,11 +788,86 @@ export default function AdminOrderPage() {
       }
       const { data } = await api.post("/order/admin-order/place", body);
       toast.success("Order placed successfully!");
+      setConflictModalOpen(false);
+      setConflictCustomer(null);
+      setRecentOrderModalOpen(false);
+      setRecentOrderWarning(null);
+      setBypassRecentOrder(false);
       setPlacedOrder({ id: data.order?.id ?? data.orderId ?? "—" });
     } catch (err: any) {
+      if (
+        err?.response?.data?.code === "RECENT_ORDER_EXISTS_24H" &&
+        err?.response?.data?.recentOrder
+      ) {
+        setRecentOrderWarning(err.response.data.recentOrder);
+        setRecentOrderModalOpen(true);
+        return;
+      }
+      if (
+        (err?.response?.data?.code === "CUSTOMER_ALREADY_EXISTS" || err?.response?.status === 409) &&
+        err?.response?.data?.existingCustomer
+      ) {
+        setConflictCustomer(err.response.data.existingCustomer);
+        setConflictReason(err.response.data.message || "A customer with this phone number or email already exists.");
+        setConflictTriggerSource("place_order");
+        setConflictModalOpen(true);
+        return;
+      }
       toast.error(err?.response?.data?.message ?? "Failed to place order");
     } finally {
       setPlacing(false);
+    }
+  };
+
+  // ─── Action when admin confirms using the existing customer inside the conflict modal ───
+  const handleSelectConflictCustomerAction = async () => {
+    if (!conflictCustomer) return;
+
+    setSelectedCustomer(conflictCustomer);
+    setNewCustomer({ username: "", phone: "", email: "" });
+    setInlineMatchedCustomer(null);
+
+    if (conflictTriggerSource === "step1_next" || currentStep === "customer") {
+      setConflictModalOpen(false);
+      setConflictCustomer(null);
+      setCurrentStep("products");
+      toast.success(`Selected customer: ${conflictCustomer.username}`);
+      return;
+    }
+
+    // Direct place order from Confirm step
+    setConflictSubmitting(true);
+    try {
+      const body: Record<string, unknown> = {
+        customerId: conflictCustomer.id,
+        items: cart.map(c => ({ productId: c.product.id, variantId: c.variantId ?? undefined, quantity: c.quantity })),
+        address,
+        paymentMethod,
+        ...(paymentNote.trim() ? { paymentNote: paymentNote.trim() } : {}),
+        ...(appliedCoupon ? { couponId: appliedCoupon.couponId } : {}),
+        ...(bypassRecentOrder ? { bypassRecentOrderWarning: true } : {}),
+      };
+      const { data } = await api.post("/order/admin-order/place", body);
+      toast.success(`Order placed successfully for ${conflictCustomer.username}!`);
+      setConflictModalOpen(false);
+      setConflictCustomer(null);
+      setRecentOrderModalOpen(false);
+      setRecentOrderWarning(null);
+      setBypassRecentOrder(false);
+      setPlacedOrder({ id: data.order?.id ?? data.orderId ?? "—" });
+    } catch (err: any) {
+      if (
+        err?.response?.data?.code === "RECENT_ORDER_EXISTS_24H" &&
+        err?.response?.data?.recentOrder
+      ) {
+        setConflictModalOpen(false);
+        setRecentOrderWarning(err.response.data.recentOrder);
+        setRecentOrderModalOpen(true);
+        return;
+      }
+      toast.error(err?.response?.data?.message ?? "Failed to place order");
+    } finally {
+      setConflictSubmitting(false);
     }
   };
 
@@ -607,13 +943,13 @@ export default function AdminOrderPage() {
               setPlacedOrder(null);
               setShippedInfo(null);
               setShipModalOpen(false);
+              setConflictCustomer(null);
+              setConflictModalOpen(false);
+              setConflictSubmitting(false);
+              setConflictReason("");
+              setInlineMatchedCustomer(null);
               setCurrentStep("customer");
-              setCustomerMode("existing");
               setSelectedCustomer(null);
-              setCustomerSearch("");
-              setCustomerResults([]);
-              setCustomerDropdownOpen(false);
-              setCustomerHasSearched(false);
               setNewCustomer({ username: "", phone: "", email: "" });
               setCart([]);
               setSelectedVariantByProduct({});
@@ -622,8 +958,12 @@ export default function AdminOrderPage() {
               if (pincodeLookupAbortRef.current) pincodeLookupAbortRef.current.abort();
               setPincodeLoading(false);
               setAddress({ fullAddress: "", city: "", state: "", zipCode: "", country: "India" });
-              setPaymentMethod("CASH");
+              setPaymentMethod("POD");
               setPaymentNote("");
+              setRecentOrderWarning(null);
+              setRecentOrderModalOpen(false);
+              setRecentOrderChecking(false);
+              setBypassRecentOrder(false);
             }}
             className="inline-flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
           >
@@ -688,135 +1028,48 @@ export default function AdminOrderPage() {
         {currentStep === "customer" && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
             <div>
-              <h2 className="text-lg font-bold text-gray-800">Select or Create Customer</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Who is this walk-in order for?</p>
+              <h2 className="text-lg font-bold text-gray-800">Customer Details</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Enter customer name, phone number, and optional email for this order</p>
             </div>
 
-            {/* Segmented mode switcher */}
-            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1 max-w-sm">
-              {CUSTOMER_MODE_TABS.map((opt) => (
+            {selectedCustomer ? (
+              /* Selected Customer Card */
+              <div className="max-w-lg flex items-center justify-between gap-3 px-4 py-3.5 bg-emerald-50 border border-emerald-200 rounded-xl animate-fadeIn">
+                <div className="flex items-center gap-3 min-w-0">
+                  <CustomerAvatar name={selectedCustomer.username} size="md" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-emerald-900 truncate">{selectedCustomer.username}</p>
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                        Existing Customer
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      {selectedCustomer.phone ?? "No phone"} {selectedCustomer.email ? `· ${selectedCustomer.email}` : ""}
+                    </p>
+                    {selectedCustomer.recentAddress?.fullAddress && (
+                      <p className="text-[11px] text-emerald-600 flex items-center gap-1 mt-1 font-medium">
+                        <MapPinIcon className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>Address auto-filled ({selectedCustomer.recentAddress.city}, {selectedCustomer.recentAddress.state})</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
                 <button
-                  key={opt.key}
                   type="button"
                   onClick={() => {
-                    setCustomerMode(opt.key);
                     setSelectedCustomer(null);
-                    setCustomerSearch("");
-                    setCustomerResults([]);
-                    setCustomerDropdownOpen(false);
-                    setCustomerHasSearched(false);
+                    setNewCustomer({ username: "", phone: "", email: "" });
+                    setInlineMatchedCustomer(null);
+                    setAddress({ fullAddress: "", city: "", state: "", zipCode: "", country: "India" });
                   }}
-                  className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all duration-150 ${
-                    customerMode === opt.key ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className="shrink-0 text-xs font-semibold text-gray-600 hover:text-red-600 hover:bg-white transition px-2.5 py-1.5 rounded-lg border border-gray-200/80 bg-white/60 cursor-pointer"
                 >
-                  <opt.icon className="w-4 h-4" />
-                  {opt.label}
+                  Change
                 </button>
-              ))}
-            </div>
-
-            {/* Existing customer search */}
-            {customerMode === "existing" && (
-              <div ref={customerContainerRef} className="relative max-w-lg">
-                {selectedCustomer ? (
-                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl animate-fadeIn">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <CustomerAvatar name={selectedCustomer.username} size="md" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-emerald-900 truncate">{selectedCustomer.username}</p>
-                        <p className="text-xs text-emerald-700">{selectedCustomer.phone ?? "No phone"} · {selectedCustomer.email ?? "No email"}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedCustomer(null); setCustomerSearch(""); setCustomerDropdownOpen(true); }}
-                      className="shrink-0 text-xs font-semibold text-gray-500 hover:text-red-600 hover:bg-white transition px-2.5 py-1.5 rounded-lg"
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="relative">
-                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Search by name, phone, or email…"
-                        value={customerSearch}
-                        onChange={e => handleCustomerSearch(e.target.value)}
-                        onFocus={() => customerSearch.trim() && setCustomerDropdownOpen(true)}
-                        onKeyDown={handleCustomerKeyDown}
-                        className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
-                      />
-                      {customerLoading ? (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
-                      ) : customerSearch ? (
-                        <button
-                          type="button"
-                          onClick={() => handleCustomerSearch("")}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition"
-                        >
-                          <XMarkIcon className="w-4 h-4" />
-                        </button>
-                      ) : null}
-                    </div>
-
-                    {customerDropdownOpen && customerSearch.trim() && (
-                      <div className="absolute z-20 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-900/10 overflow-hidden animate-fadeIn">
-                        {customerResults.length > 0 ? (
-                          <ul className="max-h-64 overflow-y-auto py-1">
-                            {customerResults.map((c, i) => (
-                              <li key={c.id}>
-                                <button
-                                  type="button"
-                                  onMouseEnter={() => setCustomerHighlighted(i)}
-                                  onClick={() => selectCustomer(c)}
-                                  className={`w-full flex items-center gap-3 text-left px-3 py-2.5 transition ${
-                                    i === customerHighlighted ? "bg-indigo-50" : ""
-                                  }`}
-                                >
-                                  <CustomerAvatar name={c.username} />
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-gray-800 truncate">
-                                      <HighlightMatch text={c.username} query={customerSearch} />
-                                    </p>
-                                    <p className="text-xs text-gray-500 truncate">
-                                      {c.phone ?? "No phone"} · {c.email ?? "No email"}
-                                    </p>
-                                  </div>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : customerLoading ? (
-                          <div className="px-3 py-5 text-center text-xs text-gray-400">Searching…</div>
-                        ) : customerHasSearched ? (
-                          <div className="px-3 py-4 text-center">
-                            <p className="text-xs text-gray-400 mb-2">No customer matching "{customerSearch.trim()}"</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCustomerMode("new");
-                                setNewCustomer(p => ({ ...p, username: customerSearch.trim() }));
-                                setCustomerDropdownOpen(false);
-                              }}
-                              className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700"
-                            >
-                              <UserPlusIcon className="w-4 h-4" />
-                              Create "{customerSearch.trim()}" as a new customer
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
-            )}
-
-            {/* New customer form */}
-            {customerMode === "new" && (
+            ) : (
+              /* Customer Form */
               <div className="max-w-lg space-y-4 animate-fadeIn">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -844,7 +1097,7 @@ export default function AdminOrderPage() {
                       <button
                         type="button"
                         onClick={() => setNewCustomer(p => ({ ...p, username: "" }))}
-                        className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                        className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors cursor-pointer"
                         title="Clear name"
                       >
                         <XMarkIcon className="w-3.5 h-3.5" />
@@ -852,6 +1105,7 @@ export default function AdminOrderPage() {
                     )}
                   </div>
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
@@ -878,7 +1132,7 @@ export default function AdminOrderPage() {
                         <button
                           type="button"
                           onClick={() => setNewCustomer(p => ({ ...p, phone: "" }))}
-                          className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                          className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors cursor-pointer"
                           title="Clear phone"
                         >
                           <XMarkIcon className="w-3.5 h-3.5" />
@@ -886,6 +1140,7 @@ export default function AdminOrderPage() {
                       )}
                     </div>
                   </div>
+
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
@@ -911,7 +1166,7 @@ export default function AdminOrderPage() {
                         <button
                           type="button"
                           onClick={() => setNewCustomer(p => ({ ...p, email: "" }))}
-                          className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors"
+                          className="absolute right-3 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-200/50 transition-colors cursor-pointer"
                           title="Clear email"
                         >
                           <XMarkIcon className="w-3.5 h-3.5" />
@@ -920,7 +1175,40 @@ export default function AdminOrderPage() {
                     </div>
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-400">This customer will be created and linked to the order.</p>
+
+                {/* Inline banner when matching customer is detected */}
+                {inlineMatchedCustomer && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 shadow-xs animate-fadeIn">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <CustomerAvatar name={inlineMatchedCustomer.username} size="sm" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                            Customer Already Exists
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-gray-900 truncate mt-0.5">
+                          {inlineMatchedCustomer.username}
+                        </p>
+                        <p className="text-[11px] text-gray-600 truncate">
+                          {inlineMatchedCustomer.phone ?? "No phone"} {inlineMatchedCustomer.email ? `· ${inlineMatchedCustomer.email}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectCustomer(inlineMatchedCustomer);
+                        setInlineMatchedCustomer(null);
+                        toast.success(`Selected customer: ${inlineMatchedCustomer.username}`);
+                      }}
+                      className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <CheckIcon className="w-3.5 h-3.5" />
+                      Use This Customer
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -967,57 +1255,96 @@ export default function AdminOrderPage() {
                       ? (selectedVariant ? findCartLine(p.id, selectedVariant.id) : undefined)
                       : findCartLine(p.id, null);
                     const rowMaxStock = selectedVariant ? selectedVariant.stock : p.stock;
+                    const displayImg = selectedVariant?.image || p.image;
+                    const isRowClickable = !hasVariants && !inCart && p.stock > 0;
+
                     return (
-                      <li key={p.id} className="flex items-center gap-3 py-3">
-                        {p.image ? (
-                          <img src={p.image} alt={p.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                      <li
+                        key={p.id}
+                        onClick={() => {
+                          if (isRowClickable) {
+                            addToCart(p, null);
+                          }
+                        }}
+                        className={`group flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-150 border ${
+                          inCart
+                            ? "bg-indigo-50/50 border-indigo-200/80 shadow-2xs"
+                            : isRowClickable
+                              ? "cursor-pointer hover:bg-slate-50 hover:border-slate-200 border-transparent"
+                              : "border-transparent"
+                        }`}
+                      >
+                        {displayImg ? (
+                          <img src={displayImg} alt={p.name} className="w-12 h-12 rounded-lg object-cover shrink-0 border border-slate-100" />
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                             <ShoppingCartIcon className="w-5 h-5 text-gray-400" />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
+                            {inCart && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 shrink-0">
+                                In Cart ({inCart.quantity})
+                              </span>
+                            )}
+                          </div>
+                          {p.description && stripHtml(p.description) && (
+                            <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5" title={stripHtml(p.description)}>
+                              {stripHtml(p.description)}
+                            </p>
+                          )}
                           {hasVariants ? (
-                            <select
-                              value={selectedVid}
-                              onChange={e => setSelectedVariantByProduct(prev => ({ ...prev, [p.id]: e.target.value }))}
-                              className="mt-1 w-full max-w-xs text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            >
-                              <option value="">Select option…</option>
-                              {p.variants!.map(v => (
-                                <option key={v.id} value={v.id} disabled={v.stock <= 0}>
-                                  {Object.entries(v.options).map(([k, val]) => `${k}: ${val}`).join(" / ")}
-                                  {" — ₹"}{(v.priceOverride ?? p.price).toLocaleString("en-IN")}
-                                  {" "}({v.stock > 0 ? `${v.stock} in stock` : "out of stock"})
-                                </option>
-                              ))}
-                            </select>
+                            <div className="mt-1" onClick={e => e.stopPropagation()}>
+                              <ProductVariantDropdown
+                                variants={p.variants!}
+                                basePrice={p.price}
+                                selectedVariantId={selectedVid}
+                                onSelect={vid => {
+                                  setSelectedVariantByProduct(prev => ({ ...prev, [p.id]: vid }));
+                                  const existing = findCartLine(p.id, vid);
+                                  if (!existing) {
+                                    addToCart(p, vid);
+                                  }
+                                }}
+                              />
+                            </div>
                           ) : (
-                            <p className="text-xs text-gray-500">₹{p.price.toLocaleString("en-IN")} · Stock: {p.stock}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              ₹{p.price.toLocaleString("en-IN")} · Stock: {p.stock}
+                              {p.stock <= 0 && <span className="text-rose-600 font-semibold ml-1.5">(Out of stock)</span>}
+                            </p>
                           )}
                         </div>
                         {inCart ? (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button type="button" onClick={() => updateQty(p.id, inCart.variantId, inCart.quantity - 1, rowMaxStock)}
-                              className="w-6 h-6 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
+                          <div className="flex items-center gap-1.5 shrink-0 bg-white px-2 py-1 rounded-xl border border-indigo-200 shadow-2xs" onClick={e => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => updateQty(p.id, inCart.variantId, inCart.quantity - 1, rowMaxStock)}
+                              className="w-6 h-6 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                              title="Decrease quantity"
+                            >
                               <MinusIcon className="w-3 h-3" />
                             </button>
-                            <span className="w-6 text-center text-sm font-bold text-indigo-700">{inCart.quantity}</span>
-                            <button type="button" onClick={() => updateQty(p.id, inCart.variantId, inCart.quantity + 1, rowMaxStock)}
-                              className="w-6 h-6 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
-                              <PlusIcon className="w-3 h-3" />
+                            <span className="w-6 text-center text-sm font-bold text-indigo-900">{inCart.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateQty(p.id, inCart.variantId, inCart.quantity + 1, rowMaxStock)}
+                              disabled={inCart.quantity >= rowMaxStock}
+                              className="w-6 h-6 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer"
+                              title="Increase quantity"
+                            >
+                              <PlusIcon className="w-3.5 h-3.5" />
                             </button>
                           </div>
+                        ) : hasVariants ? null : p.stock > 0 ? (
+                          <div className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 group-hover:text-indigo-700 bg-indigo-50/60 group-hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100 transition-all pointer-events-none">
+                            <PlusIcon className="w-3.5 h-3.5" />
+                            <span>Select</span>
+                          </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => addToCart(p, hasVariants ? selectedVid : null)}
-                            disabled={hasVariants && !selectedVariant}
-                            className="flex items-center gap-1 bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
-                          >
-                            <PlusIcon className="w-3.5 h-3.5" /> Add
-                          </button>
+                          <span className="text-xs font-medium text-slate-400 shrink-0">Out of Stock</span>
                         )}
                       </li>
                     );
@@ -1152,13 +1479,26 @@ export default function AdminOrderPage() {
                   <MapPinIcon className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Delivery Address</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Enter the customer shipping destination for this order</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-gray-900">Delivery Address</h2>
+                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                      Optional
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">Enter shipping address for delivery, or leave blank for store / counter pickup</p>
                 </div>
               </div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-gray-200/80 rounded-xl text-xs font-medium text-gray-600 self-start sm:self-auto">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Standard Domestic Delivery
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                {selectedCustomer?.recentAddress?.fullAddress && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-700 animate-fadeIn">
+                    <CheckCircleSolid className="w-3.5 h-3.5 text-emerald-600" />
+                    Auto-filled from previous order
+                  </div>
+                )}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-gray-200/80 rounded-xl text-xs font-medium text-gray-600">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Standard Domestic Delivery
+                </div>
               </div>
             </div>
 
@@ -1170,7 +1510,7 @@ export default function AdminOrderPage() {
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
                       <HashtagIcon className="w-3.5 h-3.5 text-indigo-600" />
-                      Zip / PIN Code <span className="text-rose-500 font-bold normal-case">*</span>
+                      Zip / PIN Code <span className="text-gray-400 font-normal lowercase tracking-normal">(optional)</span>
                     </label>
                     {pincodeLoading ? (
                       <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1.5 animate-fadeIn">
@@ -1218,7 +1558,7 @@ export default function AdminOrderPage() {
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
                       <GlobeAmericasIcon className="w-3.5 h-3.5 text-indigo-600" />
-                      Country
+                      Country <span className="text-gray-400 font-normal lowercase tracking-normal">(optional)</span>
                     </label>
                     <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200/60">
                       Domestic
@@ -1254,7 +1594,7 @@ export default function AdminOrderPage() {
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
                       <BuildingOffice2Icon className="w-3.5 h-3.5 text-indigo-600" />
-                      City / District <span className="text-rose-500 font-bold normal-case">*</span>
+                      City / District <span className="text-gray-400 font-normal lowercase tracking-normal">(optional)</span>
                     </label>
                     {address.city.trim() && (
                       <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
@@ -1289,7 +1629,7 @@ export default function AdminOrderPage() {
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
                       <MapIcon className="w-3.5 h-3.5 text-indigo-600" />
-                      State <span className="text-rose-500 font-bold normal-case">*</span>
+                      State <span className="text-gray-400 font-normal lowercase tracking-normal">(optional)</span>
                     </label>
                     {address.state.trim() && (
                       <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
@@ -1417,7 +1757,7 @@ export default function AdminOrderPage() {
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider">
                     <HomeIcon className="w-3.5 h-3.5 text-indigo-600" />
-                    Full Address <span className="text-rose-500 font-bold normal-case">*</span>
+                    Full Address <span className="text-gray-400 font-normal lowercase tracking-normal">(optional)</span>
                   </label>
                   {address.fullAddress.trim() && (
                     <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 animate-fadeIn">
@@ -1460,16 +1800,6 @@ export default function AdminOrderPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 type="button"
-                onClick={() => setPaymentMethod("CASH")}
-                className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-colors
-                  ${paymentMethod === "CASH" ? "border-indigo-600 bg-indigo-50" : "border-gray-200 hover:border-indigo-300 bg-white"}`}
-              >
-                <CreditCardIcon className={`w-8 h-8 ${paymentMethod === "CASH" ? "text-indigo-600" : "text-gray-400"}`} />
-                <span className={`font-bold text-sm ${paymentMethod === "CASH" ? "text-indigo-700" : "text-gray-600"}`}>Cash Collected</span>
-                <span className="text-xs text-gray-500 text-center">Customer paid in cash at the counter</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setPaymentMethod("POD")}
                 className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-colors
                   ${paymentMethod === "POD" ? "border-indigo-600 bg-indigo-50" : "border-gray-200 hover:border-indigo-300 bg-white"}`}
@@ -1477,6 +1807,16 @@ export default function AdminOrderPage() {
                 <MapPinIcon className={`w-8 h-8 ${paymentMethod === "POD" ? "text-indigo-600" : "text-gray-400"}`} />
                 <span className={`font-bold text-sm ${paymentMethod === "POD" ? "text-indigo-700" : "text-gray-600"}`}>Pay on Delivery</span>
                 <span className="text-xs text-gray-500 text-center">Payment will be collected at delivery</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("CASH")}
+                className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-colors
+                  ${paymentMethod === "CASH" ? "border-indigo-600 bg-indigo-50" : "border-gray-200 hover:border-indigo-300 bg-white"}`}
+              >
+                <CreditCardIcon className={`w-8 h-8 ${paymentMethod === "CASH" ? "text-indigo-600" : "text-gray-400"}`} />
+                <span className={`font-bold text-sm ${paymentMethod === "CASH" ? "text-indigo-700" : "text-gray-600"}`}>Cash Collected</span>
+                <span className="text-xs text-gray-500 text-center">Customer paid in cash at the counter</span>
               </button>
             </div>
 
@@ -1512,10 +1852,44 @@ export default function AdminOrderPage() {
         {/* ── STEP 5: Confirm ── */}
         {currentStep === "confirm" && (
           <div className="space-y-4">
+            {recentOrderWarning && (
+              <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 sm:p-5 flex items-start justify-between gap-4 shadow-sm animate-fadeIn">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+                    <ClockIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm font-bold text-amber-950">
+                        Notice: Previous Order Placed in Last 24 Hours
+                      </h4>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono">
+                        {recentOrderWarning.relativeTime}
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                      This customer placed an order on{" "}
+                      <strong className="text-amber-950 underline decoration-amber-400">
+                        {recentOrderWarning.formattedTime}
+                      </strong>{" "}
+                      ({recentOrderWarning.relativeTime}) for ₹{recentOrderWarning.finalAmount.toLocaleString("en-IN")}.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRecentOrderModalOpen(true)}
+                  className="shrink-0 px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                >
+                  View Details
+                </button>
+              </div>
+            )}
+
             {/* Customer summary */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Customer</h3>
-              {customerMode === "existing" && selectedCustomer ? (
+              {selectedCustomer ? (
                 <div>
                   <p className="font-semibold text-gray-800">{selectedCustomer.username}</p>
                   <p className="text-sm text-gray-500">{selectedCustomer.phone ?? "—"} · {selectedCustomer.email ?? "No email"}</p>
@@ -1580,9 +1954,29 @@ export default function AdminOrderPage() {
 
             {/* Address summary */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Delivery Address</h3>
-              <p className="text-sm text-gray-700">{address.fullAddress}</p>
-              <p className="text-sm text-gray-500">{address.city}, {address.state} {address.zipCode}, {address.country}</p>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Delivery Address</h3>
+                {!(address.fullAddress.trim() || address.city.trim() || address.state.trim() || address.zipCode.trim()) && (
+                  <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full font-medium">
+                    Store / Counter Pickup
+                  </span>
+                )}
+              </div>
+              {address.fullAddress.trim() || address.city.trim() || address.state.trim() || address.zipCode.trim() ? (
+                <div>
+                  {address.fullAddress.trim() && <p className="text-sm font-medium text-gray-800">{address.fullAddress}</p>}
+                  <p className="text-sm text-gray-500">
+                    {[address.city, address.state].filter(Boolean).join(", ")}
+                    {address.zipCode ? ` ${address.zipCode}` : ""}
+                    {address.country ? `, ${address.country}` : ""}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2.5 text-sm text-gray-500 py-1">
+                  <BuildingStorefrontIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span>No delivery address specified (Handled as Store / Counter Pickup)</span>
+                </div>
+              )}
             </div>
 
             {/* Payment summary */}
@@ -1604,7 +1998,7 @@ export default function AdminOrderPage() {
             type="button"
             onClick={goBack}
             disabled={stepIndex === 0}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             <ChevronLeftIcon className="w-4 h-4" /> Back
           </button>
@@ -1621,19 +2015,300 @@ export default function AdminOrderPage() {
           ) : (
             <button
               type="button"
-              onClick={handlePlaceOrder}
-              disabled={placing}
-              className="flex items-center gap-2 px-7 py-2.5 text-sm font-bold text-white bg-green-600 rounded-xl hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              onClick={() => handlePlaceOrder(false)}
+              disabled={placing || recentOrderChecking}
+              className="flex items-center gap-2 px-7 py-2.5 text-sm font-bold text-white bg-green-600 rounded-xl hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
-              {placing ? (
-                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Placing…</>
+              {placing || recentOrderChecking ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {recentOrderChecking ? "Checking…" : "Placing…"}
+                </>
               ) : (
-                <><CheckCircleIcon className="w-4 h-4" /> Place Order</>
+                <>
+                  <CheckCircleIcon className="w-4 h-4" /> Place Order
+                </>
               )}
             </button>
           )}
         </div>
       </div>
+
+      {/* ── Duplicate Customer Conflict Modal ── */}
+      {conflictModalOpen && conflictCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-gray-900/20 max-w-lg w-full overflow-hidden border border-gray-100 flex flex-col animate-scaleUp">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between px-6 pt-6 pb-5 bg-gradient-to-br from-indigo-50/80 via-white to-white border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-500/25">
+                  <UserCircleIcon className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-gray-950 tracking-tight">Customer Already Exists</h2>
+                  <span className="inline-block mt-0.5 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100/80 px-2 py-0.5 rounded-full">
+                    Existing Customer Found
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConflictModalOpen(false)}
+                className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg p-1.5 transition"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {conflictReason || "A customer with this phone number or email is already registered."}{" "}
+                {conflictTriggerSource === "step1_next" || currentStep === "customer"
+                  ? "Would you like to select this existing customer and continue to product selection?"
+                  : "Would you like to select this customer to complete and place the order immediately?"}
+              </p>
+
+              {/* Matched Customer Profile Card */}
+              <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold tracking-wider uppercase text-indigo-700 bg-indigo-50 border border-indigo-100/80 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <SparklesIcon className="w-3 h-3 text-indigo-600" />
+                    Matched Customer Account
+                  </span>
+                  <span className="text-xs font-semibold text-gray-400 font-mono">ID: #{conflictCustomer.id.slice(-6)}</span>
+                </div>
+
+                <div className="flex items-center gap-3.5 pt-0.5">
+                  <CustomerAvatar name={conflictCustomer.username} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-base font-bold text-gray-900 truncate">
+                      {conflictCustomer.username}
+                    </h4>
+                    {newCustomer.username.trim() && newCustomer.username.trim().toLowerCase() !== conflictCustomer.username.toLowerCase() && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Entered name: <span className="font-medium text-gray-600">"{newCustomer.username}"</span>
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 mt-1">
+                      <span className="flex items-center gap-1">
+                        <PhoneIcon className="w-3.5 h-3.5 text-gray-400" />
+                        {conflictCustomer.phone ?? "No phone"}
+                      </span>
+                      {conflictCustomer.email && (
+                        <span className="flex items-center gap-1">
+                          <EnvelopeIcon className="w-3.5 h-3.5 text-gray-400" />
+                          {conflictCustomer.email}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConflictModalOpen(false);
+                    setCurrentStep("customer");
+                  }}
+                  disabled={conflictSubmitting}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition text-center disabled:opacity-50"
+                >
+                  Edit Customer Details
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectConflictCustomerAction}
+                  disabled={conflictSubmitting}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition disabled:opacity-60"
+                >
+                  {conflictSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Placing Order…
+                    </>
+                  ) : conflictTriggerSource === "step1_next" || currentStep === "customer" ? (
+                    <>
+                      Select & Continue <ArrowRightIcon className="w-4 h-4" />
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="w-4 h-4" />
+                      Select & Place Order
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 24-Hour Recent Order Warning Modal ── */}
+      {recentOrderModalOpen && recentOrderWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 px-4 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl shadow-gray-900/30 max-w-lg w-full overflow-hidden border border-amber-200/90 flex flex-col animate-scaleUp">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between px-6 pt-6 pb-5 bg-gradient-to-br from-amber-50 via-amber-50/40 to-white border-b border-amber-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25">
+                  <ClockIcon className="h-6 w-6 stroke-[2]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-gray-950 tracking-tight">Recent Order Detected</h2>
+                  <span className="inline-block mt-0.5 text-[11px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                    Placed within last 24 hours
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRecentOrderModalOpen(false)}
+                className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg p-1.5 transition cursor-pointer"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-5 space-y-4">
+              <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl">
+                <p className="text-sm font-semibold text-amber-950 leading-relaxed">
+                  ⚠️ This customer has already placed an order in the last 24 hours.
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  Please verify the previous order placement time and order summary below before proceeding to avoid unintentional duplicate orders.
+                </p>
+              </div>
+
+              {/* Order Highlight Card */}
+              <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 space-y-3 shadow-2xs">
+                {/* Header row */}
+                <div className="flex items-center justify-between border-b border-gray-200/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-700">Previous Order</span>
+                    <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-md">
+                      #{recentOrderWarning.shortId}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    recentOrderWarning.orderStatus === "DELIVERED"
+                      ? "bg-green-100 text-green-800"
+                      : recentOrderWarning.orderStatus === "SHIPPED"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {recentOrderWarning.orderStatus}
+                  </span>
+                </div>
+
+                {/* Key detail: Explicit Order Placement Time */}
+                <div className="bg-white rounded-xl border border-amber-200/90 p-3 shadow-2xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                      <ClockIcon className="w-3.5 h-3.5 text-amber-600" />
+                      Order Placement Time
+                    </span>
+                    <span className="text-xs font-extrabold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                      {recentOrderWarning.relativeTime}
+                    </span>
+                  </div>
+                  <p className="text-base font-extrabold text-gray-900 tracking-tight">
+                    {recentOrderWarning.formattedTime}
+                  </p>
+                </div>
+
+                {/* Customer & Amount details */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="bg-white rounded-xl border border-gray-200/70 p-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                      Customer
+                    </span>
+                    <p className="text-xs font-bold text-gray-800 truncate">
+                      {recentOrderWarning.customerName || selectedCustomer?.username || newCustomer.username || "Customer"}
+                    </p>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-gray-200/70 p-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                      Order Amount
+                    </span>
+                    <p className="text-xs font-extrabold text-gray-900">
+                      ₹{recentOrderWarning.finalAmount.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items Summary */}
+                {recentOrderWarning.itemsSummary && (
+                  <div className="bg-white rounded-xl border border-gray-200/70 p-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
+                      Items Ordered ({recentOrderWarning.itemsCount})
+                    </span>
+                    <p className="text-xs text-gray-700 font-medium line-clamp-2">
+                      {recentOrderWarning.itemsSummary}
+                    </p>
+                  </div>
+                )}
+
+                {/* Channel & Invoice link */}
+                <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+                  <span>
+                    Channel:{" "}
+                    <strong className="text-gray-700">
+                      {recentOrderWarning.placedByAdmin ? "Admin (Counter Sale)" : "Online Store"}
+                    </strong>
+                  </span>
+                  <a
+                    href={`/invoice/${recentOrderWarning.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold"
+                  >
+                    <DocumentTextIcon className="w-3.5 h-3.5" /> View Invoice
+                  </a>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setRecentOrderModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition text-center cursor-pointer"
+                >
+                  Cancel / Review
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecentOrderModalOpen(false);
+                    setBypassRecentOrder(true);
+                    handlePlaceOrder(true);
+                  }}
+                  disabled={placing}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-md shadow-amber-600/25 transition disabled:opacity-60 cursor-pointer"
+                >
+                  {placing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Placing…
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="w-4 h-4" />
+                      Place Order Anyway
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import "leaflet/dist/leaflet.css";
 import toast from "react-hot-toast";
 import api from "../utils/api";
 import { useCart } from "../context/CartContext";
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 
 const customIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -103,6 +104,7 @@ type LocMode = "gps" | "saved" | "manual";
 export default function DeliveryLocationModal({ isOpen, onClose, product }: DeliveryLocationModalProps) {
   const navigate = useNavigate();
   const { cartItems, addToCart, cartTotal } = useCart();
+  useBodyScrollLock(isOpen);
 
   // Cart-checkout mode (no `product`): preview against every cart line instead of one
   // item. Buy Now mode: just the one product, same as before this generalized.
@@ -114,6 +116,7 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
   const [phase, setPhase] = useState<Phase>("select");
   const [locMode, setLocMode] = useState<LocMode | null>(null);
   const [savedAddress, setSavedAddress] = useState<SavedAddress | null>(null);
+  const [addressLoading, setAddressLoading] = useState(false);
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [gpsCoords, setGpsCoords] = useState<[number, number] | null>(null);
   const [preview, setPreview] = useState<ShippingPreview | null>(null);
@@ -135,12 +138,15 @@ export default function DeliveryLocationModal({ isOpen, onClose, product }: Deli
       setCalcLoading(false);
       setIsProcessing(false);
       setRepositioning(false);
+      setAddressLoading(false);
       setManualForm({ fullAddress: "", city: "", state: "", zipCode: "" });
       return;
     }
+    setAddressLoading(true);
     api.get("/address/default")
       .then((res) => setSavedAddress(res.data.address))
-      .catch(() => setSavedAddress(null));
+      .catch(() => setSavedAddress(null))
+      .finally(() => setAddressLoading(false));
   }, [isOpen]);
 
 const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
@@ -407,31 +413,32 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <>
+        <motion.div
+          key="delivery-location-portal"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
           {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm cursor-pointer"
+          <div
+            className="fixed inset-0 bg-slate-900/60 cursor-pointer"
             onClick={onClose}
           />
 
-          {/* Centering wrapper */}
-          <div
-            className="fixed inset-0 z-[160] flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) onClose();
-            }}
+          {/* Modal Card */}
+          <motion.div
+            key="delivery-location-card"
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-lg bg-white shadow-2xl rounded-3xl flex flex-col max-h-[85vh] cursor-default border border-slate-100 overflow-hidden"
           >
-            {/* Modal Card */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              className="w-full max-w-lg bg-white shadow-2xl rounded-3xl flex flex-col max-h-[85vh] cursor-default border border-slate-100 overflow-hidden"
-            >
               {/* Header */}
               <div className="px-6 py-4 border-b border-slate-100 bg-white sticky top-0 z-10">
                 <div className="flex items-center justify-between">
@@ -478,16 +485,14 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                     </div>
 
                     {/* GPS Button */}
-                    <motion.button
-                      whileHover={{ scale: 1.005 }}
-                      whileTap={{ scale: 0.995 }}
+                    <button
                       type="button"
                       onClick={handleSelectGPS}
                       disabled={gpsLoading || calcLoading}
-                      className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-left transition-all bg-white shadow-xs ${
+                      className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-left transition-all bg-white shadow-xs cursor-pointer active:scale-[0.99] ${
                         locMode === "gps"
                           ? "border-indigo-600 ring-2 ring-indigo-600/10"
-                          : "border-slate-200 hover:border-indigo-200 hover:shadow-md"
+                          : "border-slate-200 hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/20"
                       }`}
                     >
                       <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
@@ -504,20 +509,26 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5 truncate">Fastest • Detects location via device sensors</p>
                       </div>
-                    </motion.button>
+                    </button>
 
                     {/* Saved Address Button */}
-                    {savedAddress ? (
-                      <motion.button
-                        whileHover={{ scale: 1.005 }}
-                        whileTap={{ scale: 0.995 }}
+                    {addressLoading ? (
+                      <div className="w-full flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 animate-pulse">
+                        <div className="w-11 h-11 rounded-xl bg-slate-200 shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 w-32 bg-slate-200 rounded" />
+                          <div className="h-3 w-48 bg-slate-100 rounded" />
+                        </div>
+                      </div>
+                    ) : savedAddress ? (
+                      <button
                         type="button"
                         onClick={handleSelectSaved}
                         disabled={gpsLoading || calcLoading}
-                        className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-left transition-all bg-white shadow-xs ${
+                        className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-left transition-all bg-white shadow-xs cursor-pointer active:scale-[0.99] ${
                           locMode === "saved"
                             ? "border-emerald-600 ring-2 ring-emerald-600/10"
-                            : "border-slate-200 hover:border-emerald-200 hover:shadow-md"
+                            : "border-slate-200 hover:border-emerald-300 hover:shadow-md hover:bg-emerald-50/20"
                         }`}
                       >
                         <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
@@ -536,7 +547,7 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                             {savedAddress.fullAddress || `${savedAddress.city}, ${savedAddress.state}`}
                           </p>
                         </div>
-                      </motion.button>
+                      </button>
                     ) : (
                       <div className="w-full flex items-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-slate-100/50 p-4 opacity-60 cursor-not-allowed">
                         <div className="w-11 h-11 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0">
@@ -550,16 +561,14 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                     )}
 
                     {/* Manual Form Button */}
-                    <motion.button
-                      whileHover={{ scale: 1.005 }}
-                      whileTap={{ scale: 0.995 }}
+                    <button
                       type="button"
                       onClick={() => { setLocMode("manual"); setPhase("manual_form"); }}
                       disabled={gpsLoading || calcLoading}
-                      className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-left transition-all bg-white shadow-xs ${
+                      className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-left transition-all bg-white shadow-xs cursor-pointer active:scale-[0.99] ${
                         locMode === "manual"
                           ? "border-amber-600 ring-2 ring-amber-600/10"
-                          : "border-slate-200 hover:border-amber-200 hover:shadow-md"
+                          : "border-slate-200 hover:border-amber-300 hover:shadow-md hover:bg-amber-50/20"
                       }`}
                     >
                       <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
@@ -569,7 +578,7 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                         <p className="font-semibold text-slate-900 text-sm">Enter Pincode & Address</p>
                         <p className="text-xs text-slate-500 mt-0.5">Type in custom destination details</p>
                       </div>
-                    </motion.button>
+                    </button>
                   </div>
                 )}
 
@@ -633,12 +642,11 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                       </div>
                     </div>
 
-                    <motion.button
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
+                    <button
+                      type="button"
                       onClick={handleManualCalculate}
                       disabled={calcLoading || !manualForm.state.trim()}
-                      className="w-full rounded-2xl bg-slate-900 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2 mt-3 shadow-md"
+                      className="w-full rounded-2xl bg-slate-900 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-2 mt-3 shadow-md cursor-pointer"
                     >
                       {calcLoading ? (
                         <BeatLoader size={6} color="#fff" />
@@ -649,7 +657,7 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                           <ArrowRightIcon className="h-3.5 w-3.5 stroke-[2.5]" />
                         </>
                       )}
-                    </motion.button>
+                    </button>
                   </div>
                 )}
 
@@ -770,12 +778,11 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                     </div>
 
                     {/* Proceed Action Button */}
-                    <motion.button
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
+                    <button
+                      type="button"
                       onClick={handleProceed}
                       disabled={isProcessing}
-                      className="w-full rounded-2xl bg-indigo-600 py-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-indigo-700 disabled:opacity-60 transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+                      className="w-full rounded-2xl bg-indigo-600 py-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-indigo-700 active:scale-[0.99] disabled:opacity-60 transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       {isProcessing ? (
                         <BeatLoader size={6} color="#fff" />
@@ -785,13 +792,12 @@ const isWithinIndiaBoundingBox = (lat: number, lng: number): boolean => {
                           <span>Proceed to Checkout</span>
                         </>
                       )}
-                    </motion.button>
+                    </button>
                   </div>
                 )}
               </div>
             </motion.div>
-          </div>
-        </>
+          </motion.div>
       )}
     </AnimatePresence>,
     document.body

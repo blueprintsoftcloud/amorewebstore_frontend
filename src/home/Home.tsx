@@ -787,7 +787,7 @@ const Home = () => {
                   }}>Activate Demo Mode to inspect sample metrics</span>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={280}>
+                <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={280}>
                   <BarChart data={filteredSalesChart} barGap={4}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                     <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10, fill: "#94a3b8", fontWeight: 600 }} axisLine={false} tickLine={false} />
@@ -828,7 +828,7 @@ const Home = () => {
             ) : (
               <div className="flex-1 flex flex-col sm:flex-row md:flex-col items-center justify-center gap-6 mt-2">
                 <div className="relative h-36 w-36 flex items-center justify-center flex-shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <PieChart>
                       <Pie
                         data={topCategories}

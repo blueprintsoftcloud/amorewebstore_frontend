@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
-import { ArrowUpRight } from "lucide-react";
 import api from "../utils/api";
 
 interface Category {
@@ -62,10 +61,10 @@ const CategorySection = () => {
 
   // --- Loading Skeleton Component ---
   const LoadingSkeleton = () => (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-10">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-4 sm:gap-x-6 gap-y-10">
       {[...Array(6)].map((_, i) => (
         <div key={i} className="animate-pulse">
-          <div className="w-full aspect-[3/4] bg-gray-200 rounded-xl mb-4"></div>
+          <div className="w-full aspect-[3/4] bg-gray-200 rounded-2xl mb-4"></div>
           <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
         </div>
       ))}
@@ -114,7 +113,7 @@ const CategorySection = () => {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-12"
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-4 sm:gap-x-6 gap-y-10 sm:gap-y-12"
           >
             {categories.map((category) => {
               const categoryId = category._id ?? category.id;
@@ -133,18 +132,11 @@ const CategorySection = () => {
                         alt={category.name}
                         className="h-full w-full object-cover object-center transform transition-transform duration-700 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] group-hover:scale-110"
                       />
-
-                      {/* Floating Icon on Hover */}
-                      <div className="absolute top-3 right-3 z-20 opacity-0 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
-                        <div className="bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg">
-                          <ArrowUpRight className="w-4 h-4 text-black" />
-                        </div>
-                      </div>
                     </div>
 
                     {/* Text Container */}
-                    <div className="mt-5 text-center relative">
-                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
+                    <div className="mt-4 text-center relative">
+                      <h3 className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-widest">
                         {category.name}
                       </h3>
                       {/* Animated Underline */}

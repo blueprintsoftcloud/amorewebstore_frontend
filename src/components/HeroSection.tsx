@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { PulseLoader } from "react-spinners";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "../utils/api";
 
 
@@ -38,12 +37,15 @@ interface HeroTemplateData {
   bgImage?: string;
   accentText?: string;
   images?: string[];
+  imageTitles?: string[];
+  imageLinks?: string[];
+  imageSubtitles?: string[];
   highlightText?: string;
   badgeText?: string;
 }
 
 interface HeroConfig {
-  activeTemplate: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  activeTemplate: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   templates: Record<string, HeroTemplateData>;
 }
 
@@ -59,10 +61,11 @@ const DEFAULT_CONFIG: HeroConfig = {
     },
     "2": {
       title: "New Arrivals Just Dropped",
-      subtitle: "Discover our latest curated pieces.",
-      ctaText: "Explore Now",
+      subtitle: "Discover our latest curated pieces made for the modern era.",
+      ctaText: "Explore Collection",
       ctaLink: "/products",
-      bgImage: "",
+      accentText: "SS26 Collection",
+      bgImage: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=85&w=2000",
     },
     "3": {
       title: "Elegance Redefined",
@@ -89,24 +92,41 @@ const DEFAULT_CONFIG: HeroConfig = {
       ctaLink: "/products",
       accentText: "New Season / Avant-Garde Collection",
       images: [
-        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1519457431-44ccd64a579b?auto=format&fit=crop&q=80&w=400",
-        "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600",
-        "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=400",
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=800",
       ],
     },
     "6": {
-      title: "Big Style. Bigger Savings.",
-      subtitle: "Our biggest collection drop of the season, at prices you'll love.",
-      ctaText: "Shop The Sale",
+      title: "The SS26 Campaign",
+      subtitle: "Discover our latest curated edits and signature pieces.",
+      ctaText: "Explore All",
       ctaLink: "/products",
-      accentText: "Limited Time",
-      highlightText: "",
-      badgeText: "50%\nOFF SELECTED",
-      bgImage: "",
+      accentText: "New Campaign",
+      images: [
+        "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&q=80&w=1000",
+        "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=1000",
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=1000",
+      ],
+      imageTitles: [
+        "Shop Chains",
+        "Shop Rings",
+        "SS26 Campaign: Out Now",
+      ],
+      imageLinks: [
+        "/products",
+        "/products",
+        "/products",
+      ],
+      imageSubtitles: [
+        "",
+        "",
+        "SOURCE MATERIAL",
+      ],
     },
     "7": {
       title: "Simplicity Is The Ultimate Sophistication",
@@ -116,20 +136,42 @@ const DEFAULT_CONFIG: HeroConfig = {
       accentText: "The Collection",
     },
     "8": {
-      title: "Everything Must Go",
-      subtitle: "Our biggest markdowns of the year — while stock lasts.",
-      ctaText: "Shop The Sale",
+      title: "Curious What Else I've Created?",
+      subtitle:
+        "Explore our latest collection of handcrafted fashion, signature jewelry, and artisanal creations made for the modern aesthetic.",
+      ctaText: "Explore Projects",
       ctaLink: "/products",
-      accentText: "Sale Ends Soon",
-      badgeText: "70%\nOFF",
+      accentText: "Behind the Designs",
+      images: [
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=800",
+      ],
     },
     "9": {
-      title: "The New Season Edit",
-      subtitle: "Fresh arrivals, curated for right now.",
-      ctaText: "Shop Now",
+      title: "",
+      subtitle: "",
+      ctaText: "",
+      ctaLink: "",
+      images: [
+        "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&q=85&w=1920",
+        "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=85&w=1920",
+      ],
+    },
+    "10": {
+      title: "Festive",
+      highlightText: "Sale",
+      subtitle: "Flat 50% OFF +\nExtra Rs.1000/- OFF",
+      ctaText: "Explore More",
       ctaLink: "/products",
-      accentText: "New In",
-      bgImage: "",
+      bgImage: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=85&w=2400",
     },
   },
 };
@@ -149,8 +191,11 @@ function Template1({ data }: { data: HeroTemplateData }) {
 
   return (
     <div 
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-      className="relative overflow-hidden w-full bg-white mt-35 sm:mt-20 lg:mt-24"
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        minHeight: "calc(100vh - var(--app-header-h, 7rem))",
+      }}
+      className="relative overflow-hidden w-full bg-white"
     >
       {/* --- ADDED FULL SECTION BACKGROUND IMAGE HERE --- */}
       {/* <div 
@@ -276,71 +321,93 @@ function Template1({ data }: { data: HeroTemplateData }) {
 
 
 // ─── Template 2: Cinematic Full-width ─────────────────────────────────────────
-// Full-width image background with overlay text
+// Full-width immersive cinematic hero with gradient lighting, glassmorphic typography, and smooth entrance
+const TEMPLATE2_FALLBACK_BG =
+  "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=85&w=2000";
+
 function Template2({ data }: { data: HeroTemplateData }) {
   const navigate = useNavigate();
-  const bgSrc = data.bgImage || image1;
+  const bgSrc = data.bgImage || TEMPLATE2_FALLBACK_BG || image1;
 
   return (
-    // Changed to a clean neutral background color to beautifully frame the high-quality asset layout
-    <div 
-      style={{ minHeight: "calc(100vh + 6rem)" }}
-      className="relative w-full bg-neutral-950 mt-16 sm:mt-20 lg:mt-24 flex items-center overflow-hidden"
+    <div
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        height: "calc(100dvh - var(--app-header-h, 7rem))",
+      }}
+      className="relative w-full bg-neutral-950 min-h-[560px] max-h-[920px] flex items-center overflow-hidden select-none"
     >
-      
-      {/* Desktop Split View / Mobile Full Screen Context Frame */}
-      <div className="absolute inset-0 w-full h-full lg:left-1/3 lg:w-2/3">
-       
-         <img 
-          src={bgSrc} 
-          alt="" 
-          className="w-full h-full object-cover lg:object-cover origin-center opacity-70 lg:opacity-90" 
+      {/* Cinematic Full-Bleed Background Image with subtle Ken Burns zoom */}
+      <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
+        <motion.img
+          initial={{ scale: 1.08 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 1.8, ease: "easeOut" }}
+          src={bgSrc}
+          alt={data.title || "Hero banner"}
+          className="w-full h-full object-cover object-center lg:object-right-center"
         />
-        {/* Layered vignette masks to prevent hard edges on the image assets */}
-         <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-neutral-950 lg:hidden" />
-        <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/40 to-transparent hidden lg:block" />
-      </div> 
+        {/* Multi-layer Cinematic Lighting Vignettes */}
+        {/* Left-to-Right gradient on larger screens for perfect typography legibility */}
+        <div className="absolute inset-0 bg-gradient-to-r from-neutral-950/95 via-neutral-950/75 sm:via-neutral-950/50 to-neutral-950/20 lg:to-transparent w-full lg:w-3/4" />
+        {/* Bottom-to-Top gradient for mobile viewports */}
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/95 via-neutral-950/50 to-transparent sm:hidden" />
+        {/* Subtle top header blending shadow */}
+        <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-neutral-950/70 to-transparent" />
+        {/* Subtle bottom edge blend */}
+        <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-neutral-950/80 to-transparent" />
+      </div>
 
-
-    
-
-      {/* Content */}
-      <div className="relative z-10 mx-auto max-w-7xl px-6 sm:px-8 lg:px-12 py-20 w-full">
+      {/* Main Content Area */}
+      <div className="relative z-10 mx-auto max-w-7xl px-6 sm:px-10 lg:px-12 w-full py-12 sm:py-16 lg:py-24 flex flex-col justify-center">
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className="max-w-2xl"
+          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-2xl text-left space-y-4 sm:space-y-6"
         >
-          <span className="inline-block text-xs font-bold tracking-[0.3em] uppercase text-white/60 mb-4">
-            New Collection
-          </span>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white leading-none tracking-tighter mb-6">
-            {data.title}
+          {/* Accent Glassmorphism Badge */}
+          <div>
+            <span className="inline-flex items-center px-3.5 py-1.5 rounded-md bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/20 text-white text-[11px] sm:text-xs font-bold tracking-[0.25em] uppercase shadow-lg transition-colors">
+              {data.accentText || "New Season Drop"}
+            </span>
+          </div>
+
+          {/* Headline */}
+          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.06] drop-shadow-2xl">
+            {data.title || "Summer Styles Are Finally Here"}
           </h1>
-          <p className="text-white/70 text-sm sm:text-lg leading-relaxed mb-10 max-w-md line-clamp-2 sm:line-clamp-none">
-            {data.subtitle}
+
+          {/* Subtitle */}
+          <p className="text-white/80 text-sm sm:text-base lg:text-lg font-normal leading-relaxed max-w-xl drop-shadow-md">
+            {data.subtitle || "Discover our latest curated pieces made for the modern era."}
           </p>
-          <div className="flex flex-wrap gap-4">
+
+          {/* Action Button Row */}
+          <div className="pt-2 sm:pt-4 flex flex-wrap items-center gap-3 sm:gap-4">
             <motion.button
-              whileHover={{ scale: 1.02 }}
+              whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => navigate(data.ctaLink || "/products")}
-              className="inline-flex items-center gap-3 bg-white text-gray-900 px-8 py-4 rounded-full text-base font-bold hover:bg-gray-100 transition-colors shadow-xl"
+              className="inline-flex items-center gap-3 bg-white text-neutral-950 hover:bg-neutral-100 px-7 sm:px-9 py-3.5 sm:py-4 rounded-lg text-sm sm:text-base font-bold tracking-wide shadow-xl hover:shadow-2xl transition-all cursor-pointer group"
             >
-              {data.ctaText || "Explore Now"}
-              <ArrowRight className="w-5 h-5" />
+              <span>{data.ctaText || "Explore Collection"}</span>
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" />
             </motion.button>
+
             <motion.button
-              whileHover={{ scale: 1.02 }}
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigate("/products")}
-              className="inline-flex items-center gap-2 border border-white/40 text-white px-8 py-4 rounded-full text-base font-medium hover:bg-white/10 transition-colors"
+              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 px-6 sm:px-8 py-3.5 sm:py-4 rounded-lg text-sm sm:text-base font-semibold transition-all cursor-pointer shadow-lg group"
             >
-              View All
+              <span>View All</span>
+              <ArrowUpRight className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
             </motion.button>
           </div>
         </motion.div>
       </div>
+
     </div>
   );
 }
@@ -361,8 +428,11 @@ function Template3({ data }: { data: HeroTemplateData }) {
 
   return (
     <div 
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-      className="relative w-full mt-16 sm:mt-20 lg:mt-24 bg-[#0c0c0c] overflow-hidden"
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        minHeight: "calc(100vh - var(--app-header-h, 7rem))",
+      }}
+      className="relative w-full bg-[#0c0c0c] overflow-hidden"
     >
       {/* Background noise texture */}
       <div className="absolute inset-0 opacity-5 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJub2lzZSI+PGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuNjUiIG51bU9jdGF2ZXM9IjMiIHN0aXRjaFRpbGVzPSJzdGl0Y2giLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsdGVyPSJ1cmwoI25vaXNlKSIgb3BhY2l0eT0iMSIvPjwvc3ZnPg==')]" />
@@ -401,7 +471,7 @@ function Template3({ data }: { data: HeroTemplateData }) {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.07 + 0.3 }}
-                  className={`inline-block mx-2 ${i % 2 === 1 ? "text-transparent bg-clip-text bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-accent)]" : ""}`}
+                  className={`inline-block mx-2 ${i % 2 === 1 ? "text-[var(--theme-accent)]" : "text-white"}`}
                 >
                   {word}
                 </motion.span>
@@ -605,8 +675,11 @@ function Template4({ data }: { data: HeroTemplateData }) {
 
   return (
     <div 
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-      className="relative overflow-hidden w-full bg-[#fafafa] selection:bg-rose-500 selection:text-white mt-16 sm:mt-20 lg:mt-24"
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        minHeight: "calc(100vh - var(--app-header-h, 7rem))",
+      }}
+      className="relative overflow-hidden w-full bg-[#fafafa] selection:bg-rose-500 selection:text-white"
     >
       {/* Soft elegant ambient illumination highlights */}
       <div className="absolute right-0 top-1/4 w-[600px] h-[400px] bg-rose-500/5 rounded-full blur-[130px] pointer-events-none" />
@@ -691,132 +764,14 @@ function Template4({ data }: { data: HeroTemplateData }) {
 }
 // ─── Template 5: Fashion Collage Gallery ──────────────────────────────────────
 const TEMPLATE5_FALLBACK_IMAGES = [
-  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=600",
-  "https://images.unsplash.com/photo-1519457431-44ccd64a579b?auto=format&fit=crop&q=80&w=400",
-  "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=600",
-  "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&q=80&w=600",
-  "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=600",
-  "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600",
-  "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=400"
+  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=800"
 ];
-
-// function Template5({ data }: { data: HeroTemplateData }) {
-//   const navigate = useNavigate();
-//   const images = (() => {
-//     if (data.images && data.images.length > 0) {
-//       const filled = [...data.images];
-//       for (let i = 0; i < 7; i++) {
-//         if (!filled[i]) {
-//           filled[i] = TEMPLATE5_FALLBACK_IMAGES[i];
-//         }
-//       }
-//       return filled.slice(0, 7);
-//     }
-//     return TEMPLATE5_FALLBACK_IMAGES;
-//   })();
-
-//   return (
-//     <div className="relative w-full mt-16 sm:mt-20 lg:mt-24 bg-white font-sans px-6 py-12 md:py-16 lg:py-24 flex flex-col items-center justify-center gap-10 md:gap-16 select-none min-h-[calc(100vh-4rem)]">
-//       {/* --- TOP HEADER SECTION --- */}
-//       <motion.div 
-//         initial={{ opacity: 0, y: -20 }}
-//         animate={{ opacity: 1, y: 0 }}
-//         transition={{ duration: 0.8 }}
-//         className="w-full flex flex-col justify-center items-center"
-//       >
-//         {/* Center Main Heading */}
-//         <h1 className="text-5xl md:text-7xl lg:text-7xl font-bold text-neutral-950 text-center max-w-5xl  leading-[1.05] mx-4">
-//           {data.title}
-//         </h1>
-//       </motion.div>
-
-//       {/* --- GRID GALLERY SECTION --- */}
-//       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end max-w-[1400px] mx-auto w-full ">
-        
-//         {/* Column 1: Orange Suit & Kid */}
-//         <motion.div 
-//           initial={{ opacity: 0, y: 40 }}
-//           animate={{ opacity: 1, y: 0 }}
-//           transition={{ duration: 0.8, delay: 0.1 }}
-//           className="flex flex-col gap-4 h-full justify-end"
-//         >
-//           <div className="relative bg-[#FF6A13] rounded-[2rem] overflow-hidden aspect-[3/4] md:h-[280px]">
-//             <img src={images[0]} alt="Fashion model" className="w-full h-full object-cover mix-blend-multiply" />
-//           </div>
-//           <div className="bg-[#FFB03A] rounded-[2rem] overflow-hidden aspect-[4/3] md:h-[130px]">
-//             <img src={images[1]} alt="Kid model" className="w-full h-full object-cover mix-blend-multiply object-top" />
-//           </div>
-//         </motion.div>
-
-//         {/* Column 2: Green Coat Woman (Tall) */}
-//         <motion.div 
-//           initial={{ opacity: 0, y: 40 }}
-//           animate={{ opacity: 1, y: 0 }}
-//           transition={{ duration: 0.8, delay: 0.2 }}
-//           className="h-full flex flex-col justify-end"
-//         >
-//           <div className="bg-[#A4E0A4] rounded-t-[3rem] rounded-b-[2rem] overflow-hidden aspect-[1/2] md:h-[430px]">
-//             <img src={images[2]} alt="Woman in green coat" className="w-full h-full object-cover object-center mix-blend-multiply" />
-//           </div>
-//         </motion.div>
-
-//         {/* Column 3: Yellow Hat Portrait & CTA Button */}
-//         <motion.div 
-//           initial={{ opacity: 0, y: 40 }}
-//           animate={{ opacity: 1, y: 0 }}
-//           transition={{ duration: 0.8, delay: 0.3 }}
-//           className="flex flex-col gap-4 items-center justify-center h-full my-auto"
-//         >
-//           <div className="bg-[#FFC72C] rounded-[2rem] overflow-hidden aspect-square w-full md:h-[260px]">
-//             <img src={images[3]} alt="Man in yellow hat" className="w-full h-full object-cover mix-blend-multiply" />
-//           </div>
-//           <button 
-//             onClick={() => navigate(data.ctaLink || "/products")}
-//             className="w-full bg-[#111111] text-white py-4 px-6 rounded-full flex items-center justify-center gap-2 font-medium tracking-wide shadow-lg hover:bg-zinc-900 transition-all group cursor-pointer"
-//           >
-//             <span className="text-sm">{data.ctaText || "Explore Collections"}</span>
-//             <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-//           </button>
-//         </motion.div>
-
-//         {/* Column 4: White Cargo Suit Man */}
-//         <motion.div 
-//           initial={{ opacity: 0, y: 40 }}
-//           animate={{ opacity: 1, y: 0 }}
-//           transition={{ duration: 0.8, delay: 0.4 }}
-//           className="h-full flex flex-col justify-end"
-//         >
-//           <div className="bg-[#6BB7E7] rounded-t-[3rem] rounded-b-[2rem] overflow-hidden aspect-[1/2] md:h-[390px]">
-//             <img src={images[4]} alt="Man in white suit" className="w-full h-full object-cover mix-blend-multiply" />
-//           </div>
-//         </motion.div>
-
-//         {/* Column 5: Red Glasses Woman & Green Suit Man */}
-//         <motion.div 
-//           initial={{ opacity: 0, y: 40 }}
-//           animate={{ opacity: 1, y: 0 }}
-//           transition={{ duration: 0.8, delay: 0.5 }}
-//           className="flex flex-col gap-4 h-full justify-end"
-//         >
-//           <div className="bg-[#8FE3B2] rounded-t-[3rem] rounded-b-[2rem] overflow-hidden aspect-[4/3] md:h-[235px]">
-//             <img src={images[5]} alt="Woman in heart sunglasses" className="w-full h-full object-cover mix-blend-multiply" />
-//           </div>
-//           <div className="bg-[#1D794E] rounded-[2rem] overflow-hidden aspect-[4/3] md:h-[130px]">
-//             <img src={images[6]} alt="Man in green suit" className="w-full h-full object-cover mix-blend-multiply object-center" />
-//           </div>
-//         </motion.div>
-
-//       </div>
-//     </div>
-//   );
-// }
-
-
-
-
-
-
-
 
 function Template5({ data }: { data: HeroTemplateData }) {
   const navigate = useNavigate();
@@ -834,100 +789,112 @@ function Template5({ data }: { data: HeroTemplateData }) {
   })();
 
   return (
-    <div className="relative w-full mt-16 sm:mt-20 lg:mt-24 bg-white font-sans px-6 py-12 md:py-16 lg:py-20 flex flex-col items-center justify-center gap-12 md:gap-20 select-none min-h-[calc(100vh-4rem)]">
+    <div
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        minHeight: "calc(100vh - var(--app-header-h, 7rem))",
+      }}
+      className="relative w-full bg-white font-sans px-4 sm:px-6 lg:px-8 py-12 md:py-16 lg:py-20 flex flex-col items-center justify-center gap-10 md:gap-14 select-none"
+    >
       {/* --- TOP HEADER SECTION --- */}
       <motion.div 
         initial={{ opacity: 0, y: -15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
-        className="w-full flex flex-col justify-center items-center text-center space-y-3"
+        className="w-full flex flex-col justify-center items-center text-center space-y-3 max-w-4xl mx-auto"
       >
         {/* Editorial Overline Label */}
         {data.accentText && (
-          <span className="text-xs font-serif uppercase tracking-[0.25em] text-neutral-500 font-semibold block">
+          <span className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400 block">
             {data.accentText}
           </span>
         )}
         
         {/* Center Main Heading */}
-        <h1 className="text-4xl sm:text-6xl md:text-7xl font-serif font-light tracking-wide text-neutral-900 text-center max-w-4xl leading-[1.1] mx-4">
-  {data.title}
-</h1>
+        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-neutral-950 text-center leading-[1.08] mx-4">
+          {data.title}
+        </h1>
+
+        {data.subtitle && (
+          <p className="text-neutral-500 text-sm sm:text-base max-w-xl mx-auto leading-relaxed pt-1">
+            {data.subtitle}
+          </p>
+        )}
       </motion.div>
 
       {/* --- GRID GALLERY SECTION --- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end max-w-[1400px] mx-auto w-full ">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 md:gap-5 items-end max-w-[1500px] mx-auto w-full">
         
-        {/* Column 1: Orange Suit & Kid */}
+        {/* Column 1: Top & Bottom Image */}
         <motion.div 
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.1 }}
-          className="flex flex-col gap-4 h-full justify-end"
+          className="flex flex-col gap-3 sm:gap-4 h-full justify-end"
         >
-          <div className="relative bg-[#FF6A13] rounded-[2rem] overflow-hidden aspect-[3/4] md:h-[280px]">
-            <img src={images[0]} alt="Fashion model" className="w-full h-full object-cover mix-blend-multiply" />
+          <div className="group relative bg-neutral-100 rounded-3xl overflow-hidden h-[260px] sm:h-[320px] md:h-[360px] lg:h-[400px] shadow-sm hover:shadow-lg transition-all duration-300 border border-neutral-200/50">
+            <img src={images[0]} alt="Fashion model" className="w-full h-full object-cover object-[center_15%] group-hover:scale-105 transition-transform duration-700" />
           </div>
-          <div className="bg-[#FFB03A] rounded-[2rem] overflow-hidden aspect-[4/3] md:h-[130px]">
-            <img src={images[1]} alt="Kid model" className="w-full h-full object-cover mix-blend-multiply object-top" />
+          <div className="group relative bg-neutral-100 rounded-2xl overflow-hidden h-[160px] sm:h-[190px] md:h-[210px] lg:h-[230px] shadow-sm hover:shadow-lg transition-all duration-300 border border-neutral-200/50">
+            <img src={images[1]} alt="Fashion detail" className="w-full h-full object-cover object-[center_30%] group-hover:scale-105 transition-transform duration-700" />
           </div>
         </motion.div>
 
-        {/* Column 2: Green Coat Woman (Tall) */}
+        {/* Column 2: Tall Image */}
         <motion.div 
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
           className="h-full flex flex-col justify-end"
         >
-          <div className="bg-[#A4E0A4] rounded-t-[3rem] rounded-b-[2rem] overflow-hidden aspect-[1/2] md:h-[430px]">
-            <img src={images[2]} alt="Woman in green coat" className="w-full h-full object-cover object-center mix-blend-multiply" />
+          <div className="group relative bg-neutral-100 rounded-t-[3rem] rounded-b-2xl overflow-hidden h-[440px] sm:h-[530px] md:h-[590px] lg:h-[650px] shadow-sm hover:shadow-lg transition-all duration-300 border border-neutral-200/50">
+            <img src={images[2]} alt="Fashion look" className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700" />
           </div>
         </motion.div>
 
-        {/* Column 3: Yellow Hat Portrait & CTA Button */}
+        {/* Column 3: Center Portrait & CTA Button */}
         <motion.div 
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="flex flex-col gap-4 items-center justify-center h-full my-auto"
+          className="flex flex-col gap-3 sm:gap-4 items-center justify-end h-full col-span-2 sm:col-span-1"
         >
-          <div className="bg-[#FFC72C] rounded-[2rem] overflow-hidden aspect-square w-full md:h-[260px]">
-            <img src={images[3]} alt="Man in yellow hat" className="w-full h-full object-cover mix-blend-multiply" />
+          <div className="group relative bg-neutral-100 rounded-3xl overflow-hidden w-full h-[280px] sm:h-[340px] md:h-[380px] lg:h-[420px] shadow-sm hover:shadow-lg transition-all duration-300 border border-neutral-200/50">
+            <img src={images[3]} alt="Fashion portrait" className="w-full h-full object-cover object-[center_20%] group-hover:scale-105 transition-transform duration-700" />
           </div>
           <button
             onClick={() => navigate(data.ctaLink || "/products")}
-            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-[var(--theme-primary-ink)] py-4 px-6 rounded-full flex items-center justify-center gap-2 font-medium tracking-wide shadow-lg transition-all group cursor-pointer"
+            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-[var(--theme-primary-ink)] py-4 px-6 rounded-full flex items-center justify-center gap-2 font-bold text-sm sm:text-base tracking-wide shadow-md hover:shadow-xl transition-all duration-200 group cursor-pointer"
           >
-            <span className="text-sm">{data.ctaText || "Explore Collections"}</span>
+            <span>{data.ctaText || "Explore Collections"}</span>
             <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </button>
         </motion.div>
 
-        {/* Column 4: White Cargo Suit Man */}
+        {/* Column 4: Tall Image */}
         <motion.div 
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
           className="h-full flex flex-col justify-end"
         >
-          <div className="bg-[#6BB7E7] rounded-t-[3rem] rounded-b-[2rem] overflow-hidden aspect-[1/2] md:h-[390px]">
-            <img src={images[4]} alt="Man in white suit" className="w-full h-full object-cover mix-blend-multiply" />
+          <div className="group relative bg-neutral-100 rounded-t-[3rem] rounded-b-2xl overflow-hidden h-[420px] sm:h-[500px] md:h-[560px] lg:h-[620px] shadow-sm hover:shadow-lg transition-all duration-300 border border-neutral-200/50">
+            <img src={images[4]} alt="Fashion portrait" className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700" />
           </div>
         </motion.div>
 
-        {/* Column 5: Red Glasses Woman & Green Suit Man */}
+        {/* Column 5: Two Stacked Images */}
         <motion.div 
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
-          className="flex flex-col gap-4 h-full justify-end"
+          className="flex flex-col gap-3 sm:gap-4 h-full justify-end"
         >
-          <div className="bg-[#8FE3B2] rounded-t-[3rem] rounded-b-[2rem] overflow-hidden aspect-[4/3] md:h-[235px]">
-            <img src={images[5]} alt="Woman in heart sunglasses" className="w-full h-full object-cover mix-blend-multiply" />
+          <div className="group relative bg-neutral-100 rounded-t-[2.5rem] rounded-b-2xl overflow-hidden h-[260px] sm:h-[310px] md:h-[340px] lg:h-[370px] shadow-sm hover:shadow-lg transition-all duration-300 border border-neutral-200/50">
+            <img src={images[5]} alt="Fashion style" className="w-full h-full object-cover object-[center_20%] group-hover:scale-105 transition-transform duration-700" />
           </div>
-          <div className="bg-[#1D794E] rounded-[2rem] overflow-hidden aspect-[4/3] md:h-[130px]">
-            <img src={images[6]} alt="Man in green suit" className="w-full h-full object-cover mix-blend-multiply object-center" />
+          <div className="group relative bg-neutral-100 rounded-2xl overflow-hidden h-[180px] sm:h-[220px] md:h-[235px] lg:h-[260px] shadow-sm hover:shadow-lg transition-all duration-300 border border-neutral-200/50">
+            <img src={images[6]} alt="Fashion aesthetic" className="w-full h-full object-cover object-[center_25%] group-hover:scale-105 transition-transform duration-700" />
           </div>
         </motion.div>
 
@@ -936,85 +903,93 @@ function Template5({ data }: { data: HeroTemplateData }) {
   );
 }
 
-// ─── Template 6: Diagonal Split ────────────────────────────────────────────────
-// Bold two-tone panel with a diagonal seam — a solid theme-primary panel carries the
-// headline/CTA, a photo panel sits behind a clipped diagonal edge, and an oversized
-// circular badge (highlightText/badgeText — same fields Template4 already uses) floats
-// on the seam. Reads as a sale/festive banner without needing any new content fields.
+// ─── Template 6: 3-Column Editorial Triptych ──────────────────────────────────
+const TEMPLATE6_FALLBACK_IMAGES = [
+  "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&q=80&w=1000",
+  "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=1000",
+  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=1000",
+];
+const TEMPLATE6_FALLBACK_TITLES = [
+  "Shop Chains",
+  "Shop Rings",
+  "SS26 Campaign: Out Now",
+];
+const TEMPLATE6_FALLBACK_LINKS = [
+  "/products",
+  "/products",
+  "/products",
+];
+const TEMPLATE6_FALLBACK_SUBTITLES = [
+  "",
+  "",
+  "SOURCE MATERIAL",
+];
+
 function Template6({ data }: { data: HeroTemplateData }) {
   const navigate = useNavigate();
-  const bgSrc = data.bgImage || image1;
-  const badgeParts = data.badgeText ? data.badgeText.split("\n") : [];
+
+  const items = Array.from({ length: 3 }).map((_, i) => ({
+    image: data.images?.[i] || TEMPLATE6_FALLBACK_IMAGES[i],
+    title: data.imageTitles?.[i] ?? TEMPLATE6_FALLBACK_TITLES[i],
+    link: data.imageLinks?.[i] || data.ctaLink || TEMPLATE6_FALLBACK_LINKS[i],
+    subtitle: data.imageSubtitles?.[i] ?? TEMPLATE6_FALLBACK_SUBTITLES[i],
+  }));
 
   return (
     <div
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-      className="relative overflow-hidden w-full bg-[var(--theme-primary)] mt-16 sm:mt-20 lg:mt-24"
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        height: "calc(100dvh - var(--app-header-h, 7rem))",
+      }}
+      className="relative w-full bg-neutral-950 font-sans px-0 py-0 select-none overflow-hidden min-h-[520px] flex flex-col"
     >
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 min-h-[calc(100vh-4rem)]">
-        {/* Left: solid theme-primary panel */}
-        <motion.div
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-          className="flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-20 lg:py-0 text-center lg:text-left"
-        >
-          {data.accentText && (
-            <p className="text-xs font-bold tracking-[0.2em] uppercase text-[var(--theme-primary-ink)]/70 mb-4">
-              {data.accentText}
-            </p>
-          )}
-          <h1 className="text-4xl sm:text-6xl lg:text-6xl font-black tracking-tight leading-[1.05] text-[var(--theme-primary-ink)] mb-6">
-            {data.title}
-          </h1>
-          <p className="text-[var(--theme-primary-ink)]/80 text-base sm:text-lg leading-relaxed mb-10 max-w-md mx-auto lg:mx-0">
-            {data.subtitle}
-          </p>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => navigate(data.ctaLink || "/products")}
-            className="mx-auto lg:mx-0 inline-flex items-center gap-3 bg-[var(--theme-primary-ink)] text-[var(--theme-primary)] px-8 py-4 rounded-xl text-base font-bold tracking-wide hover:opacity-90 transition-opacity shadow-lg w-fit"
-          >
-            {data.ctaText || "Shop Now"}
-            <ArrowRight className="w-5 h-5 stroke-[2.5]" />
-          </motion.button>
-        </motion.div>
-
-        {/* Right: photo panel behind a diagonal clip */}
-        <motion.div
-          initial={{ opacity: 0, scale: 1.05 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-          className="relative min-h-[320px] lg:min-h-0"
-          style={{
-            clipPath: "polygon(12% 0, 100% 0, 100% 100%, 0% 100%)",
-          }}
-        >
-          <img
-            src={bgSrc}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black/10" />
-        </motion.div>
-
-        {/* Badge floating on the seam — hidden on mobile where the seam isn't visible */}
-        {badgeParts.length > 0 && (
+      {/* 3-Column Full-Bleed Edge-to-Edge Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 w-full h-full flex-1 divide-y md:divide-y-0 md:divide-x divide-white/10">
+        {items.map((item, index) => (
           <motion.div
-            initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-            className="hidden lg:flex absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex-col items-center justify-center text-center w-36 h-36 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-ink)] shadow-2xl"
+            key={index}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: index * 0.1 }}
+            onClick={() => navigate(item.link || "/products")}
+            className="group relative cursor-pointer overflow-hidden bg-neutral-900 h-[60vh] md:h-full w-full flex flex-col justify-between p-6 sm:p-8 lg:p-10 pt-10 sm:pt-12 lg:pt-16 transition-all duration-500"
           >
-            <span className="text-2xl font-black leading-none">{badgeParts[0]}</span>
-            {badgeParts[1] && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide mt-1 px-3 leading-tight">
-                {badgeParts[1]}
+            {/* Background Image - with relaxed framing and subtle hover scale */}
+            <img
+              src={item.image}
+              alt={item.title || `Campaign look ${index + 1}`}
+              className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-[1.025] transition-transform duration-700 ease-out"
+            />
+
+            {/* Gradient Scrim for crisp readability */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-black/60 pointer-events-none transition-opacity duration-300 group-hover:opacity-85" />
+
+            {/* Top Text Link */}
+            <div className="relative z-10 flex items-center justify-between">
+              {item.title && (
+                <div className="inline-flex items-center gap-1.5 text-white">
+                  <span className="text-base sm:text-lg md:text-xl font-medium tracking-wide underline underline-offset-4 decoration-white/70 group-hover:decoration-white transition-all">
+                    {item.title}
+                  </span>
+                  <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Tag / Subtitle */}
+            <div className="relative z-10 flex items-end justify-between mt-auto pt-4">
+              {item.subtitle ? (
+                <span className="text-xs sm:text-sm font-semibold tracking-[0.25em] uppercase text-white/90 drop-shadow-md">
+                  {item.subtitle}
+                </span>
+              ) : <div />}
+
+              <span className="text-xs font-medium uppercase tracking-widest text-white/70 group-hover:text-white transition-colors flex items-center gap-1">
+                Explore <span>&rarr;</span>
               </span>
-            )}
+            </div>
           </motion.div>
-        )}
+        ))}
       </div>
     </div>
   );
@@ -1029,18 +1004,12 @@ function Template7({ data }: { data: HeroTemplateData }) {
 
   return (
     <div
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-      className="relative overflow-hidden w-full bg-white mt-16 sm:mt-20 lg:mt-24 flex items-center"
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        minHeight: "calc(100vh - var(--app-header-h, 7rem))",
+      }}
+      className="relative overflow-hidden w-full bg-white flex items-center"
     >
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
-        <span
-          className="text-[28vw] font-black leading-none whitespace-nowrap"
-          style={{ color: "var(--theme-surface-alt)" }}
-        >
-          {data.accentText || data.title.split(" ")[0]}
-        </span>
-      </div>
-
       <div className="relative z-10 mx-auto max-w-4xl px-6 text-center py-24">
         {data.accentText && (
           <motion.p
@@ -1087,128 +1056,445 @@ function Template7({ data }: { data: HeroTemplateData }) {
   );
 }
 
-// ─── Template 8: Sale Spotlight ─────────────────────────────────────────────────
-// The badge text (same "50%\nOFF SELECTED" field Template4/6 use) becomes the hero's
-// dominant visual element instead of a small corner badge — built for sale-event
-// occasions where the discount itself IS the headline. bgImage is unused.
+// ─── Template 8: 3D Curved Gallery Arc ──────────────────────────────────────────
+const TEMPLATE8_FALLBACK_IMAGES = [
+  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800",
+  "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=800",
+];
+
+const ARC_3D_PARAMS = [
+  {
+    rotateY: 42,
+    rotateZ: -6,
+    translateY: -32,
+    translateZ: 40,
+    scale: 1.15,
+    zIndex: 10,
+    lighting: "from-black/35 via-black/10 to-transparent",
+    sheen: "from-white/20 via-transparent to-transparent",
+  },
+  {
+    rotateY: 28,
+    rotateZ: -3.5,
+    translateY: -16,
+    translateZ: 20,
+    scale: 1.07,
+    zIndex: 12,
+    lighting: "from-black/25 via-transparent to-transparent",
+    sheen: "from-white/15 via-transparent to-transparent",
+  },
+  {
+    rotateY: 14,
+    rotateZ: -1.2,
+    translateY: -4,
+    translateZ: 8,
+    scale: 1.01,
+    zIndex: 14,
+    lighting: "from-black/15 via-transparent to-transparent",
+    sheen: "from-white/10 via-transparent to-transparent",
+  },
+  {
+    rotateY: 0,
+    rotateZ: 0,
+    translateY: 8,
+    translateZ: 0,
+    scale: 0.96,
+    zIndex: 16,
+    lighting: "from-transparent to-transparent",
+    sheen: "from-white/10 via-transparent to-transparent",
+  },
+  {
+    rotateY: -14,
+    rotateZ: 1.2,
+    translateY: -4,
+    translateZ: 8,
+    scale: 1.01,
+    zIndex: 14,
+    lighting: "from-transparent via-transparent to-black/15",
+    sheen: "from-transparent via-transparent to-white/10",
+  },
+  {
+    rotateY: -28,
+    rotateZ: 3.5,
+    translateY: -16,
+    translateZ: 20,
+    scale: 1.07,
+    zIndex: 12,
+    lighting: "from-transparent via-transparent to-black/25",
+    sheen: "from-transparent via-transparent to-white/15",
+  },
+  {
+    rotateY: -42,
+    rotateZ: 6,
+    translateY: -32,
+    translateZ: 40,
+    scale: 1.15,
+    zIndex: 10,
+    lighting: "from-transparent via-black/10 to-black/35",
+    sheen: "from-transparent via-transparent to-white/20",
+  },
+];
+
 function Template8({ data }: { data: HeroTemplateData }) {
   const navigate = useNavigate();
-  const badgeParts = data.badgeText ? data.badgeText.split("\n") : [];
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const title = data.title !== undefined && data.title !== "" ? data.title : "Curious What Else I've Created?";
+  const accent = data.accentText !== undefined && data.accentText !== "" ? data.accentText : "Behind the Designs";
+  const subtitle =
+    data.subtitle !== undefined && data.subtitle !== ""
+      ? data.subtitle
+      : "Explore our latest collection of handcrafted fashion, signature jewelry, and artisanal creations made for the modern aesthetic.";
+  const ctaLink = data.ctaLink || "/products";
+
+  const images = (() => {
+    const raw = data.images && data.images.length > 0 ? data.images.filter(Boolean) : [];
+    const filled: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      filled.push(raw[i] || TEMPLATE8_FALLBACK_IMAGES[i]);
+    }
+    return filled;
+  })();
 
   return (
-    <div
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-      className="relative overflow-hidden w-full bg-neutral-950 mt-16 sm:mt-20 lg:mt-24 flex items-center"
+    <section 
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        minHeight: "calc(100vh - var(--app-header-h, 7rem))",
+      }}
+      className="relative overflow-hidden w-full bg-[#fdfbf7] pt-14 pb-16 sm:pt-20 sm:pb-20 lg:pt-24 lg:pb-28 select-none flex flex-col justify-center min-h-[580px] sm:min-h-[640px] lg:min-h-[720px]"
     >
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full blur-[160px] pointer-events-none opacity-30" style={{ background: "var(--theme-primary)" }} />
+      {/* Background ambient subtle gradients */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-neutral-200/30 via-amber-50/10 to-transparent pointer-events-none blur-3xl -z-10" />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6 sm:px-8 lg:px-12 py-20 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Left: giant discount numeral */}
-          {badgeParts.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center lg:text-left order-2 lg:order-1"
-            >
-              <span
-                className="block text-[7rem] sm:text-[10rem] lg:text-[11rem] font-black leading-none tracking-tighter"
-                style={{ color: "var(--theme-accent)" }}
-              >
-                {badgeParts[0]}
-              </span>
-              {badgeParts[1] && (
-                <span className="block text-lg sm:text-2xl font-bold uppercase tracking-[0.15em] text-white/70 -mt-2 sm:-mt-4">
-                  {badgeParts[1]}
-                </span>
-              )}
-            </motion.div>
-          )}
-
-          {/* Right: headline, subtitle, CTA */}
-          <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.7, delay: 0.15 }}
-            className="text-center lg:text-left order-1 lg:order-2"
+      {/* Header Container */}
+      <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
+        {/* Main Headline */}
+        {title && (
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.1 }}
+            className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-neutral-900 leading-[1.12] mb-4"
           >
-            {data.accentText && (
-              <p className="text-xs font-bold tracking-[0.25em] uppercase text-white/50 mb-4">
-                {data.accentText}
-              </p>
-            )}
-            <h1 className="text-3xl sm:text-5xl font-bold text-white leading-tight tracking-tight mb-6">
-              {data.title}
-            </h1>
-            <p className="text-white/60 text-base sm:text-lg leading-relaxed mb-10 max-w-md mx-auto lg:mx-0">
-              {data.subtitle}
-            </p>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(data.ctaLink || "/products")}
-              className="inline-flex items-center gap-3 bg-[var(--theme-primary)] text-[var(--theme-primary-ink)] px-8 py-4 rounded-xl text-base font-bold tracking-wide hover:bg-[var(--theme-primary-hover)] transition-colors shadow-lg"
-            >
-              {data.ctaText || "Shop The Sale"}
-              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
-            </motion.button>
-          </motion.div>
+            {title}
+          </motion.h1>
+        )}
+
+        {/* Subtitle */}
+        {subtitle && (
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+            className="text-neutral-600 text-sm sm:text-base lg:text-lg max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed"
+          >
+            {subtitle}
+          </motion.p>
+        )}
+      </div>
+
+      {/* 3D Curved Arc Gallery (Desktop / Tablet) */}
+      <div className="hidden sm:block w-full max-w-[1400px] mx-auto px-4 overflow-visible py-4">
+        <div
+          style={{
+            perspective: "850px",
+            perspectiveOrigin: "center 45%",
+            transformStyle: "preserve-3d",
+          }}
+          className="relative flex items-center justify-center -space-x-1 md:gap-2 lg:gap-3 py-6"
+        >
+          {images.map((src, idx) => {
+            const param = ARC_3D_PARAMS[idx] || ARC_3D_PARAMS[3];
+            const isHovered = hoveredIndex === idx;
+            const anyHovered = hoveredIndex !== null;
+
+            return (
+              <motion.div
+                key={idx}
+                onMouseEnter={() => setHoveredIndex(idx)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                onClick={() => navigate(ctaLink)}
+                animate={{
+                  rotateY: isHovered ? 0 : param.rotateY,
+                  rotateZ: isHovered ? 0 : param.rotateZ,
+                  y: isHovered ? -38 : param.translateY,
+                  z: isHovered ? 90 : param.translateZ,
+                  scale: isHovered ? 1.2 : anyHovered ? 0.94 : param.scale,
+                  zIndex: isHovered ? 60 : param.zIndex,
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 22,
+                }}
+                style={{
+                  transformStyle: "preserve-3d",
+                  transformOrigin: "center center",
+                }}
+                className={`group relative cursor-pointer rounded-2xl md:rounded-3xl overflow-hidden w-28 sm:w-36 md:w-44 lg:w-48 xl:w-56 aspect-[3/4.2] transition-all duration-300 ${
+                  isHovered
+                    ? "shadow-[0_30px_60px_-12px_rgba(0,0,0,0.38)]"
+                    : "shadow-[0_20px_45px_-12px_rgba(0,0,0,0.22)]"
+                }`}
+              >
+                <img
+                  src={src}
+                  alt={`Showcase item ${idx + 1}`}
+                  className="w-full h-full object-cover select-none pointer-events-none transition-transform duration-700 group-hover:scale-105"
+                />
+
+                {/* 3D Realistic Cylindrical Ambient Shadow/Lighting */}
+                <div
+                  className={`absolute inset-0 bg-gradient-to-r ${param.lighting} pointer-events-none transition-opacity duration-300 ${
+                    isHovered ? "opacity-0" : "opacity-100"
+                  }`}
+                />
+
+                {/* Specular Rim Lighting Sheen */}
+                <div
+                  className={`absolute inset-0 bg-gradient-to-t ${param.sheen} pointer-events-none`}
+                />
+
+                {/* Subtle dark vignette on hover */}
+                <div
+                  className={`absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none transition-opacity duration-300 ${
+                    isHovered ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              </motion.div>
+            );
+          })}
         </div>
+      </div>
+
+      {/* Mobile Horizontal Snap-scroll Carousel */}
+      <div className="sm:hidden w-full overflow-x-auto flex gap-3 px-6 py-4 snap-x snap-mandatory scrollbar-none">
+        {images.map((src, idx) => (
+          <div
+            key={idx}
+            onClick={() => navigate(ctaLink)}
+            className="snap-center shrink-0 w-44 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border border-neutral-200 bg-neutral-100 active:scale-95 transition-transform cursor-pointer"
+          >
+            <img
+              src={src}
+              alt={`Showcase item ${idx + 1}`}
+              className="w-full h-full object-cover pointer-events-none"
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Template 9: Full-Screen 5-Banner Auto Carousel (5-second transition) ────
+const TEMPLATE9_FALLBACK_IMAGES = [
+  "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=85&w=1920",
+  "https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&q=85&w=1920",
+  "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&q=85&w=1920",
+  "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&q=85&w=1920",
+  "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=85&w=1920",
+];
+
+function Template9({ data }: { data: HeroTemplateData }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Collect all available images (up to 5)
+  const slides = (() => {
+    const rawImages = (data.images && data.images.length > 0)
+      ? data.images.filter(Boolean)
+      : [];
+    if (rawImages.length === 0) {
+      return TEMPLATE9_FALLBACK_IMAGES;
+    }
+    const filled: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      filled.push(rawImages[i] || TEMPLATE9_FALLBACK_IMAGES[i]);
+    }
+    return filled;
+  })();
+
+  const totalSlides = slides.length;
+
+  // Auto-advance every 5 seconds (5000ms) continuously
+  useEffect(() => {
+    if (totalSlides <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % totalSlides);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [totalSlides]);
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev - 1 + totalSlides) % totalSlides);
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev + 1) % totalSlides);
+  };
+
+  return (
+    <div 
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        height: "calc(100dvh - var(--app-header-h, 7rem))",
+      }}
+      className="relative overflow-hidden w-full bg-neutral-950 min-h-[520px] select-none group"
+    >
+      {/* Slide Images with smooth crossfade & gentle Ken Burns animation */}
+      <AnimatePresence initial={false}>
+        <motion.div
+          key={currentIndex}
+          initial={{ opacity: 0, scale: 1.04 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.9, ease: "easeInOut" }}
+          className="absolute inset-0 w-full h-full"
+        >
+          <img
+            src={slides[currentIndex]}
+            alt={`Banner slide ${currentIndex + 1}`}
+            className="w-full h-full object-cover object-center"
+          />
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Simple Navigation Arrows */}
+      <button
+        onClick={handlePrev}
+        aria-label="Previous Slide"
+        className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-neutral-900 flex items-center justify-center transition-all shadow-md hover:scale-105 cursor-pointer opacity-0 group-hover:opacity-100"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+
+      <button
+        onClick={handleNext}
+        aria-label="Next Slide"
+        className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-neutral-900 flex items-center justify-center transition-all shadow-md hover:scale-105 cursor-pointer opacity-0 group-hover:opacity-100"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+
+      {/* Simple Bottom Pagination Dots */}
+      <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+        {slides.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentIndex(idx);
+            }}
+            aria-label={`Go to slide ${idx + 1}`}
+            className={`transition-all duration-300 rounded-full cursor-pointer shadow-sm ${
+              currentIndex === idx
+                ? "w-6 h-2 bg-white"
+                : "w-2 h-2 bg-white/50 hover:bg-white/80"
+            }`}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-// ─── Template 9: Full-bleed with Frosted Info Bar ─────────────────────────────
-// A full-bleed background photo with a frosted-glass bar anchored to the bottom edge —
-// a different treatment from Template2's centered-overlay full-width look.
-function Template9({ data }: { data: HeroTemplateData }) {
+// ─── Template 10: Luxury Editorial Festive Banner ─────────────────────────────
+const TEMPLATE10_FALLBACK_BANNER =
+  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=85&w=2400";
+
+function Template10({ data }: { data: HeroTemplateData }) {
   const navigate = useNavigate();
-  const bgSrc = data.bgImage || image1;
+  const bannerSrc = data.bgImage || TEMPLATE10_FALLBACK_BANNER;
+  const title = data.title !== undefined && data.title !== "" ? data.title : "Festive";
+  const scriptAccent = data.highlightText !== undefined && data.highlightText !== "" ? data.highlightText : (data.accentText || "Sale");
+  const subtitle = data.subtitle !== undefined && data.subtitle !== "" ? data.subtitle : "Flat 50% OFF +\nExtra Rs.1000/- OFF";
+  const ctaText = data.ctaText !== undefined && data.ctaText !== "" ? data.ctaText : "Explore More";
+  const ctaLink = data.ctaLink || "/products";
 
   return (
-    <div
-      style={{ minHeight: "calc(100vh - 4rem)" }}
-      className="relative overflow-hidden w-full mt-16 sm:mt-20 lg:mt-24"
+    <section 
+      style={{
+        marginTop: "var(--app-header-h, 7rem)",
+        minHeight: "calc(100vh - var(--app-header-h, 7rem))",
+      }}
+      className="relative w-full overflow-hidden bg-neutral-950 select-none min-h-[480px] sm:min-h-[560px] lg:min-h-[620px] flex items-center"
     >
-      <img src={bgSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/10" />
+      {/* Full-bleed Background Image */}
+      <div className="absolute inset-0 w-full h-full pointer-events-none">
+        <img
+          src={bannerSrc}
+          alt="Hero Banner"
+          className="w-full h-full object-cover object-center lg:object-right"
+        />
+        {/* Cinematic Left Gradient Vignette for perfect text readability */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent w-full sm:w-3/4 lg:w-3/5" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent sm:hidden" />
+      </div>
 
-      <div style={{ minHeight: "calc(100vh - 4rem)" }} className="relative z-10 flex flex-col justify-end">
+      {/* Luxury Editorial Text Overlay */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-12 lg:px-16 w-full py-14 sm:py-20 lg:py-28 flex flex-col justify-center">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="mx-4 sm:mx-8 lg:mx-12 mb-6 sm:mb-10 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 px-6 sm:px-10 py-8 sm:py-10"
+          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-xl text-left space-y-5 sm:space-y-7"
         >
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-            <div className="max-w-xl">
-              {data.accentText && (
-                <p className="text-xs font-bold tracking-[0.25em] uppercase text-white/70 mb-3">
-                  {data.accentText}
-                </p>
+          {/* Main Headline with Serif + Script Accent Intertwined */}
+          {(title || scriptAccent) && (
+            <div className="relative flex items-baseline flex-wrap gap-x-3 gap-y-1">
+              {title && (
+                <h1
+                  style={{ fontFamily: "'Cormorant Garamond', 'Playfair Display', serif" }}
+                  className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-normal text-white tracking-tight leading-none drop-shadow-2xl"
+                >
+                  {title}
+                </h1>
               )}
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight tracking-tight mb-3">
-                {data.title}
-              </h1>
-              <p className="text-white/70 text-sm sm:text-base leading-relaxed">
-                {data.subtitle}
-              </p>
+              {scriptAccent && (
+                <span
+                  style={{ fontFamily: "'Alex Brush', 'Great Vibes', cursive" }}
+                  className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl text-white font-normal leading-none -ml-1 sm:-ml-2 drop-shadow-2xl"
+                >
+                  {scriptAccent}
+                </span>
+              )}
             </div>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(data.ctaLink || "/products")}
-              className="shrink-0 inline-flex items-center gap-3 bg-white text-gray-900 px-7 py-3.5 rounded-xl text-sm font-bold tracking-wide hover:bg-gray-100 transition-colors shadow-lg w-fit"
+          )}
+
+          {/* Subtitle / Multiline Discount Offer */}
+          {subtitle && (
+            <div
+              style={{ fontFamily: "'Cormorant Garamond', 'Playfair Display', serif" }}
+              className="text-white/95 text-xl sm:text-3xl lg:text-4xl font-normal leading-tight tracking-wide drop-shadow-md whitespace-pre-line"
             >
-              {data.ctaText || "Shop Now"}
-              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-            </motion.button>
-          </div>
+              {subtitle}
+            </div>
+          )}
+
+          {/* Luxury Minimalist Outline CTA Button */}
+          {ctaText && (
+            <div className="pt-2 sm:pt-3">
+              <motion.button
+                whileHover={{ scale: 1.04, backgroundColor: "rgba(255, 255, 255, 1)", color: "#0a0a0a" }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate(ctaLink)}
+                className="inline-flex items-center justify-center border border-white/70 hover:border-white text-white px-7 sm:px-9 py-3 sm:py-3.5 text-xs sm:text-sm font-medium uppercase tracking-[0.25em] transition-colors duration-300 cursor-pointer shadow-xl backdrop-blur-sm"
+              >
+                {ctaText}
+              </motion.button>
+            </div>
+          )}
         </motion.div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1281,6 +1567,10 @@ export default function HeroSection({ onReady }: { onReady?: () => void }) {
               "9": {
                 ...DEFAULT_CONFIG.templates["9"],
                 ...data.heroConfig.templates?.["9"],
+              },
+              "10": {
+                ...DEFAULT_CONFIG.templates["10"],
+                ...data.heroConfig.templates?.["10"],
               },
             },
           };
@@ -1363,41 +1653,31 @@ export default function HeroSection({ onReady }: { onReady?: () => void }) {
   // ── Determine skeleton styles that EXACTLY match the target template ──────
   // This prevents any height/background jump when transitioning loading → template.
   const skeletonBg =
-    config.activeTemplate === 2 || config.activeTemplate === 8 || config.activeTemplate === 9
+    config.activeTemplate === 2 || config.activeTemplate === 9 || config.activeTemplate === 10
       ? "bg-neutral-950"
+      : config.activeTemplate === 8
+      ? "bg-[#fdfbf7]"
       : config.activeTemplate === 4
       ? "bg-[#fafafa]"
       : config.activeTemplate === 6
-      ? "bg-[var(--theme-primary)]"
+      ? "bg-white"
       : "bg-white";
 
   const skeletonStyle: React.CSSProperties = {
-    minHeight:
-      config.activeTemplate === 2
-        ? "calc(100vh + 6rem)"
-        : "calc(100vh - 4rem)",
+    marginTop: "var(--app-header-h, 7rem)",
+    minHeight: "calc(100vh - var(--app-header-h, 7rem))",
   };
-
-  const skeletonMargin =
-    config.activeTemplate === 1
-      ? "mt-35 sm:mt-20 lg:mt-24"
-      : "mt-16 sm:mt-20 lg:mt-24";
-
-  const loaderColor =
-    config.activeTemplate === 2 || config.activeTemplate === 8 || config.activeTemplate === 9
-      ? "#ffffff"
-      : "#8aca8d";
 
   // ── Render skeleton overlay if not ready ─────────────────────────────────
   if (!ready)
     return (
       <div
         style={skeletonStyle}
-        className={`w-full ${skeletonBg} ${skeletonMargin} flex items-center justify-center`}
+        className={`w-full ${skeletonBg} flex items-center justify-center`}
       >
-        <div className="flex flex-col items-center gap-3">
-          <PulseLoader color="#000000" />
-        </div>
+        <p className="text-sm uppercase font-bold tracking-widest text-slate-400 font-mono text-center select-none">
+          Loading...
+        </p>
       </div>
     );
 
@@ -1409,5 +1689,6 @@ export default function HeroSection({ onReady }: { onReady?: () => void }) {
   if (config.activeTemplate === 7) return <Template7 data={templateData} />;
   if (config.activeTemplate === 8) return <Template8 data={templateData} />;
   if (config.activeTemplate === 9) return <Template9 data={templateData} />;
+  if (config.activeTemplate === 10) return <Template10 data={templateData} />;
   return <Template1 data={templateData} />;
 }

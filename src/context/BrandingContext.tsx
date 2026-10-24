@@ -24,10 +24,25 @@ const BrandingContext = createContext<BrandingContextValue | undefined>(undefine
 
 const BRANDING_CACHE_KEY = "crm_branding_cache";
 
+const DEFAULT_BRANDING: BrandingData = {
+  companyName: "Storra",
+  companyTagline: "",
+  companyLogo: "",
+  companyFavicon: "/vite.svg",
+  showCompanyName: true,
+  showCompanyTagline: true,
+};
+
 function readBrandingCache(): BrandingData | null {
   try {
     const raw = localStorage.getItem(BRANDING_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as BrandingData) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BrandingData;
+    return {
+      ...parsed,
+      companyName: parsed.companyName?.trim() || "Storra",
+      companyFavicon: parsed.companyFavicon?.trim() || "/vite.svg",
+    };
   } catch {
     return null;
   }
@@ -40,18 +55,9 @@ export const useBranding = (): BrandingContextValue => {
 };
 
 export const BrandingProvider = ({ children }: { children: ReactNode }) => {
-  // Initialise immediately from cache so the navbar never flickers on reload
+  // Initialise immediately from cache or defaults so the navbar never flickers on reload
   const cached = readBrandingCache();
-  const [branding, setBranding] = useState<BrandingData>(
-    cached ?? {
-      companyName: "",
-      companyTagline: "",
-      companyLogo: "",
-      companyFavicon: "",
-      showCompanyName: true,
-      showCompanyTagline: true,
-    }
-  );
+  const [branding, setBranding] = useState<BrandingData>(cached ?? DEFAULT_BRANDING);
   // If we already have cached data, consider it "loaded" right away
   const [loading, setLoading] = useState(!cached);
 
@@ -60,10 +66,10 @@ export const BrandingProvider = ({ children }: { children: ReactNode }) => {
       const res = await api.get("/admin/company-settings");
       const s = res.data.settings ?? {};
       const fresh: BrandingData = {
-        companyName: s.COMPANY_NAME ?? "",
+        companyName: s.COMPANY_NAME?.trim() || "Storra",
         companyTagline: s.COMPANY_TAGLINE ?? "",
         companyLogo: s.COMPANY_LOGO ?? "",
-        companyFavicon: s.COMPANY_FAVICON ?? "",
+        companyFavicon: s.COMPANY_FAVICON?.trim() || "/vite.svg",
         showCompanyName:
           s.SHOW_COMPANY_NAME === "true" ||
           s.SHOW_COMPANY_NAME === "1" ||
@@ -90,24 +96,29 @@ export const BrandingProvider = ({ children }: { children: ReactNode }) => {
 
   // Sync browser tab title and favicon whenever branding changes
   useEffect(() => {
-    if (branding.companyName && !document.title) {
-      document.title = branding.companyName;
+    const title = branding.companyName?.trim() || "Storra";
+    if (!document.title || document.title === "Amore Webstore" || document.title === "Vite App") {
+      document.title = title;
     }
-    if (branding.companyFavicon) {
-      try {
-        const existingIcons = document.querySelectorAll<HTMLLinkElement>(
-          "link[rel*='icon'], link#app-favicon"
-        );
-        existingIcons.forEach((el) => el.remove());
+    const faviconUrl = branding.companyFavicon?.trim() || "/vite.svg";
+    try {
+      const existingIcons = document.querySelectorAll<HTMLLinkElement>(
+        "link[rel*='icon'], link#app-favicon"
+      );
+      existingIcons.forEach((el) => el.remove());
 
-        const link = document.createElement("link");
-        link.id = "app-favicon";
-        link.rel = "icon";
-        link.href = branding.companyFavicon;
-        document.head.appendChild(link);
-      } catch {
-        // Fallback for non-standard environments
+      const link = document.createElement("link");
+      link.id = "app-favicon";
+      link.rel = "icon";
+      if (faviconUrl.endsWith(".svg")) {
+        link.type = "image/svg+xml";
+      } else {
+        link.type = "image/png";
       }
+      link.href = faviconUrl;
+      document.head.appendChild(link);
+    } catch {
+      // Fallback for non-standard environments
     }
   }, [branding.companyName, branding.companyFavicon]);
 

@@ -548,7 +548,7 @@ const ListUsers = ({ roleFilter }: ListUsersProps) => {
         {loading && (
           <div className="py-16 text-center">
             <ClipLoader color="#0f172a" size={28} />
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mt-3">Loading directory...</p>
+            <p className="text-sm font-bold uppercase tracking-wider text-slate-400 mt-3">Loading directory...</p>
           </div>
         )}
         
