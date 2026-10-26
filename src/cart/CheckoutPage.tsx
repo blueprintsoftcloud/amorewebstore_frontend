@@ -13,7 +13,7 @@ import {
   LockClosedIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import { ArrowLeft, CheckCircle, Package, QrCode, UploadCloud, Copy, Trash2, X, Sparkles, AlertCircle, Smartphone } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle, Package, QrCode, UploadCloud, Copy, Trash2, X, Sparkles, AlertCircle, Smartphone } from "lucide-react";
 import QRCode from "qrcode";
 
 const validateTransactionId = (val: string) => {
@@ -82,6 +82,76 @@ const customIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+
+const GooglePayIcon = ({ className = "h-5.5 w-auto" }: { className?: string }) => (
+  <svg viewBox="14 21 91 36" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M57.5437 26.997V35.9796H63.0833C64.4033 35.9796 65.4945 35.5352 66.3569 34.6486C67.2435 33.7642 67.6879 32.7082 67.6879 31.4872C67.6879 30.2904 67.2435 29.2476 66.3569 28.3588C65.4945 27.4502 64.4033 26.9948 63.0833 26.9948H57.5437V26.997ZM57.5437 39.141V49.5602H54.2349V23.8356H63.0129C65.2415 23.8356 67.1335 24.577 68.6933 26.062C70.2773 27.547 71.0693 29.3554 71.0693 31.4872C71.0693 33.6674 70.2773 35.489 68.6933 36.9476C67.1599 38.4106 65.2635 39.1388 63.0107 39.1388H57.5437V39.141ZM74.4133 44.1724C74.4133 45.0348 74.7785 45.752 75.5111 46.3284C76.2415 46.9004 77.0995 47.1886 78.0807 47.1886C79.4733 47.1886 80.7119 46.6738 81.8031 45.6464C82.8965 44.6146 83.4399 43.4046 83.4399 42.0164C82.4081 41.2024 80.9693 40.7954 79.1235 40.7954C77.7815 40.7954 76.6595 41.121 75.7619 41.7678C74.8621 42.4146 74.4133 43.2132 74.4133 44.1724ZM78.6945 31.3794C81.1409 31.3794 83.0703 32.0328 84.4871 33.3374C85.8995 34.6442 86.6079 36.435 86.6079 38.7098V49.5602H83.4421V47.1182H83.2991C81.9307 49.129 80.1091 50.1366 77.8299 50.1366C75.8895 50.1366 74.2637 49.5602 72.9569 48.4118C71.6501 47.2612 70.9967 45.8246 70.9967 44.0998C70.9967 42.2782 71.6853 40.8306 73.0647 39.7526C74.4441 38.6746 76.2833 38.1356 78.5867 38.1356C80.5491 38.1356 82.1705 38.4942 83.4399 39.2136V38.4568C83.4399 37.3084 82.9845 36.3316 82.0737 35.5308C81.1961 34.7411 80.0531 34.3114 78.8727 34.3274C77.0247 34.3274 75.5639 35.104 74.4837 36.6638L71.5709 34.829C73.1769 32.53 75.5529 31.3794 78.6945 31.3794ZM104.771 31.9558L93.7271 57.3218H90.3105L94.4113 48.447L87.1469 31.9558H90.7439L95.9953 44.6036H96.0657L101.174 31.9536L104.771 31.9558Z"
+      fill="#3C4043"
+    />
+    <path
+      d="M44.1722 36.8948C44.1722 35.8542 44.0842 34.8488 43.917 33.8896H29.9602V39.5832H37.955C37.6239 41.4215 36.5557 43.0445 34.9982 44.0756V47.7716H39.77C42.564 45.1976 44.1722 41.3916 44.1722 36.8948Z"
+      fill="#4285F4"
+    />
+    <path
+      d="M29.9603 51.34C33.9555 51.34 37.3171 50.031 39.7701 47.7738L34.9983 44.0756C33.6717 44.9688 31.9623 45.4902 29.9603 45.4902C26.1015 45.4902 22.8235 42.8898 21.6531 39.3874H16.7383V43.1956C19.2527 48.1909 24.3678 51.3425 29.9603 51.3422"
+      fill="#34A853"
+    />
+    <path
+      d="M21.6529 39.3874C21.0355 37.5518 21.0355 35.5646 21.6529 33.729V29.9208H16.7381C15.6991 31.9782 15.1587 34.2512 15.1606 36.556C15.1606 38.943 15.7327 41.198 16.7381 43.1934L21.6529 39.3852V39.3874Z"
+      fill="#FABB05"
+    />
+    <path
+      d="M29.96 27.6262C32.1424 27.6262 34.096 28.3742 35.636 29.8438V29.846L39.86 25.6264C37.2992 23.2416 33.9552 21.7764 29.9622 21.7764C24.3703 21.7757 19.2553 24.9264 16.7402 29.9208L21.655 33.729C22.8254 30.2266 26.1034 27.6262 29.9622 27.6262"
+      fill="#E94235"
+    />
+  </svg>
+);
+
+const PhonePeIcon = ({ className = "h-7 w-7" }: { className?: string }) => (
+  <svg viewBox="0 0 70 70" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="35" r="32" fill="#5f259f" />
+    <path
+      d="m 48.431347,27.0768 c 0,-1.168224 -1.001334,-2.169558 -2.169557,-2.169558 h -4.005338 l -9.1789,-10.514013 c -0.834446,-1.001335 -2.169559,-1.335113 -3.504671,-1.001335 l -3.170893,1.001335 c -0.500667,0.166889 -0.667556,0.834445 -0.333778,1.168223 l 10.013345,9.512679 H 20.894648 c -0.500667,0 -0.834445,0.333778 -0.834445,0.834445 v 1.668891 c 0,1.168224 1.001334,2.169558 2.169558,2.169558 h 2.336448 v 8.010676 c 0,6.008008 3.170892,9.512678 8.511343,9.512678 1.668891,0 3.004003,-0.166889 4.672894,-0.834445 v 5.340451 c 0,1.502002 1.168224,2.670225 2.670225,2.670225 h 2.336448 c 0.500667,0 1.001335,-0.500667 1.001335,-1.001334 v -23.86514 h 3.838448 c 0.500667,0 0.834445,-0.333778 0.834445,-0.834445 z M 37.750446,41.429261 c -1.001334,0.500668 -2.336447,0.667557 -3.337781,0.667557 -2.670226,0 -4.005339,-1.335114 -4.005339,-4.339117 v -8.010676 h 7.34312 z"
+      fill="#ffffff"
+    />
+  </svg>
+);
+
+const PaytmIcon = ({ className = "h-4.5 w-auto" }: { className?: string }) => (
+  <svg viewBox="0 0 16.838 5.285" className={className} xmlns="http://www.w3.org/2000/svg">
+    <g transform="matrix(0.35277777,0,0,-0.35277777,16.777056,1.5610286)">
+      <path
+        style={{ fill: "#00BAF2", fillOpacity: 1, fillRule: "nonzero", stroke: "none" }}
+        d="M 0,0 C -0.433,1.238 -1.613,2.127 -2.999,2.127 H -3.028 C -3.929,2.127 -4.741,1.752 -5.319,1.15 -5.898,1.752 -6.71,2.127 -7.61,2.127 h -0.029 c -0.792,0 -1.516,-0.29 -2.072,-0.77 V 1.601 C -9.73,1.844 -9.93,2.035 -10.177,2.035 h -2.126 c -0.26,0 -0.47,-0.21 -0.47,-0.471 V -9.981 c 0,-0.261 0.21,-0.471 0.47,-0.471 h 2.126 c 0.237,0 0.432,0.177 0.463,0.406 l -10e-4,8.288 c 0,0.029 10e-4,0.056 0.004,0.083 0.034,0.37 0.305,0.674 0.733,0.712 h 0.079 0.223 0.09 c 0.179,-0.016 0.33,-0.079 0.449,-0.174 0.185,-0.147 0.288,-0.373 0.288,-0.621 l 0.008,-8.247 c 0,-0.261 0.211,-0.472 0.47,-0.472 h 2.126 c 0.251,0 0.455,0.2 0.467,0.449 l -0.001,8.281 c -0.001,0.272 0.125,0.518 0.346,0.664 0.109,0.07 0.24,0.117 0.391,0.131 h 0.079 0.223 0.09 c 0.46,-0.04 0.738,-0.389 0.737,-0.795 l 0.008,-8.236 c 0,-0.261 0.211,-0.471 0.47,-0.471 h 2.126 c 0.259,0 0.47,0.21 0.47,0.471 v 8.858 C 0.161,-0.521 0.093,-0.264 0,0"
+      />
+    </g>
+    <g transform="matrix(0.35277777,0,0,-0.35277777,11.699676,0.85374862)">
+      <path
+        style={{ fill: "#00BAF2", fillOpacity: 1, fillRule: "nonzero", stroke: "none" }}
+        d="m 0,0 h -1.216 v 1.97 0 c 0,0.002 0,0.004 0,0.006 0,0.237 -0.192,0.429 -0.429,0.429 C -1.673,2.405 -1.7,2.401 -1.726,2.396 -3.074,2.026 -2.804,0.159 -5.265,0 H -5.32 -5.504 c -0.036,0 -0.07,-0.005 -0.103,-0.012 h -0.002 l 0.002,-10e-4 C -5.817,-0.06 -5.975,-0.246 -5.975,-0.47 v -2.126 c 0,-0.259 0.211,-0.47 0.471,-0.47 h 1.283 l -0.002,-9.015 c 0,-0.257 0.208,-0.465 0.465,-0.465 h 2.102 c 0.256,0 0.464,0.208 0.464,0.465 l 10e-4,9.015 H 0 c 0.259,0 0.47,0.211 0.47,0.47 V -0.47 C 0.47,-0.211 0.259,0 0,0"
+      />
+    </g>
+    <g transform="matrix(0.35277777,0,0,-0.35277777,9.0012361,0.85374862)">
+      <path
+        style={{ fill: "#002970", fillOpacity: 1, fillRule: "nonzero", stroke: "none" }}
+        d="M 0,0 H -2.126 C -2.385,0 -2.595,-0.211 -2.595,-0.47 V -4.866 C -2.6,-5.138 -2.82,-5.356 -3.093,-5.356 h -0.89 c -0.276,0 -0.499,0.222 -0.499,0.498 L -4.49,-0.47 C -4.49,-0.211 -4.701,0 -4.96,0 h -2.126 c -0.26,0 -0.47,-0.211 -0.47,-0.47 v -4.818 c 0,-1.83 1.305,-3.135 3.136,-3.135 0,0 1.374,0 1.416,-0.008 0.248,-0.028 0.441,-0.236 0.441,-0.492 0,-0.253 -0.189,-0.46 -0.434,-0.491 -0.012,-0.002 -0.023,-0.005 -0.036,-0.007 l -3.109,-0.011 c -0.26,0 -0.47,-0.211 -0.47,-0.47 v -2.125 c 0,-0.26 0.21,-0.47 0.47,-0.47 h 3.476 c 1.832,0 3.136,1.304 3.136,3.135 V -0.47 C 0.47,-0.211 0.26,0 0,0"
+      />
+    </g>
+    <g transform="matrix(0.35277777,0,0,-0.35277777,1.7417071,2.2279886)">
+      <path
+        style={{ fill: "#002970", fillOpacity: 1, fillRule: "nonzero", stroke: "none" }}
+        d="m 0,0 v -0.992 -0.32 c 0,-0.275 -0.223,-0.499 -0.498,-0.499 l -1.349,-0.001 v 2.629 h 1.349 C -0.223,0.817 0,0.595 0,0.319 Z M 0.187,3.896 H -4.46 c -0.255,0 -0.461,-0.207 -0.461,-0.461 V 1.352 c 0,-0.004 0.001,-0.008 0.001,-0.012 0,-0.01 -0.001,-0.02 -0.001,-0.029 V -5.37 -8.117 c 0,-0.256 0.192,-0.465 0.43,-0.471 h 0.04 2.126 c 0.259,0 0.47,0.21 0.47,0.47 l 0.008,3.231 h 2.034 c 1.702,0 2.888,1.181 2.888,2.89 v 2.999 c 0,1.709 -1.186,2.894 -2.888,2.894"
+      />
+    </g>
+    <g transform="matrix(0.35277777,0,0,-0.35277777,4.8535941,3.9887686)">
+      <path
+        style={{ fill: "#002970", fillOpacity: 1, fillRule: "nonzero", stroke: "none" }}
+        d="M 0,0 V -0.332 C 0,-0.359 -0.004,-0.385 -0.008,-0.41 -0.013,-0.434 -0.02,-0.457 -0.028,-0.479 -0.094,-0.665 -0.28,-0.8 -0.501,-0.8 h -0.885 c -0.276,0 -0.501,0.21 -0.501,0.468 v 0.401 c 0,0.005 -10e-4,0.01 -10e-4,0.015 l 10e-4,1.067 v 0.002 0.118 0.214 l 0.001,0.003 c 10e-4,0.257 0.224,0.465 0.5,0.465 h 0.885 C -0.224,1.953 0,1.744 0,1.485 Z m -0.338,8.875 h -2.95 C -3.549,8.875 -3.76,8.677 -3.76,8.434 V 7.607 c 0,-0.005 10e-4,-0.011 10e-4,-0.016 0,-0.006 -10e-4,-0.012 -10e-4,-0.018 V 6.44 c 0,-0.257 0.224,-0.467 0.5,-0.467 h 2.809 c 0.222,-0.035 0.398,-0.197 0.423,-0.45 V 5.249 C -0.053,5.008 -0.227,4.832 -0.439,4.812 H -1.83 c -1.85,0 -3.168,-1.229 -3.168,-2.955 v -2.409 -0.063 c 0,-1.716 1.133,-2.937 2.97,-2.937 h 3.855 c 0.692,0 1.253,0.524 1.253,1.169 v 8.067 c 0,1.956 -1.008,3.191 -3.418,3.191"
+      />
+    </g>
+  </svg>
+);
 
 interface AddressState {
   house: string;
@@ -271,6 +341,7 @@ const CheckoutPage = () => {
   useBodyScrollLock(showQrModal);
   const [dynamicQrUrl, setDynamicQrUrl] = useState<string | null>(null);
   const [upiIntentUri, setUpiIntentUri] = useState<string | null>(null);
+  const [selectedUpiApp, setSelectedUpiApp] = useState<"gpay" | "phonepe" | "paytm">("gpay");
   const [qrTransactionId, setQrTransactionId] = useState("");
   const [qrScreenshotFile, setQrScreenshotFile] = useState<File | null>(null);
   const [qrScreenshotPreview, setQrScreenshotPreview] = useState<string | null>(null);
@@ -955,7 +1026,7 @@ const CheckoutPage = () => {
       }
 
       toast.dismiss(toastId);
-      toast.success("Order placed successfully with QR payment!");
+      toast.success("Order placed successfully with Direct payment!");
       setShowQrModal(false);
       setQrModalStep("SCAN");
       setQrTransactionId("");
@@ -1025,6 +1096,92 @@ const CheckoutPage = () => {
     }
   }, [qrConfig.upiId, qrConfig.accountName, totalAmount]);
 
+  const getUpiDeepLink = (app: "gpay" | "phonepe" | "paytm" | "other") => {
+    if (!qrConfig.upiId || !totalAmount) return "";
+    const payeeName = qrConfig.accountName?.trim() || "Store";
+    const params = `pa=${encodeURIComponent(qrConfig.upiId.trim())}&pn=${encodeURIComponent(
+      payeeName
+    )}&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(`Order Payment - ${payeeName}`)}`;
+
+    const isAndroid = typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+    const isIOS = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+    if (app === "gpay") {
+      if (isAndroid) {
+        return `intent://pay?${params}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end;`;
+      }
+      if (isIOS) {
+        return `tez://upi/pay?${params}`;
+      }
+      return `upi://pay?${params}`;
+    }
+
+    if (app === "phonepe") {
+      if (isAndroid) {
+        return `intent://pay?${params}#Intent;scheme=upi;package=com.phonepe.app;end;`;
+      }
+      if (isIOS) {
+        return `phonepe://pay?${params}`;
+      }
+      return `upi://pay?${params}`;
+    }
+
+    if (app === "paytm") {
+      if (isAndroid) {
+        return `intent://pay?${params}#Intent;scheme=upi;package=net.one97.paytm;end;`;
+      }
+      if (isIOS) {
+        return `paytmmp://pay?${params}`;
+      }
+      return `upi://pay?${params}`;
+    }
+
+    return `upi://pay?${params}`;
+  };
+
+  const handleUpiAppClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    appName: string,
+    _uri: string
+  ) => {
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (!isMobile) {
+      e.preventDefault();
+      toast(
+        `To pay with ${appName}, scan the QR code below using your phone camera or ${appName}!`,
+        { icon: "📱", id: "desktop-qr-hint" }
+      );
+      return;
+    }
+  };
+
+  const upiApps = [
+    {
+      id: "gpay" as const,
+      name: "Google Pay",
+      icon: <GooglePayIcon className="h-5 w-auto" />,
+      activeBorder: "border-blue-500 bg-blue-50/50 text-blue-950 ring-2 ring-blue-500/20",
+      buttonBg: "bg-slate-900 hover:bg-black text-white",
+    },
+    {
+      id: "phonepe" as const,
+      name: "PhonePe",
+      icon: <PhonePeIcon className="h-7 w-7" />,
+      activeBorder: "border-[#5F259F] bg-purple-50/50 text-purple-950 ring-2 ring-[#5F259F]/20",
+      buttonBg: "bg-[#5F259F] hover:bg-[#4E1E82] text-white",
+    },
+    {
+      id: "paytm" as const,
+      name: "Paytm",
+      icon: <PaytmIcon className="h-4.5 w-auto" />,
+      activeBorder: "border-[#002E6E] bg-sky-50/50 text-sky-950 ring-2 ring-[#002E6E]/20",
+      buttonBg: "bg-[#002E6E] hover:bg-[#001D47] text-white",
+    },
+  ];
+
+  const currentUpiApp = upiApps.find((a) => a.id === selectedUpiApp) || upiApps[0];
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 pt-24 pb-24 md:pb-12 relative overflow-x-hidden">
@@ -1332,7 +1489,7 @@ const CheckoutPage = () => {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-bold text-sm uppercase tracking-wide flex items-center gap-1.5">
-                          Pay with QR
+                          Direct Payment
                         </span>
                         <QrCode
                           className={`h-6 w-6 ${
@@ -1404,7 +1561,7 @@ const CheckoutPage = () => {
                       : paymentMethod === "POD"
                         ? `Place Order — ₹${totalAmount}`
                         : paymentMethod === "QR"
-                          ? `Pay with QR — ₹${totalAmount}`
+                          ? `Direct Payment — ₹${totalAmount}`
                           : `Pay Now — ₹${totalAmount}`}
                 </button>
               </div>
@@ -1485,7 +1642,7 @@ const CheckoutPage = () => {
                         <span>Free</span>
                         {isShippingDisabledForPayment && (
                           <span className="text-[10px] bg-green-100 text-green-800 font-semibold px-1.5 py-0.5 rounded-full">
-                            Free for {paymentMethod === "POD" ? "COD" : paymentMethod === "QR" ? "QR" : "Online"}
+                            Free for {paymentMethod === "POD" ? "COD" : paymentMethod === "QR" ? "Direct Payment" : "Online"}
                           </span>
                         )}
                       </span>
@@ -1655,7 +1812,7 @@ const CheckoutPage = () => {
                 : paymentMethod === "POD"
                   ? "Place Order"
                   : paymentMethod === "QR"
-                    ? "Pay with QR"
+                    ? "Direct Payment"
                     : "Pay Now"}
           </button>
 
@@ -1735,7 +1892,7 @@ const CheckoutPage = () => {
                               <span>Free</span>
                               {isShippingDisabledForPayment && (
                                 <span className="text-[10px] bg-green-100 text-green-800 font-semibold px-1.5 py-0.5 rounded-full">
-                                  Free for {paymentMethod === "POD" ? "COD" : paymentMethod === "QR" ? "QR" : "Online"}
+                                  Free for {paymentMethod === "POD" ? "COD" : paymentMethod === "QR" ? "Direct Payment" : "Online"}
                                 </span>
                               )}
                             </span>
@@ -1810,11 +1967,11 @@ const CheckoutPage = () => {
                     )}
                     <div>
                       <h3 className="text-base font-black text-gray-900 tracking-tight">
-                        {qrModalStep === "SCAN" ? "Scan QR to Pay" : "Verify Payment (Optional)"}
+                        {qrModalStep === "SCAN" ? "Direct Payment" : "Verify Payment (Optional)"}
                       </h3>
                       <p className="text-[11px] text-gray-500 font-medium">
                         {qrModalStep === "SCAN"
-                          ? "Step 1: Scan with any UPI app"
+                          ? "Step 1: Pay with UPI app or scan QR"
                           : "Step 2: Enter transaction proof (Optional)"}
                       </p>
                     </div>
@@ -1846,20 +2003,109 @@ const CheckoutPage = () => {
                 {/* STEP 1: SCANNER IN THE CENTER */}
                 {qrModalStep === "SCAN" && (
                   <div className="mt-4 flex flex-col items-center">
-                    {/* 1-Tap Direct UPI Pay Button for Mobile Devices */}
+                    {/* Select UPI App to Pay (Google Pay, PhonePe, Paytm) */}
                     {upiIntentUri && (
-                      <div className="w-full mb-2">
+                      <div className="w-full mb-3 bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5">
+                        <div className="flex items-center justify-between mb-2.5 px-0.5">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                            <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+                            Select UPI App
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                            Fast Pay
+                          </span>
+                        </div>
+
+                        {/* 3 App Selection Cards */}
+                        <div className="grid grid-cols-3 gap-2 w-full">
+                          {upiApps.map((app) => {
+                            const isSelected = selectedUpiApp === app.id;
+                            return (
+                              <button
+                                key={app.id}
+                                type="button"
+                                onClick={() => {
+                                  if (selectedUpiApp === app.id) {
+                                    const isMobile =
+                                      typeof navigator !== "undefined" &&
+                                      /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+                                    if (isMobile) {
+                                      window.location.href = getUpiDeepLink(app.id);
+                                    } else {
+                                      toast(
+                                        `To pay with ${app.name}, scan the QR code below on your phone!`,
+                                        { icon: "📱", id: "desktop-qr-hint" }
+                                      );
+                                    }
+                                  } else {
+                                    setSelectedUpiApp(app.id);
+                                  }
+                                }}
+                                className={`group relative flex flex-col items-center justify-center py-2.5 px-2 rounded-xl border transition-all duration-200 cursor-pointer ${
+                                  isSelected
+                                    ? `${app.activeBorder} shadow-xs font-bold`
+                                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70 text-slate-700 shadow-2xs"
+                                }`}
+                              >
+                                {/* Active checkmark / Radio */}
+                                <div className="absolute top-1.5 right-1.5">
+                                  {isSelected ? (
+                                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-900 text-white text-[9px] font-black">
+                                      ✓
+                                    </span>
+                                  ) : (
+                                    <span className="block h-3.5 w-3.5 rounded-full border border-slate-300 group-hover:border-slate-400" />
+                                  )}
+                                </div>
+
+                                <div className="h-7.5 mb-1.5 mt-0.5 flex items-center justify-center">
+                                  {app.icon}
+                                </div>
+
+                                <span className="text-[11px] font-bold tracking-tight text-center truncate max-w-full">
+                                  {app.name}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Dynamic Action Button for Selected App */}
                         <a
-                          href={upiIntentUri}
-                          className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-md hover:shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 border border-purple-400/40 cursor-pointer"
+                          href={getUpiDeepLink(selectedUpiApp)}
+                          onClick={(e) =>
+                            handleUpiAppClick(
+                              e,
+                              currentUpiApp.name,
+                              getUpiDeepLink(selectedUpiApp)
+                            )
+                          }
+                          className={`w-full mt-2.5 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ${currentUpiApp.buttonBg}`}
                         >
-                          <Smartphone className="w-4 h-4 shrink-0" />
-                          <span>Tap to Pay with Google Pay / Any UPI App</span>
+                          <span>Pay ₹{totalAmount} with {currentUpiApp.name}</span>
+                          <ArrowRight className="w-3.5 h-3.5 ml-0.5 shrink-0" />
                         </a>
-                        <div className="relative flex py-2.5 items-center">
-                          <div className="flex-grow border-t border-gray-200"></div>
-                          <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-gray-400">or scan QR with another phone</span>
-                          <div className="flex-grow border-t border-gray-200"></div>
+
+                        {/* Other UPI apps */}
+                        <div className="mt-2 text-center">
+                          <a
+                            href={getUpiDeepLink("other")}
+                            onClick={(e) =>
+                              handleUpiAppClick(e, "Any UPI App", getUpiDeepLink("other"))
+                            }
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-purple-700 transition-colors cursor-pointer"
+                          >
+                            <span>Other UPI app (Cred, BHIM, etc.)</span>
+                            <span className="text-xs">→</span>
+                          </a>
+                        </div>
+
+                        <div className="relative flex py-2 items-center mt-1">
+                          <div className="flex-grow border-t border-slate-200"></div>
+                          <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-slate-400">
+                            or scan QR with another phone
+                          </span>
+                          <div className="flex-grow border-t border-slate-200"></div>
                         </div>
                       </div>
                     )}
@@ -1881,7 +2127,7 @@ const CheckoutPage = () => {
                     {/* Pre-filled amount pill */}
                     {dynamicQrUrl && (
                       <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200 shadow-2xs">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                        {/* <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> */}
                         Exact amount ₹{totalAmount} pre-filled in QR &amp; App
                       </div>
                     )}
@@ -1911,7 +2157,7 @@ const CheckoutPage = () => {
 
                     <p className="mt-2 text-[11px] text-gray-500 text-center max-w-xs">
                       {dynamicQrUrl
-                        ? `Tap the button above on mobile or scan with GPay, PhonePe, Paytm — ₹${totalAmount} is pre-filled.`
+                        ? `Select an app above to pay directly on mobile, or scan the QR code — ₹${totalAmount} is pre-filled.`
                         : qrConfig.instructions || "Pay via Google Pay, PhonePe, Paytm or scan to complete payment."}
                     </p>
 
